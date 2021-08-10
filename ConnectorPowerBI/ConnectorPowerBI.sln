@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{4DF76451-A46A-4C0B-BE03-459FAAFA07E6}") = "Speckle", "ConnectorPowerBI\Speckle.mproj", "{BC2CE4D5-858C-45E0-A229-770C9E893FE4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BC2CE4D5-858C-45E0-A229-770C9E893FE4}.Debug|x86.ActiveCfg = Debug|x86
+		{BC2CE4D5-858C-45E0-A229-770C9E893FE4}.Debug|x86.Build.0 = Debug|x86
+		{BC2CE4D5-858C-45E0-A229-770C9E893FE4}.Release|x86.ActiveCfg = Release|x86
+		{BC2CE4D5-858C-45E0-A229-770C9E893FE4}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5C6F0538-DE53-4D91-8FE0-B9ECBC6F3ACA}
+	EndGlobalSection
+EndGlobal
