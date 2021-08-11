@@ -139,7 +139,7 @@ Speckle.GetObjectFromObject = (server, streamId, objectId) =>
 		]
 		),
 		#"JSON" = Json.Document(Source),
-        objects = {#"JSON"[data][stream][object][children][objects][data]},
+        objects = #"JSON"[data][stream][object][children][objects],
         objectsTable = Table.FromRecords(objects)
     in
         objectsTable;
