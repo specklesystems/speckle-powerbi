@@ -1,9 +1,8 @@
-﻿<Project DefaultTargets="BuildExtension" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="BuildExtension" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>
-    </ProjectGuid>
+    <ProjectGuid>{0b5fe03d-aad9-4bc4-9edf-b543d5e50d29}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>MyRootNamespace</RootNamespace>
     <AssemblyName>MyAssemblyName</AssemblyName>
@@ -78,6 +77,7 @@
 ]]></Code>
     </Task>
   </UsingTask>
+
   <Target Name="BuildExtension" DependsOnTargets="ExtensionClean">
     <ItemGroup>
       <PQFiles Include="@(Compile)" Condition="'%(Extension)' == '.pq'" />
@@ -90,6 +90,10 @@
     <Copy SourceFiles="@(NonPQFiles)" DestinationFolder="$(IntermediateOutputPath)" />
     <Copy SourceFiles="@(PQFiles)" DestinationFiles="@(PQFiles->'$(IntermediateOutputPath)%(RecursiveDir)%(FileName).m')" />
     <BuildExtension InputDirectory="$(IntermediateOutputPath)" OutputFile="$(OutputPath)\$(ProjectName).mez" />
+    <Message Text="Copying .mez file to: $(UserProfile)\Documents\Power BI Desktop\Custom Connectors" Importance="High" />
+    <MakeDir Directories="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\" />
+    <Copy SourceFiles="$(OutputPath)\$(ProjectName).mez" DestinationFolder="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors">
+    </Copy>
   </Target>
   <Target Name="ExtensionClean">
     <!-- Remove obj folder -->
