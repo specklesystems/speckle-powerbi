@@ -135,11 +135,11 @@ Speckle.GetObjectFromObject = (server, streamId, objectId) =>
 				#"Method"="POST",
 				#"Content-Type"="application/json"
 			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { data } } }""}")
+			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}")
 		]
 		),
 		#"JSON" = Json.Document(Source),
-        objects = {#"JSON"[data][stream][object][data]},
+        objects = {#"JSON"[data][stream][object][children][objects][data]},
         objectsTable = Table.FromRecords(objects)
     in
         objectsTable;
