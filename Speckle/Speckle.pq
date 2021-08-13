@@ -147,7 +147,10 @@ Speckle.GetObjectFromObject = (server, streamId, objectId) =>
 // Data Source Kind description
 Speckle = [
     Authentication = [
-        // Key = [],
+        Key = [
+            KeyLabel="Personal Access Token",
+            Label = "Speckle Token"
+        ],
         // UsernamePassword = [],
         // Windows = [],
         Implicit = []
