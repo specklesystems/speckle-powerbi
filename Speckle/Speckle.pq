@@ -149,11 +149,11 @@ Speckle = [
     Authentication = [
         Key = [
             KeyLabel="Personal Access Token",
-            Label = "Speckle Token"
+            Label = "Private stream"
         ],
-        // UsernamePassword = [],
-        // Windows = [],
-        Implicit = []
+        Implicit = [
+            Label = "Public stream"
+        ]
     ],
     Label = Extension.LoadString("Speckle Connector")
 ];
