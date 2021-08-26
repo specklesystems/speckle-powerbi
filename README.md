@@ -27,6 +27,14 @@ Go to the [Releases](https://github.com/specklesystems/speckle-powerbi/releases)
 YOUR_USER_FOLDER\Documents\Power BI Desktop\Custom Connectors\
 ```
 
+### Allow custom extensions to run
+
+Go to `Settings -> Security -> Data Extensions` and activate the following option:
+
+![Allow extensions to run](https://user-images.githubusercontent.com/2316535/130931149-074cf6a8-1910-41f1-99c7-b8b08168f473.png)
+
+### Checking the connector is loaded
+
 Now open PowerBI and you should see `Speckle (beta)` appear in the data source.
 
 ![PowerBI](https://user-images.githubusercontent.com/2316535/129580913-02e5e662-f344-419c-9894-e97055930c58.png)
