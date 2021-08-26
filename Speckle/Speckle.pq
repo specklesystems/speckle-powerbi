@@ -50,7 +50,7 @@ Speckle.GetBranchAsList = (branchRecord) =>
 */
 
 [DataSource.Kind="Speckle",  Publish="Speckle.Publish"]
-shared Speckle.Contents = Value.ReplaceType(CommitTable, type function (url as Uri.Type) as any);
+shared Speckle.Contents = Value.ReplaceType(CommitTable, type function (StreamUrl as Uri.Type) as any);
 
 shared CommitTable = (url) as table => 
     let
@@ -169,8 +169,8 @@ Speckle.Publish = [
 ];
 
 Speckle.Icons = [
-    Icon16 = { Extension.Contents("Speckle16.png") },
-    Icon32 = { Extension.Contents("Speckle32.png") }
+    Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
+    Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
 
 // copy and pasted function from microsoft docs since it's not included yet in M standard lib
