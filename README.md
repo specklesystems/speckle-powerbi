@@ -46,12 +46,6 @@ Give Speckle a try in no time by:
 
 This repo is the home to our Speckle 2.0 PowerBI project. The [Speckle Server](https://github.com/specklesystems/Server) is providing all the web-facing functionality and can be found [here](https://github.com/specklesystems/Server).
 
-## Documentation
-
-Comprehensive developer and user documentation can be found in our:
-
-#### 📚 [Speckle Docs website](https://speckle.guide/dev/)
-
 ## Install
 
 Go to the [Releases](https://github.com/specklesystems/speckle-powerbi/releases) page, downlad the `.mez` file of the latest release and copy it into the following folder in your computer:
@@ -75,6 +69,10 @@ Now open PowerBI and you should see `Speckle (beta)` appear in the data source.
 ## Usage
 
 > More detailed instructions on how to use the connector will be added shortly!
+
+### Current limitations
+
+Chunked data currently is not automatically de-chunked when received, we are aware of this limitation and are working to resolve it!
 
 ## Developing & Debugging
 
