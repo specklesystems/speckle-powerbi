@@ -63,7 +63,7 @@ shared CommitTable = (url) as table =>
         objectId = if (List.Count(segments) = 4 and segments{2} = "objects" ) then segments{3} else null,
         
         commitTable = if (commitId <> null) then Speckle.GetObjectFromCommit(server, streamId, commitId)
-        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId)
+        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId, false)
         else if (branchName <> null) then #table( { "Error" }, { { "Invalid URL, use a stream or commit or object url" } } ) // currently not implemented, see reason below
         else Speckle.GetObjectFromStream(server, streamId)
     in
@@ -84,7 +84,7 @@ Speckle.GetObjectFromStream = (server, streamId) =>
 		),
 		#"JSON" = Json.Document(Source),
         objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId)
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true)
     in
         objectsTable;
 
@@ -122,12 +122,14 @@ shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
 		),
 		#"JSON" = Json.Document(Source),
         objectId = #"JSON"[data][stream][commit][referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId)
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true)
     in
         objectsTable;
 
-Speckle.GetObjectFromObject = (server, streamId, objectId) => 
+Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) => 
     let
+        query = if (IsCommitObject) then "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}"
+        else "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { data } } }""}",
         Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
@@ -135,11 +137,12 @@ Speckle.GetObjectFromObject = (server, streamId, objectId) =>
 				#"Method"="POST",
 				#"Content-Type"="application/json"
 			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}")
+			Content=Text.ToBinary(query)
 		]
 		),
 		#"JSON" = Json.Document(Source),
-        objects = #"JSON"[data][stream][object][children][objects],
+        objects = if (IsCommitObject) then #"JSON"[data][stream][object][children][objects]
+        else {#"JSON"[data][stream][object][data]},
         objectsTable = Table.FromRecords(objects)
     in
         objectsTable;
