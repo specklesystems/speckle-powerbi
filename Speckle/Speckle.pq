@@ -71,6 +71,8 @@ shared CommitTable = (url) as table =>
     in
         commitTable;
 
+
+/* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
 Speckle.LogToMatomo = (server) =>
     let
         Source = Web.Contents("https://rynne.matomo.cloud/matomo.php?idsite=1&rec=1&apiv=1&uid=powerxyz&action_name=receive%2Fmanual&url=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&urlref=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&_cvar=%7B%22hostApplication%22:%20%22PowerBI%22%7D&e_c=Power%20BI&e_a=receive%2Fmanual",
