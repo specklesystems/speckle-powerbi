@@ -81,9 +81,10 @@ Speckle.LogToMatomo = (server) =>
             Content=Text.ToBinary(server)
         ]),
         Result = Text.FromBinary(Source),
-        return = if(Result = "some string") then Result else server
+        Combined = Text.Combine({server,Result},"___"),
+        Split = Text.Split(Combined,"___"){0}
     in
-        server;
+        Split;
 
 Speckle.GetObjectFromStream = (server, streamId) =>
     let
