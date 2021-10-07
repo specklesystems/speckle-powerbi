@@ -69,6 +69,18 @@ shared CommitTable = (url) as table =>
     in
         commitTable;
 
+Speckle.LogToMatomo = () =>
+    let
+        Source = Web.Contents("https://rynne.matomo.cloud/matomo.php?idsite=1&rec=1&apiv=1&uid=powerbiuser&action_name=receive%2Fmanual&url=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&urlref=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&_cvar=%7B%22hostApplication%22:%20%22PowerBI%22%7D&e_c=Power%20BI&e_a=receive%2Fmanual",
+        [
+            Headers=[
+                #"Method"="POST"
+            ],
+            Content=Text.ToBinary("")
+        ])
+    in
+        Source;
+
 Speckle.GetObjectFromStream = (server, streamId) =>
     let
         branchName = "main",
@@ -128,6 +140,7 @@ shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
 
 Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) => 
     let
+        Matomo = Speckle.LogToMatomo(),
         query = if (IsCommitObject) then "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}"
         else "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { data } } }""}",
         Source = Web.Contents(
