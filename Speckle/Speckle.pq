@@ -143,7 +143,12 @@ Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) =>
 		#"JSON" = Json.Document(Source),
         objects = if (IsCommitObject) then #"JSON"[data][stream][object][children][objects]
         else {#"JSON"[data][stream][object][data]},
-        objectsTable = Table.FromRecords(objects)
+
+        // remove closures from records, and remove DataChunk records
+        removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
+        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk")),
+
+        objectsTable = Table.FromRecords(removeDatachunkRecords)
     in
         objectsTable;
 
