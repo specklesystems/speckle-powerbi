@@ -75,20 +75,55 @@ shared CommitTable = (url) as table =>
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
 Speckle.LogToMatomo = (server) =>
     let
-        Source = Web.Contents("https://rynne.matomo.cloud/matomo.php?idsite=1&rec=1&apiv=1&uid=powerxyz&action_name=receive%2Fmanual&url=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&urlref=http:%2F%2Fconnectors%2FPowerBI%2Freceive%2Fmanual&_cvar=%7B%22hostApplication%22:%20%22PowerBI%22%7D&e_c=Power%20BI&e_a=receive%2Fmanual",
+        matomoUrl = "https://speckle.matomo.cloud/matomo.php",
+        action = "receive/manual",
+        appName = "Power BI",
+        userId = "powerBIuser",
+
+        params = [
+            idsite = "2",
+            rec = "1",
+            apiv = "1",
+            uid = userId,
+            action_name = action,
+            url = Text.Combine({"http://connectors/PowerBI/", action}),
+            urlref = Text.Combine({"http://connectors/PowerBI/", action}),
+            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName]))
+        ],
+        visitQuery = Uri.BuildQueryString(params),
+        visitRes = Web.Contents(Text.Combine({matomoUrl, "?", visitQuery}),
         [
             Headers=[
                 #"Method"="POST"
             ],
             Content=Text.ToBinary(server)
         ]),
-        Result = Text.FromBinary(Source),
+        
+        eventParams = [
+            idsite = "2",
+            rec = "1",
+            apiv = "1",
+            uid = userId,
+            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName])),
+            e_c = appName,
+            e_a = action
+        ],
+        eventQuery = Uri.BuildQueryString(eventParams),
+        eventRes = Web.Contents(Text.Combine({ matomoUrl, "?", eventQuery}),
+        [
+            Headers=[
+                #"Method"="POST"
+            ],
+            Content=Text.ToBinary(server)
+        ]),
+        Result = Text.FromBinary(visitRes) & Text.FromBinary(eventRes),
         Combined = Text.Combine({server,Result},"___"),
         Split = Text.Split(Combined,"___"){0}
     in
         Split;
 
 Speckle.GetObjectFromStream = (server, streamId) =>
+    
     let
         branchName = "main",
         Source = Web.Contents(
