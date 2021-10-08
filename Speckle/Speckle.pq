@@ -48,14 +48,16 @@ Speckle.GetBranchAsList = (branchRecord) =>
     in
         list;
 */
-
 [DataSource.Kind="Speckle",  Publish="Speckle.Publish"]
 shared Speckle.Contents = Value.ReplaceType(CommitTable, type function (StreamUrl as Uri.Type) as any);
 
+/* INFO: Variables will not be instantiated (or any code run) until they are used */
 shared CommitTable = (url) as table => 
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
-        server = Text.Combine({"https://", Uri.Parts(url)[Host]}),
+        s = Text.Combine({"https://", Uri.Parts(url)[Host]}),
+        server = Speckle.LogToMatomo(s),
+
         segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
         streamId = segments{1},
         branchName = if( List.Count(segments) = 4 and segments{2} = "branches" ) then segments{3} else null,
@@ -69,7 +71,59 @@ shared CommitTable = (url) as table =>
     in
         commitTable;
 
+
+/* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
+Speckle.LogToMatomo = (server) =>
+    let
+        matomoUrl = "https://speckle.matomo.cloud/matomo.php",
+        action = "receive/manual",
+        appName = "Power BI",
+        userId = "powerBIuser",
+
+        params = [
+            idsite = "2",
+            rec = "1",
+            apiv = "1",
+            uid = userId,
+            action_name = action,
+            url = Text.Combine({"http://connectors/PowerBI/", action}),
+            urlref = Text.Combine({"http://connectors/PowerBI/", action}),
+            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName]))
+        ],
+        visitQuery = Uri.BuildQueryString(params),
+        visitRes = Web.Contents(Text.Combine({matomoUrl, "?", visitQuery}),
+        [
+            Headers=[
+                #"Method"="POST"
+            ],
+            Content=Text.ToBinary(server)
+        ]),
+        
+        eventParams = [
+            idsite = "2",
+            rec = "1",
+            apiv = "1",
+            uid = userId,
+            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName])),
+            e_c = appName,
+            e_a = action
+        ],
+        eventQuery = Uri.BuildQueryString(eventParams),
+        eventRes = Web.Contents(Text.Combine({ matomoUrl, "?", eventQuery}),
+        [
+            Headers=[
+                #"Method"="POST"
+            ],
+            Content=Text.ToBinary(server)
+        ]),
+        Result = Text.FromBinary(visitRes) & Text.FromBinary(eventRes),
+        Combined = Text.Combine({server,Result},"___"),
+        Split = Text.Split(Combined,"___"){0}
+    in
+        Split;
+
 Speckle.GetObjectFromStream = (server, streamId) =>
+    
     let
         branchName = "main",
         Source = Web.Contents(
@@ -143,7 +197,12 @@ Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) =>
 		#"JSON" = Json.Document(Source),
         objects = if (IsCommitObject) then #"JSON"[data][stream][object][children][objects]
         else {#"JSON"[data][stream][object][data]},
-        objectsTable = Table.FromRecords(objects)
+
+        // remove closures from records, and remove DataChunk records
+        removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
+        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk")),
+
+        objectsTable = Table.FromRecords(removeDatachunkRecords)
     in
         objectsTable;
 
