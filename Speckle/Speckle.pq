@@ -66,11 +66,30 @@ shared CommitTable = (url) as table =>
         
         commitTable = if (commitId <> null) then Speckle.GetObjectFromCommit(server, streamId, commitId)
         else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId, false)
-        else if (branchName <> null) then #table( { "Error" }, { { "Invalid URL, use a stream or commit or object url" } } ) // currently not implemented, see reason below
+        else if (branchName <> null) then Speckle.GetObjectFromBranch(server,streamId,branchName)
         else Speckle.GetObjectFromStream(server, streamId)
     in
         commitTable;
 
+Speckle.CommitReceived = (server, streamId, commitId) =>
+    let
+        app= "PowerBI",
+        apiKey = try Extension.CurrentCredential()[Key] otherwise "",
+        Source = if apiKey = null then "wohoo" else Web.Contents(
+		Text.Combine({server, "graphql"}, "/"),
+		[
+			Headers=[
+				#"Method"="POST",
+                #"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
+			],
+            ManualStatusHandling = {400},
+			Content=Text.ToBinary("{""query"": ""mutation { commitReceive(input: { streamId: \"""&streamId&"\"", commitId: \"""&commitId&"\"", sourceApplication: \"""&app&"\""}) }""}")		]
+		),
+		#"JSON" = Json.Document(Source),
+        Result = #"JSON"[data][commitReceive]
+    in
+        if apiKey = "" then [data="skipped"] else [data=Text.From(Result)];
 
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
 Speckle.LogToMatomo = (server) =>
@@ -125,71 +144,86 @@ Speckle.LogToMatomo = (server) =>
 Speckle.GetObjectFromStream = (server, streamId) =>
     
     let
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         branchName = "main",
         Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
 			Headers=[
 				#"Method"="POST",
-				#"Content-Type"="application/json"
+				#"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
+
 			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&branchName&"\""){ commits (limit: 1) { items { referencedObject } } } } }""}")
+			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&branchName&"\""){ commits (limit: 1) { items { referencedObject, id } } } } }""}")
 		]
 		),
 		#"JSON" = Json.Document(Source),
         objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true)
+        commitId = #"JSON"[data][stream][branch][commits][items]{0}[id],
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
     in
-        objectsTable;
+        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
 
-/* Not implemented since power query M uri does not have a decode method...def not manually writing a method to handle special chars and emojis
 Speckle.GetObjectFromBranch = (server, streamId, branchName) => 
     let
+        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"),
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
 			Headers=[
 				#"Method"="POST",
-				#"Content-Type"="application/json"
+				#"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
 			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&branchName&"\""){ commits (limit: 1) { items { referencedObject } } } } }""}")
+			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&decodedBranchName&"\""){ commits (limit: 1) { items { id referencedObject } } } } }""}")
 		]
 		),
 		#"JSON" = Json.Document(Source),
         objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId)
+        commitId = #"JSON"[data][stream][branch][commits][items]{0}[id],
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
     in
-        objectsTable;
-*/
+        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
+
 
 shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
     let
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
 			Headers=[
 				#"Method"="POST",
-				#"Content-Type"="application/json"
+				#"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
 			],
 			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { commit (id: \"""&commitId&"\""){ referencedObject } } }""}")
 		]
 		),
 		#"JSON" = Json.Document(Source),
         objectId = #"JSON"[data][stream][commit][referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true)
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId),
+        forceCommitReceived = Table.RemoveFirstN(Table.InsertRows(objectsTable, 0, {commitReceivedRes}), 1)
     in
-        objectsTable;
+        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
 
 Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) => 
     let
         query = if (IsCommitObject) then "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}"
         else "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { data } } }""}",
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,        
         Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
 			Headers=[
 				#"Method"="POST",
-				#"Content-Type"="application/json"
+				#"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
 			],
 			Content=Text.ToBinary(query)
 		]
@@ -201,7 +235,6 @@ Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) =>
         // remove closures from records, and remove DataChunk records
         removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
         removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk")),
-
         objectsTable = Table.FromRecords(removeDatachunkRecords)
     in
         objectsTable;
