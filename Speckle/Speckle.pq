@@ -93,34 +93,11 @@ Speckle.LogToMatomo = (server) =>
     in
         Split;
 
-Speckle.GetObjectFromStream = (server, streamId) =>
-    
-    let
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        branchName = "main",
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-
-			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&branchName&"\""){ commits (limit: 1) { items { referencedObject, id } } } } }""}")
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        commitId = #"JSON"[data][stream][branch][commits][items]{0}[id],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
-        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
-    in
-        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
+Speckle.GetObjectFromStream = (server, streamId) => Speckle.GetObjectFromBranch(server, streamId, "main");
 
 Speckle.GetObjectFromBranch = (server, streamId, branchName) => 
     let
-        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"),
+        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         query = "query($streamId: String!, $branchName: String!) { stream( id: $streamId ) { branch (name: $branchName ){ commits (limit: 1) { items { id referencedObject } } } } }",
 		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, branchName=decodedBranchName]),
@@ -138,8 +115,7 @@ shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
         #"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, commitId=commitId]),
         objectId = #"JSON"[stream][commit][referencedObject],
         objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
-        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId),
-        forceCommitReceived = Table.RemoveFirstN(Table.InsertRows(objectsTable, 0, {commitReceivedRes}), 1)
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
     in
         if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
 
