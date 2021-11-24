@@ -126,16 +126,13 @@ shared Speckle.Api.Fetch = (server, query, optional variables) =>
         then error Text.FromBinary(Json.FromValue(#"JSON"[errors]{0}[message]) )
         else #"JSON"[data];
 
-// Read all pages of data.
-// After every page, we check the "NextLink" record on the metadata of the previous request.
-// Table.GenerateByPage will keep asking for more pages until we return null.
 Speckle.Api.GetAllObjectChildren = (server as text, streamId as text, objectId as text, optional cursor as text) as table =>
     Table.GenerateByPage((previous) => 
         let
             // if previous is null, then this is our first page of data
             nextCursor = if (previous = null) then cursor else Value.Metadata(previous)[Cursor]?,
             // if the cursor is null but the prevous page is not, we've reached the end
-            page = if (previous <> null and nextCursor = null) then  null else Speckle.Api.GetObjectChildren(server, streamId, objectId, 50, nextCursor)
+            page = if (previous <> null and nextCursor = null) then null else Speckle.Api.GetObjectChildren(server, streamId, objectId, 50, nextCursor)
         in
             page
     );
@@ -158,7 +155,7 @@ Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as t
         children = #"JSON"[stream][object][children],
         objects = children[objects],
         nextCursor=children[cursor],
-        clean=Speckle.CleanUpObjects(objects)
+        clean=Diagnostics.LogValue("Next cursor", Speckle.CleanUpObjects(objects))
     in
        Table.FromRecords(clean) meta [Cursor=nextCursor];
 
@@ -232,49 +229,16 @@ Speckle.LogToMatomo = (server) =>
     in
         Split;
 
-// copy and pasted function from microsoft docs since it's not included yet in M standard lib
-Table.ToNavigationTable = (
-    table as table,
-    keyColumns as list,
-    nameColumn as text,
-    dataColumn as text,
-    itemKindColumn as text,
-    itemNameColumn as text,
-    isLeafColumn as text
-) as table =>
+Extension.LoadFunction = (name as text) =>
     let
-        tableType = Value.Type(table),
-        newTableType = Type.AddTableKey(tableType, keyColumns, true) meta 
-        [
-            NavigationTable.NameColumn = nameColumn, 
-            NavigationTable.DataColumn = dataColumn,
-            NavigationTable.ItemKindColumn = itemKindColumn, 
-            Preview.DelayColumn = itemNameColumn, 
-            NavigationTable.IsLeafColumn = isLeafColumn
-        ],
-        navigationTable = Value.ReplaceType(table, newTableType)
+        binary = Extension.Contents(name),
+        asText = Text.FromBinary(binary)
     in
-        navigationTable;
+        Expression.Evaluate(asText, #shared);
 
-// The getNextPage function takes a single argument and is expected to return a nullable table
-Table.GenerateByPage = (getNextPage as function) as table =>
-    let        
-        listOfPages = List.Generate(
-            () => getNextPage(null),            // get the first page of data
-            (lastPage) => lastPage <> null,     // stop when the function returns null
-            (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
-        ),
-        // concatenate the pages together
-        tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
-        firstRow = tableOfPages{0}?
-    in
-        // if we didn't get back any pages of data, return an empty table
-        // otherwise set the table type based on the columns of the first page
-        if (firstRow = null) then
-            Table.FromRows({})
-        else        
-            Value.ReplaceType(
-                Table.ExpandTableColumn(tableOfPages, "Column1", Table.ColumnNames(firstRow[Column1])),
-                Value.Type(firstRow[Column1])
-            );
+Table.GenerateByPage = Extension.LoadFunction("Table.GenerateByPage.pqm");
 
+// Diagnostics module contains multiple functions. We can take the ones we need.
+Diagnostics = Extension.LoadFunction("Diagnostics.pqm");
+Diagnostics.LogValue = Diagnostics[LogValue];
+Diagnostics.LogFailure = Diagnostics[LogFailure];
