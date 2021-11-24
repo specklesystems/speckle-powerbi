@@ -99,10 +99,21 @@ Speckle.GetObjectFromBranch = (server, streamId, branchName) =>
     let
         decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        query = "query($streamId: String!, $branchName: String!) { stream( id: $streamId ) { branch (name: $branchName ){ commits (limit: 1) { items { id referencedObject } } } } }",
+        query = "query($streamId: String!, $branchName: String!) { 
+            stream( id: $streamId ) { 
+                branch (name: $branchName ){
+                    commits (limit: 1) {
+                        items {
+                            id
+                            referencedObject
+                        }
+                    }
+                }
+            }
+        }",
 		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, branchName=decodedBranchName]),
         commit = #"JSON"[stream][branch][commits][items]{0},
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, commit[referencedObject]),
+        objectsTable = Speckle.GetAllObjectChildren(server, streamId, commit[referencedObject]),
         commitReceivedRes = Speckle.CommitReceived(server, streamId, commit[id])
     in
         if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
@@ -111,8 +122,15 @@ Speckle.GetObjectFromBranch = (server, streamId, branchName) =>
 shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
     let
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        query = "query($streamId: String!, $commitId: String!) { stream( id: $streamId ) { commit (id: $commitId){ referencedObject } } }",
-        #"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, commitId=commitId]),
+        query = "query($streamId: String!, $commitId: String!) {
+            stream( id: $streamId ) {
+                commit (id: $commitId) {
+                    referencedObject
+                }
+            }
+        }",
+        variables = [streamId=streamId, commitId=commitId],
+        #"JSON" = Speckle.Api.Fetch(server, query, variables),
         objectId = #"JSON"[stream][commit][referencedObject],
         objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId),
         commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
@@ -121,15 +139,26 @@ shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
 
 Speckle.GetObjectFromObject = (server, streamId, objectId, optional limit, optional cursor) => 
     let
-        query = "query($streamId: String!, $objectId: String!, $limit: Int!, $cursor: String) { stream( id: $streamId ) { object (id: $objectId) { children(limit: $limit, cursor: $cursor) { totalCount cursor objects { data } } } } }",
-		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=if limit<>null then limit else 100, cursor=cursor]),
+        query = "query($streamId: String!, $objectId: String!, $limit: Int!, $cursor: String) { 
+            stream( id: $streamId ) { 
+                object (id: $objectId) { 
+                    children(limit: $limit, cursor: $cursor) { 
+                        cursor 
+                        objects { 
+                            data 
+                        } 
+                    } 
+                } 
+            } 
+        }",
+        variables = [streamId=streamId, objectId=objectId, limit=if limit<>null then limit else 100, cursor=cursor],
+		#"JSON" = Speckle.Api.Fetch(server, query, variables ),
         children = #"JSON"[stream][object][children],
         objects = children[objects],
-        totalCount = children[totalCount],
         Cursor=children[cursor],
         // Pagination should go here!!
         cleanObjects = Speckle.CleanUpObjects(objects),
-        objectsTable = Table.FromRecords(cleanObjects)
+        objectsTable = Table.FromRecords(objects)
     in
        objectsTable meta [Cursor=Cursor];
 
@@ -193,10 +222,21 @@ Speckle.Api.Fetch = (server, query, optional variables) =>
         else #"JSON"[data];
 
 
-Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as text, optional limit as text, optional cursor as text) => 
+Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) => 
     let
-        query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String) { stream( id: $streamId ) { object (id: $objectId) { children(limit: $limit, cursor: $cursor) { totalCount cursor objects { data } } } } }",
-		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=11, cursor=null]),
+        query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String) { 
+            stream( id: $streamId ) { 
+                object (id: $objectId) { 
+                    children(limit: $limit, cursor: $cursor) { 
+                        cursor
+                        objects { 
+                            data 
+                        } 
+                    } 
+                } 
+            } 
+        }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=limit, cursor=null]),
         children = #"JSON"[stream][object][children],
         objects = children[objects],
         cursor=children[cursor],
@@ -219,3 +259,65 @@ Speckle.Api.GetObjectChildrenTotal = (server as text, streamId as text, objectId
         count = #"JSON"[stream][object][children][totalCount]
     in
        count;
+
+
+// copy and pasted function from microsoft docs since it's not included yet in M standard lib
+Table.ToNavigationTable = (
+    table as table,
+    keyColumns as list,
+    nameColumn as text,
+    dataColumn as text,
+    itemKindColumn as text,
+    itemNameColumn as text,
+    isLeafColumn as text
+) as table =>
+    let
+        tableType = Value.Type(table),
+        newTableType = Type.AddTableKey(tableType, keyColumns, true) meta 
+        [
+            NavigationTable.NameColumn = nameColumn, 
+            NavigationTable.DataColumn = dataColumn,
+            NavigationTable.ItemKindColumn = itemKindColumn, 
+            Preview.DelayColumn = itemNameColumn, 
+            NavigationTable.IsLeafColumn = isLeafColumn
+        ],
+        navigationTable = Value.ReplaceType(table, newTableType)
+    in
+        navigationTable;
+
+
+// The getNextPage function takes a single argument and is expected to return a nullable table
+Table.GenerateByPage = (getNextPage as function) as table =>
+    let        
+        listOfPages = List.Generate(
+            () => getNextPage(null),            // get the first page of data
+            (lastPage) => lastPage <> null,     // stop when the function returns null
+            (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
+        ),
+        // concatenate the pages together
+        tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
+        firstRow = tableOfPages{0}?
+    in
+        // if we didn't get back any pages of data, return an empty table
+        // otherwise set the table type based on the columns of the first page
+        if (firstRow = null) then
+            Table.FromRows({})
+        else        
+            Value.ReplaceType(
+                Table.ExpandTableColumn(tableOfPages, "Column1", Table.ColumnNames(firstRow[Column1])),
+                Value.Type(firstRow[Column1])
+            );
+
+// Read all pages of data.
+// After every page, we check the "NextLink" record on the metadata of the previous request.
+// Table.GenerateByPage will keep asking for more pages until we return null.
+Speckle.GetAllObjectChildren = (server as text, streamId as text, objectId as text, optional cursor as text) as table =>
+    Table.GenerateByPage((previous) => 
+        let
+            // if previous is null, then this is our first page of data
+            nextCursor = if (previous = null) then cursor else Value.Metadata(previous)[Cursor]?,
+            // if the cursor is null but the prevous page is not, we've reached the end
+            page = if (previous <> null and nextCursor = null) then  null else Speckle.GetObjectFromObject(server, streamId, objectId, 50, nextCursor)
+        in
+            page
+    );
