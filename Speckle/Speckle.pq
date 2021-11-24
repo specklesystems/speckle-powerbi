@@ -1,57 +1,37 @@
 ﻿section Speckle;
 
-/* This is an additional nav bar that can display branches of a stream: not using this for now
-[DataSource.Kind="Speckle",  Publish="Speckle.Publish"]
-shared Speckle.Contents = Value.ReplaceType(NavigationTable.Simple, type function (url as Uri.Type) as any);
+// Data Source UI publishing description
+Speckle.Publish = [
+    Beta = true,
+    Category = "Other",
+    ButtonText = { Extension.LoadString("ButtonTitle"), Extension.LoadString("ButtonHelp") },
+    LearnMoreUrl = "https://speckle.guide",
+    SourceImage = Speckle.Icons,
+    SourceTypeImage = Speckle.Icons
+];
 
-// set up nav table
-shared NavigationTable.Simple = (url) as table => 
-    let
-        baseUrl = Uri.Parts(url)[Host] as text,
-        streamId = Text.Split(Uri.Parts(url)[Path], "/"){2},
-        objects = Speckle.GetBranches(baseUrl, streamId),
-        table = #table(
-        {"Name", "Key", "Data", "ItemKind", "ItemName", "IsLeaf"}, 
-        List.InsertRange(objects, List.Count(objects), {{"GetCommit", "GetCommit", Speckle.GetObjectFromObject(baseUrl, streamId), "Function", "Function", true}})
-        ),
-        NavTable = Table.ToNavigationTable(table, {"Key"}, "Name", "Data", "ItemKind", "ItemName", "IsLeaf")
-    in
-        NavTable;
+Speckle.Icons = [
+    Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
+    Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
+];
 
-Speckle.GetBranches = (url, id) =>
-    let
-		Source = Web.Contents(
-		Text.Combine({"https:/", url, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json"
-			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&id&"\"" ) { branches { items { name commits { items { id message sourceApplication authorName createdAt } } } } } }""}")
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        branches = #"JSON"[data][stream][branches][items],
-        branchList = List.Generate(
-            () => [x = 0, y = Speckle.GetBranchAsList(branches{x})],
-            each [x] < List.Count(branches),
-            each [x = [x] + 1, y = Speckle.GetBranchAsList(branches{x})],
-            each [y]
-        )
-	in
-		branchList;
+// Data Source Kind description
+Speckle = [
+    Authentication = [
+        Key = [
+            KeyLabel="Personal Access Token",
+            Label = "Private stream"
+        ],
+        Implicit = [
+            Label = "Public stream"
+        ]
+    ],
+    Label = Extension.LoadString("Speckle Connector")
+];
 
-Speckle.GetBranchAsList = (branchRecord) =>
-    let
-        commits = Table.FromRecords(branchRecord[commits][items]),
-        list = {branchRecord[name], branchRecord[name], commits, "Table", "Table", true}
-    in
-        list;
-*/
 [DataSource.Kind="Speckle",  Publish="Speckle.Publish"]
 shared Speckle.Contents = Value.ReplaceType(CommitTable, type function (StreamUrl as Uri.Type) as any);
 
-/* INFO: Variables will not be instantiated (or any code run) until they are used */
 shared CommitTable = (url) as table => 
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
@@ -65,17 +45,128 @@ shared CommitTable = (url) as table =>
         objectId = if (List.Count(segments) = 4 and segments{2} = "objects" ) then segments{3} else null,
         
         commitTable = if (commitId <> null) then Speckle.GetObjectFromCommit(server, streamId, commitId)
-        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId, false)
+        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId)
         else if (branchName <> null) then Speckle.GetObjectFromBranch(server,streamId,branchName)
         else Speckle.GetObjectFromStream(server, streamId)
     in
         commitTable;
 
+shared Speckle.GetObjectFromStream = (server, streamId) => Speckle.GetObjectFromBranch(server, streamId, "main");
+
+shared Speckle.GetObjectFromBranch = (server, streamId, branchName) => 
+    let
+        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        query = "query($streamId: String!, $branchName: String!) { 
+            stream( id: $streamId ) { 
+                branch (name: $branchName ){
+                    commits (limit: 1) {
+                        items {
+                            id
+                            referencedObject
+                        }
+                    }
+                }
+            }
+        }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, branchName=decodedBranchName]),
+        commit = #"JSON"[stream][branch][commits][items]{0},
+        objectsTable = Speckle.Api.GetAllObjectChildren(server, streamId, commit[referencedObject]),
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commit[id])
+    in
+        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
+
+shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
+    let
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        query = "query($streamId: String!, $commitId: String!) {
+            stream( id: $streamId ) {
+                commit (id: $commitId) {
+                    referencedObject
+                }
+            }
+        }",
+        variables = [streamId=streamId, commitId=commitId],
+        #"JSON" = Speckle.Api.Fetch(server, query, variables),
+        objectId = #"JSON"[stream][commit][referencedObject],
+        objectsTable = Speckle.Api.GetAllObjectChildren(server, streamId, objectId),
+        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
+    in
+        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
+
+shared Speckle.GetObjectFromObject = (server, streamId, objectId, optional limit, optional cursor) => 
+    Speckle.Api.GetAllObjectChildren(server, streamId, objectId, limit, cursor);
+
+Speckle.CleanUpObjects = (objects) =>
+    let
+        // remove closures from records, and remove DataChunk records
+        removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
+        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk"))
+    in
+        removeDatachunkRecords;
+
+shared Speckle.Api.Fetch = (server, query, optional variables) => 
+    let
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,        
+        Source = Web.Contents(
+		Text.Combine({server, "graphql"}, "/"),
+		[
+			Headers=[
+				#"Method"="POST",
+				#"Content-Type"="application/json",
+                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
+			],
+            ManualStatusHandling = {400},
+			Content=Json.FromValue([query=Text.From(query),variables=variables])
+		]),
+		#"JSON" = Json.Document(Source)
+    in
+        // Check if response contains errors, if so, return first error. 
+        if Record.HasFields(#"JSON", {"errors"})
+        then error Text.FromBinary(Json.FromValue(#"JSON"[errors]{0}[message]) )
+        else #"JSON"[data];
+
+// Read all pages of data.
+// After every page, we check the "NextLink" record on the metadata of the previous request.
+// Table.GenerateByPage will keep asking for more pages until we return null.
+Speckle.Api.GetAllObjectChildren = (server as text, streamId as text, objectId as text, optional cursor as text) as table =>
+    Table.GenerateByPage((previous) => 
+        let
+            // if previous is null, then this is our first page of data
+            nextCursor = if (previous = null) then cursor else Value.Metadata(previous)[Cursor]?,
+            // if the cursor is null but the prevous page is not, we've reached the end
+            page = if (previous <> null and nextCursor = null) then  null else Speckle.Api.GetObjectChildren(server, streamId, objectId, 50, nextCursor)
+        in
+            page
+    );
+
+Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) => 
+    let
+        query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String) { 
+            stream( id: $streamId ) { 
+                object (id: $objectId) { 
+                    children(limit: $limit, cursor: $cursor) { 
+                        cursor
+                        objects { 
+                            data 
+                        } 
+                    } 
+                } 
+            } 
+        }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=limit, cursor=cursor]),
+        children = #"JSON"[stream][object][children],
+        objects = children[objects],
+        nextCursor=children[cursor],
+        clean=Speckle.CleanUpObjects(objects)
+    in
+       Table.FromRecords(clean) meta [Cursor=nextCursor];
+
 Speckle.CommitReceived = (server, streamId, commitId) =>
     let
         app= "PowerBI",
         apiKey = try Extension.CurrentCredential()[Key] otherwise "",
-        Source = if apiKey = null then "wohoo" else Web.Contents(
+        Source = Web.Contents(
 		Text.Combine({server, "graphql"}, "/"),
 		[
 			Headers=[
@@ -141,133 +232,6 @@ Speckle.LogToMatomo = (server) =>
     in
         Split;
 
-Speckle.GetObjectFromStream = (server, streamId) =>
-    
-    let
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        branchName = "main",
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-
-			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&branchName&"\""){ commits (limit: 1) { items { referencedObject, id } } } } }""}")
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        commitId = #"JSON"[data][stream][branch][commits][items]{0}[id],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
-        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
-    in
-        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
-
-Speckle.GetObjectFromBranch = (server, streamId, branchName) => 
-    let
-        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"),
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { branch (name: \"""&decodedBranchName&"\""){ commits (limit: 1) { items { id referencedObject } } } } }""}")
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        objectId = #"JSON"[data][stream][branch][commits][items]{0}[referencedObject],
-        commitId = #"JSON"[data][stream][branch][commits][items]{0}[id],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
-        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
-    in
-        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
-
-
-shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
-    let
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-			],
-			Content=Text.ToBinary("{""query"": ""query { stream( id: \"""&streamId&"\"" ) { commit (id: \"""&commitId&"\""){ referencedObject } } }""}")
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        objectId = #"JSON"[data][stream][commit][referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
-        commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId),
-        forceCommitReceived = Table.RemoveFirstN(Table.InsertRows(objectsTable, 0, {commitReceivedRes}), 1)
-    in
-        if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
-
-Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) => 
-    let
-        query = if (IsCommitObject) then "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { children { objects { data } } } } }""}"
-        else "{""query"": ""query { stream( id: \"""&streamId&"\"" ) { object (id: \"""&objectId&"\"") { data } } }""}",
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,        
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-				#"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-			],
-			Content=Text.ToBinary(query)
-		]
-		),
-		#"JSON" = Json.Document(Source),
-        objects = if (IsCommitObject) then #"JSON"[data][stream][object][children][objects]
-        else {#"JSON"[data][stream][object][data]},
-
-        // remove closures from records, and remove DataChunk records
-        removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
-        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk")),
-        objectsTable = Table.FromRecords(removeDatachunkRecords)
-    in
-        objectsTable;
-
-// Data Source Kind description
-Speckle = [
-    Authentication = [
-        Key = [
-            KeyLabel="Personal Access Token",
-            Label = "Private stream"
-        ],
-        Implicit = [
-            Label = "Public stream"
-        ]
-    ],
-    Label = Extension.LoadString("Speckle Connector")
-];
-
-// Data Source UI publishing description
-Speckle.Publish = [
-    Beta = true,
-    Category = "Other",
-    ButtonText = { Extension.LoadString("ButtonTitle"), Extension.LoadString("ButtonHelp") },
-    LearnMoreUrl = "https://speckle.guide",
-    SourceImage = Speckle.Icons,
-    SourceTypeImage = Speckle.Icons
-];
-
-Speckle.Icons = [
-    Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
-    Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
-];
-
 // copy and pasted function from microsoft docs since it's not included yet in M standard lib
 Table.ToNavigationTable = (
     table as table,
@@ -291,3 +255,26 @@ Table.ToNavigationTable = (
         navigationTable = Value.ReplaceType(table, newTableType)
     in
         navigationTable;
+
+// The getNextPage function takes a single argument and is expected to return a nullable table
+Table.GenerateByPage = (getNextPage as function) as table =>
+    let        
+        listOfPages = List.Generate(
+            () => getNextPage(null),            // get the first page of data
+            (lastPage) => lastPage <> null,     // stop when the function returns null
+            (lastPage) => getNextPage(lastPage) // pass the previous page to the next function call
+        ),
+        // concatenate the pages together
+        tableOfPages = Table.FromList(listOfPages, Splitter.SplitByNothing(), {"Column1"}),
+        firstRow = tableOfPages{0}?
+    in
+        // if we didn't get back any pages of data, return an empty table
+        // otherwise set the table type based on the columns of the first page
+        if (firstRow = null) then
+            Table.FromRows({})
+        else        
+            Value.ReplaceType(
+                Table.ExpandTableColumn(tableOfPages, "Column1", Table.ColumnNames(firstRow[Column1])),
+                Value.Type(firstRow[Column1])
+            );
+
