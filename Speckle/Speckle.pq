@@ -17,7 +17,7 @@ shared CommitTable = (url) as table =>
         objectId = if (List.Count(segments) = 4 and segments{2} = "objects" ) then segments{3} else null,
         
         commitTable = if (commitId <> null) then Speckle.GetObjectFromCommit(server, streamId, commitId)
-        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId, false)
+        else if (objectId <> null) then Speckle.GetObjectFromObject(server, streamId, objectId)
         else if (branchName <> null) then Speckle.GetObjectFromBranch(server,streamId,branchName)
         else Speckle.GetObjectFromStream(server, streamId)
     in
@@ -102,7 +102,7 @@ Speckle.GetObjectFromBranch = (server, streamId, branchName) =>
         query = "query($streamId: String!, $branchName: String!) { stream( id: $streamId ) { branch (name: $branchName ){ commits (limit: 1) { items { id referencedObject } } } } }",
 		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, branchName=decodedBranchName]),
         commit = #"JSON"[stream][branch][commits][items]{0},
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, commit[referencedObject], true),
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, commit[referencedObject]),
         commitReceivedRes = Speckle.CommitReceived(server, streamId, commit[id])
     in
         if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
@@ -114,23 +114,33 @@ shared Speckle.GetObjectFromCommit = (server, streamId, commitId) =>
         query = "query($streamId: String!, $commitId: String!) { stream( id: $streamId ) { commit (id: $commitId){ referencedObject } } }",
         #"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, commitId=commitId]),
         objectId = #"JSON"[stream][commit][referencedObject],
-        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId, true),
+        objectsTable = Speckle.GetObjectFromObject(server, streamId, objectId),
         commitReceivedRes = Speckle.CommitReceived(server, streamId, commitId)
     in
         if commitReceivedRes[data] = "true" then objectsTable else objectsTable;
 
-Speckle.GetObjectFromObject = (server, streamId, objectId, IsCommitObject) => 
+Speckle.GetObjectFromObject = (server, streamId, objectId, optional limit, optional cursor) => 
     let
-        query = "query($streamId: String!, $objectId: String!) { stream( id: $streamId ) { object (id: $objectId) { children { objects { data } } } } }",
-		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId]),
-        objects = #"JSON"[stream][object][children][objects],
+        query = "query($streamId: String!, $objectId: String!, $limit: Int!, $cursor: String) { stream( id: $streamId ) { object (id: $objectId) { children(limit: $limit, cursor: $cursor) { totalCount cursor objects { data } } } } }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=if limit<>null then limit else 100, cursor=cursor]),
+        children = #"JSON"[stream][object][children],
+        objects = children[objects],
+        totalCount = children[totalCount],
+        Cursor=children[cursor],
+        // Pagination should go here!!
+        cleanObjects = Speckle.CleanUpObjects(objects),
+        objectsTable = Table.FromRecords(cleanObjects)
+    in
+       objectsTable meta [Cursor=Cursor];
 
+
+Speckle.CleanUpObjects = (objects) =>
+    let
         // remove closures from records, and remove DataChunk records
         removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
-        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk")),
-        objectsTable = Table.FromRecords(removeDatachunkRecords)
+        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk"))
     in
-        objectsTable;
+        removeDatachunkRecords;
 
 // Data Source Kind description
 Speckle = [
@@ -182,28 +192,30 @@ Speckle.Api.Fetch = (server, query, optional variables) =>
         then error Text.FromBinary(Json.FromValue(#"JSON"[errors]{0}[message]) )
         else #"JSON"[data];
 
-// copy and pasted function from microsoft docs since it's not included yet in M standard lib
-Table.ToNavigationTable = (
-    table as table,
-    keyColumns as list,
-    nameColumn as text,
-    dataColumn as text,
-    itemKindColumn as text,
-    itemNameColumn as text,
-    isLeafColumn as text
-) as table =>
+
+Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as text, optional limit as text, optional cursor as text) => 
     let
-        tableType = Value.Type(table),
-        newTableType = Type.AddTableKey(tableType, keyColumns, true) meta 
-        [
-            NavigationTable.NameColumn = nameColumn, 
-            NavigationTable.DataColumn = dataColumn,
-            NavigationTable.ItemKindColumn = itemKindColumn, 
-            Preview.DelayColumn = itemNameColumn, 
-            NavigationTable.IsLeafColumn = isLeafColumn
-        ],
-        navigationTable = Value.ReplaceType(table, newTableType)
+        query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String) { stream( id: $streamId ) { object (id: $objectId) { children(limit: $limit, cursor: $cursor) { totalCount cursor objects { data } } } } }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=11, cursor=null]),
+        children = #"JSON"[stream][object][children],
+        objects = children[objects],
+        cursor=children[cursor],
+        clean=Speckle.CleanUpObjects(objects)
     in
-        navigationTable;
+       Table.FromRecords(clean) meta [Cursor=cursor];
 
-
+Speckle.Api.GetObjectChildrenTotal = (server as text, streamId as text, objectId as text) => 
+    let
+        query = "query($streamId: String!, $objectId: String!) { 
+            stream( id: $streamId ) { 
+                object (id: $objectId) { 
+                    children(limit: $limit, cursor: $cursor) { 
+                        totalCount
+                    }
+                }
+            }
+        }",
+		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=11, cursor=null]),
+        count = #"JSON"[stream][object][children][totalCount]
+    in
+       count;
