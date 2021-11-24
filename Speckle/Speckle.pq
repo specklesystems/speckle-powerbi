@@ -166,19 +166,18 @@ Speckle.CommitReceived = (server, streamId, commitId) =>
     let
         app= "PowerBI",
         apiKey = try Extension.CurrentCredential()[Key] otherwise "",
-        Source = Web.Contents(
-		Text.Combine({server, "graphql"}, "/"),
-		[
-			Headers=[
-				#"Method"="POST",
-                #"Content-Type"="application/json",
-                #"Authorization"= if apiKey = null then "" else Text.Format("Bearer #{0}",{apiKey})
-			],
-            ManualStatusHandling = {400},
-			Content=Text.ToBinary("{""query"": ""mutation { commitReceive(input: { streamId: \"""&streamId&"\"", commitId: \"""&commitId&"\"", sourceApplication: \"""&app&"\""}) }""}")		]
-		),
-		#"JSON" = Json.Document(Source),
-        Result = #"JSON"[data][commitReceive]
+        query = "mutation($input: CommitReceiveInput!) { 
+            commitReceive(input: $input) 
+        }",
+        variables = [
+            input = [
+                streamId=streamId,
+                commitId=commitId,
+                sourceApplication=app
+            ]
+        ],
+		#"JSON" = Speckle.Api.Fetch(server, query),
+        Result = #"JSON"[commitReceive]
     in
         if apiKey = "" then [data="skipped"] else [data=Text.From(Result)];
 
@@ -231,30 +230,6 @@ Speckle.LogToMatomo = (server) =>
         Split = Text.Split(Combined,"___"){0}
     in
         Split;
-
-// copy and pasted function from microsoft docs since it's not included yet in M standard lib
-Table.ToNavigationTable = (
-    table as table,
-    keyColumns as list,
-    nameColumn as text,
-    dataColumn as text,
-    itemKindColumn as text,
-    itemNameColumn as text,
-    isLeafColumn as text
-) as table =>
-    let
-        tableType = Value.Type(table),
-        newTableType = Type.AddTableKey(tableType, keyColumns, true) meta 
-        [
-            NavigationTable.NameColumn = nameColumn, 
-            NavigationTable.DataColumn = dataColumn,
-            NavigationTable.ItemKindColumn = itemKindColumn, 
-            Preview.DelayColumn = itemNameColumn, 
-            NavigationTable.IsLeafColumn = isLeafColumn
-        ],
-        navigationTable = Value.ReplaceType(table, newTableType)
-    in
-        navigationTable;
 
 // The getNextPage function takes a single argument and is expected to return a nullable table
 Table.GenerateByPage = (getNextPage as function) as table =>
