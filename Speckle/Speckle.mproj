@@ -42,12 +42,6 @@
     <Compile Include="resources.resx">
       <SubType>Code</SubType>
     </Compile>
-    <Content Include="docs-function.json">
-      <SubType>Content</SubType>
-    </Content>
-    <Content Include="docs.json">
-      <SubType>Content</SubType>
-    </Content>
     <Content Include="Speckle.query.pq">
       <SubType>Content</SubType>
     </Content>
