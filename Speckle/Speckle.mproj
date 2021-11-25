@@ -39,36 +39,42 @@
     <Compile Include="Speckle.pq">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo16.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo20.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo24.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo32.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo40.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo48.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo64.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo80.png">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="resources.resx">
       <SubType>Code</SubType>
     </Compile>
-    <Content Include="Speckle.query.pq">
-      <SubType>Code</SubType>
+    <Content Include="docs-function.json">
+      <SubType>Content</SubType>
     </Content>
+    <Content Include="docs.json">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Speckle.query.pq">
+      <SubType>Content</SubType>
+    </Content>
+    <Compile Include="SpeckleLogo16.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo20.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo24.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo32.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo40.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo48.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo64.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="SpeckleLogo80.png">
+      <SubType>Content</SubType>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <UsingTask TaskName="BuildExtension" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
