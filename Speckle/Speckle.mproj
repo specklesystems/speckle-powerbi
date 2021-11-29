@@ -46,30 +46,33 @@
     <Content Include="Speckle.query.pq">
       <SubType>Content</SubType>
     </Content>
-    <Compile Include="SpeckleLogo16.png">
+    <Compile Include="assets/SpeckleLogo16.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo20.png">
+    <Compile Include="assets/SpeckleLogo20.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo24.png">
+    <Compile Include="assets/SpeckleLogo24.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo32.png">
+    <Compile Include="assets/SpeckleLogo32.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo40.png">
+    <Compile Include="assets/SpeckleLogo40.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo48.png">
+    <Compile Include="assets/SpeckleLogo48.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo64.png">
+    <Compile Include="assets/SpeckleLogo64.png">
       <SubType>Content</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo80.png">
+    <Compile Include="assets/SpeckleLogo80.png">
       <SubType>Content</SubType>
     </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="assets\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <UsingTask TaskName="BuildExtension" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
