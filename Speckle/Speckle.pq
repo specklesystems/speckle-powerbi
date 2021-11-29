@@ -243,7 +243,7 @@ Speckle.CleanUpObjects = (objects as list) as list  =>
     in
         removeDatachunkRecords;
 
-shared Speckle.Api.Fetch = (server as text, query as text, optional variables as record) as record => 
+Speckle.Api.Fetch = (server as text, query as text, optional variables as record) as record => 
     let
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,        
         Source = Web.Contents(
