@@ -236,9 +236,9 @@ Speckle.GetObjectFromObject = (server as text, streamId as text, objectId as tex
 
 Speckle.CleanUpObjects = (objects as list) as list  =>
     let
-        // remove closures from records, and remove DataChunk records
-        removeClosureField = List.Transform(objects, each Record.RemoveFields(_[data], "_closure", MissingField.Ignore)),
-        removeTotals = List.Transform(removeClosureField, each Record.RemoveFields(_[data], "totalChildrenCount", MissingField.Ignore)),
+        // remove closures from records, and remove DataChunk records 
+        removeClosureField = List.Transform(objects, each [data=Record.RemoveFields(_[data],"__closure", MissingField.Ignore)]),
+        removeTotals = List.Transform(removeClosureField, each [data=try Record.RemoveFields(_[data], "totalChildrenCount", MissingField.Ignore) otherwise _[data]]),
         removeDatachunkRecords = List.RemoveItems(removeTotals, List.FindText(removeTotals, "Speckle.Core.Models.DataChunk"))
     in
         removeDatachunkRecords;
@@ -294,9 +294,8 @@ Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as t
         }",
 		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=limit, cursor=cursor]),
         children = #"JSON"[stream][object][children],
-        objects = List.Transform(children[objects], each [ speckleType = _[data][speckle_type], data= _[data] ] ),
         nextCursor=children[cursor],
-        clean=Speckle.CleanUpObjects(objects)
+        clean=Speckle.CleanUpObjects(children[objects])
     in
        Table.FromRecords(clean) meta [Cursor=nextCursor];
 
