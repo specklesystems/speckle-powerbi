@@ -1,21 +1,30 @@
 ﻿section Speckle;
 
-// Data Source UI publishing description
-Speckle.Publish = [
-    Beta = true,
-    Category = "Other",
-    ButtonText = { Extension.LoadString("ButtonTitle"), Extension.LoadString("ButtonHelp") },
-    LearnMoreUrl = "https://speckle.guide",
-    SourceImage = Speckle.Icons,
-    SourceTypeImage = Speckle.Icons
-];
-
-Speckle.Icons = [
+Beta = true;
+Category = "Other";
+Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
+Authentication = [
+        Key = [
+            KeyLabel="Personal Access Token",
+            Label = "Private stream"
+        ],
+        Implicit = [
+            Label = "Public stream"
+        ]
+    ];
 
-// Data Source Kind description
+GetPublish = (key as text) as record => [
+    Beta = Beta,
+    Category = Category,
+    ButtonText = { Extension.LoadString(Text.Format("#{0}.Title", {key})), Extension.LoadString(Text.Format("#{0}.Label",{key})) },
+    LearnMoreUrl = "https://speckle.guide",
+    SourceImage = Icons,
+    SourceTypeImage = Icons
+];
+
 Speckle = [
     Authentication = [
         Key = [
@@ -25,21 +34,21 @@ Speckle = [
         Implicit = [
             Label = "Public stream"
         ]
-    ],
-    Label = Extension.LoadString("Speckle Connector")
+    ]
 ];
 
-[DataSource.Kind="Speckle",  Publish="Speckle.Publish"]
-shared Speckle.GetByUrl = Value.ReplaceType(GetByUrlImpl, GetByUrlType);
+[DataSource.Kind="Speckle", Publish="GetByUrl.Publish"]
+shared Speckle.GetByUrl = Value.ReplaceType(GetByUrl.Impl, GetByUrl.Type);
 
-GetByUrlType = type function (
+GetByUrl.Publish = GetPublish("GetByUrl");
+GetByUrl.Type = type function (
     url as (Uri.Type meta [
         Documentation.FieldCaption = "Stream URL",
         Documentation.FieldDescription = "The url of a stream in a Speckle server. You can copy it directly from your browser.",
         Documentation.SampleValues = {"https://speckle.xyz/streams/23401adf", "https://speckle.xyz/streams/23401adf/branches/main"}
     ])) 
     as table meta [
-        Documentation.Name = "Get Stream by URL",
+        Documentation.Name = "Speckle - Get stream by URL",
         Documentation.LongDescription = "Returns a flat list of all objects contained in a specific Speckle stream/branch/commit/object.
             Supports all types of stream url:#(lf)
             - Stream: will get the latest commit on the 'main' branch (i.e. 'https://speckle.xyz/streams/STREAM_ID')#(lf)
@@ -51,8 +60,7 @@ GetByUrlType = type function (
             Code = "HelloWorldWithDocs.Contents(""Hello world"", 2)"
         ]}
     ];
-
-GetByUrlImpl = (url as text) as table => 
+GetByUrl.Impl = (url as text) as table => 
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
         s = Text.Combine({"https://", Uri.Parts(url)[Host]}),
@@ -76,10 +84,76 @@ GetByUrlImpl = (url as text) as table =>
     in
         commitTable;
 
+Speckle.GetObjectFromStream = Value.ReplaceType(GetObjFromStream.Impl, GetObjFromStream.Type);
+GetObjFromStreamKind = [
+    Authentication = [
+        Key = [
+            KeyLabel="Personal Access Token",
+            Label = "Private stream"
+        ],
+        Implicit = [
+            Label = "Public stream"
+        ]
+    ]
+];
+GetObjFromStream.Publish = [
+    Beta = true,
+    Category = "Other",
+    ButtonText = { Extension.LoadString("GetStream.Title"), Extension.LoadString("GetStream.Label") },
+    LearnMoreUrl = "https://speckle.guide",
+    SourceImage = Icons,
+    SourceTypeImage = Icons
+];
 
-shared Speckle.GetObjectFromStream = (server as text, streamId as text) as table => Speckle.GetObjectFromBranch(server, streamId, "main");
+GetObjFromStream.Type = type function (
+    server as (Text.Type meta [
+        Documentation.FieldCaption = "Speckle Server",
+        Documentation.FieldDescription = "The Speckle Server to fetch data from",
+        Documentation.SampleValues = {"https://speckle.xyz"}
+    ]), 
+    streamId as (Text.Type meta [
+        Documentation.FieldCaption = "Stream ID",
+        Documentation.FieldDescription = "The unique ID of the Stream to fetch data from.",
+        Documentation.SampleValues = {"8325294b8f"}
+    ])) 
+    as table meta [
+        Documentation.Name = "Speckle - Get stream objects",
+        Documentation.LongDescription = "Returns a table of objects contained in the Stream's main branch latest commit.",
+        Documentation.Examples = {[
+            Description = "Returns all objects in the latest commit of stream https://speckle.xyz",
+            Code = "Speckle.GetObjectFromStream(""https://speckle.xyz"", ""8325294b8f"")"
+        ]}
+    ];
 
-shared Speckle.GetObjectFromBranch = (server as text, streamId as text, branchName as text) as table => 
+GetObjFromStream.Impl = (server as text, streamId as text) as table => Speckle.GetObjectFromBranch(server, streamId, "main");
+
+Speckle.GetObjectFromBranch = Value.ReplaceType(GetObjFromBranch.Impl, GetObjFromBranch.Type);
+GetObjFromBranch.Publish = GetPublish("GetObjFromBranch");
+GetObjFromBranch.Type = type function (
+    server as (Text.Type meta [
+        Documentation.FieldCaption = "Speckle Server",
+        Documentation.FieldDescription = "The Speckle Server to fetch data from",
+        Documentation.SampleValues = {"https://speckle.xyz"}
+    ]), 
+    streamId as (Text.Type meta [
+        Documentation.FieldCaption = "Stream ID",
+        Documentation.FieldDescription = "The unique ID of the Stream to fetch data from.",
+        Documentation.SampleValues = {"8325294b8f"}
+    ]),
+    branchName as (Text.Type meta [
+        Documentation.FieldCaption = "Branch name",
+        Documentation.FieldDescription = "The name of the branch inside that stream.",
+        Documentation.SampleValues = {"main", "some other branch", "branch/with/emoji🚀"}
+    ])) 
+    as table meta [
+        Documentation.Name = "Speckle - Get stream branch objects",
+        Documentation.LongDescription = "Returns a table of objects contained in the Stream's specified branch latest commit.",
+        Documentation.Examples = {[
+            Description = "Returns all objects in the latest commit of the specified branch in stream https://speckle.xyz",
+            Code = "Speckle.GetObjectFromStream(""https://speckle.xyz"", ""8325294b8f"")"
+        ]}
+    ];
+GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) as table => 
     let
         x = Speckle.GetByUrl(""),
         decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
@@ -102,13 +176,42 @@ shared Speckle.GetObjectFromBranch = (server as text, streamId as text, branchNa
         objectsTable = Speckle.Api.GetAllObjectChildren(server, streamId, commit[referencedObject]),
         rr = Speckle.CommitReceived( server, streamId, commit[id] )
     in
-        if branch = null then error Text.Format("The branch #{0} does not exist in stream #{1}",{decodedBranchName, streamId})
+        if branch = null then error Text.Format("The branch '#{0}' does not exist in stream '#{1}'",{decodedBranchName, streamId})
         else
             // Force evaluation of read receipt (ideally it should happen after fetching, but can't find a way)
-            if rr then objectsTable else objectsTable
-        ;
+            if rr then objectsTable else objectsTable;
 
-shared Speckle.GetObjectFromCommit = (server as text, streamId as text, commitId as text) as table =>
+
+Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromBranch.Impl, GetObjFromCommit.Type);
+
+GetObjFromCommit.Publish = GetPublish("GetObjFromCommit");
+
+GetObjFromCommit.Type = type function (
+    server as (Text.Type meta [
+        Documentation.FieldCaption = "Speckle Server",
+        Documentation.FieldDescription = "The Speckle Server to fetch data from",
+        Documentation.SampleValues = {"https://speckle.xyz"}
+    ]), 
+    streamId as (Text.Type meta [
+        Documentation.FieldCaption = "Stream ID",
+        Documentation.FieldDescription = "The unique ID of the Stream to fetch data from.",
+        Documentation.SampleValues = {"8325294b8f"}
+    ]),
+    commitId as (Text.Type meta [
+        Documentation.FieldCaption = "Commit ID",
+        Documentation.FieldDescription = "The unique ID of the commit to fetch.",
+        Documentation.SampleValues = {"main", "some other branch", "branch/with/emoji🚀"}
+    ])) 
+    as table meta [
+        Documentation.Name = "Speckle - Get stream commit objects",
+        Documentation.LongDescription = "Returns a table of objects contained in the Stream's specified commit.",
+        Documentation.Examples = {[
+            Description = "Returns all objects in the specified commit in stream https://speckle.xyz",
+            Code = "Speckle.GetObjectFromCommit(""https://speckle.xyz"", ""8325294b8f"", ""asdfw456a"")"
+        ]}
+    ];
+
+GetObjFromCommit.Impl = (server as text, streamId as text, commitId as text) as table =>
     let
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         query = "query($streamId: String!, $commitId: String!) {
@@ -128,14 +231,15 @@ shared Speckle.GetObjectFromCommit = (server as text, streamId as text, commitId
         else
             if rr then objectsTable else objectsTable;
 
-shared Speckle.GetObjectFromObject = (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) => 
+Speckle.GetObjectFromObject = (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) => 
     Speckle.Api.GetAllObjectChildren(server, streamId, objectId, limit, cursor);
 
 Speckle.CleanUpObjects = (objects as list) as list  =>
     let
         // remove closures from records, and remove DataChunk records
-        removeClosureField = List.Transform(objects, each Record.RemoveFields(_, "__closure", MissingField.Ignore)),
-        removeDatachunkRecords = List.RemoveItems(removeClosureField, List.FindText(removeClosureField, "Speckle.Core.Models.DataChunk"))
+        removeClosureField = List.Transform(objects, each Record.RemoveFields(_[data], "_closure", MissingField.Ignore)),
+        removeTotals = List.Transform(removeClosureField, each Record.RemoveFields(_[data], "totalChildrenCount", MissingField.Ignore)),
+        removeDatachunkRecords = List.RemoveItems(removeTotals, List.FindText(removeTotals, "Speckle.Core.Models.DataChunk"))
     in
         removeDatachunkRecords;
 
@@ -190,7 +294,7 @@ Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as t
         }",
 		#"JSON" = Speckle.Api.Fetch(server, query, [streamId=streamId, objectId=objectId, limit=limit, cursor=cursor]),
         children = #"JSON"[stream][object][children],
-        objects = children[objects],
+        objects = List.Transform(children[objects], each [ speckleType = _[data][speckle_type], data= _[data] ] ),
         nextCursor=children[cursor],
         clean=Speckle.CleanUpObjects(objects)
     in
@@ -198,7 +302,7 @@ Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as t
 
 Speckle.CommitReceived = (server, streamId, commitId) =>
     let
-        query = "mutation($input: CommitReceivedInput!) { 
+        query = "mutation($input: CommitReceivedInput!) {
             commitReceive(input: $input) 
         }",
         variables = [

@@ -117,13 +117,40 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ButtonHelp" xml:space="preserve">
-    <value>Connect to Speckle</value>
+  <data name="GetByUrl.Help" xml:space="preserve">
+    <value>Connect to Speckle by Stream URL</value>
   </data>
-  <data name="ButtonTitle" xml:space="preserve">
+  <data name="GetByUrl.Label" xml:space="preserve">
     <value>Speckle</value>
   </data>
-  <data name="DataSourceLabel" xml:space="preserve">
+  <data name="GetByUrl.Title" xml:space="preserve">
+    <value>Speckle - Get stream by URL</value>
+  </data>
+  <data name="GetObjFromBranch.Help" xml:space="preserve">
+    <value>Connect to Speckle by serer URL, stream ID and branch name</value>
+  </data>
+  <data name="GetObjFromBranch.Label" xml:space="preserve">
+    <value>Get the latest commit from a stream's branch</value>
+  </data>
+  <data name="GetObjFromBranch.Title" xml:space="preserve">
+    <value>Speckle - Get Stream branch</value>
+  </data>
+  <data name="GetObjFromCommit.Help" xml:space="preserve">
+    <value>Connect to Speckle by server URL, stream ID and commit ID</value>
+  </data>
+  <data name="GetObjFromCommit.Label" xml:space="preserve">
+    <value>A label</value>
+  </data>
+  <data name="GetObjFromCommit.Title" xml:space="preserve">
+    <value>Speckle - Get Stream commit</value>
+  </data>
+  <data name="GetStream.Help" xml:space="preserve">
+    <value>Connect to Speckle by server URL and stream ID</value>
+  </data>
+  <data name="GetStream.Label" xml:space="preserve">
     <value>Speckle</value>
+  </data>
+  <data name="GetStream.Title" xml:space="preserve">
+    <value>Speckle - Get Stream</value>
   </data>
 </root>
