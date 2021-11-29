@@ -10,15 +10,16 @@
     <AllowNativeQuery>False</AllowNativeQuery>
     <AsAction>False</AsAction>
     <FastCombine>False</FastCombine>
-    <ClearLog>False</ClearLog>
+    <ClearLog>True</ClearLog>
     <ShowEngineTraces>False</ShowEngineTraces>
-    <ShowUserTraces>False</ShowUserTraces>
+    <ShowUserTraces>True</ShowUserTraces>
     <LegacyRedirects>False</LegacyRedirects>
     <SuppressRowErrors>False</SuppressRowErrors>
     <SuppressCellErrors>False</SuppressCellErrors>
-    <MaxRows>1000</MaxRows>
+    <MaxRows>100</MaxRows>
     <ExtensionProject>Yes</ExtensionProject>
     <Name>Speckle</Name>
+    <ThrowOnFoldingFailure>False</ThrowOnFoldingFailure>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>false</DebugSymbols>
@@ -39,36 +40,39 @@
     <Compile Include="Speckle.pq">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="SpeckleLogo16.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo20.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo24.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo32.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo40.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo48.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo64.png">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="SpeckleLogo80.png">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="resources.resx">
       <SubType>Code</SubType>
     </Compile>
     <Content Include="Speckle.query.pq">
-      <SubType>Code</SubType>
+      <SubType>Content</SubType>
     </Content>
+    <Compile Include="assets/SpeckleLogo16.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo20.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo24.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo32.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo40.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo48.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo64.png">
+      <SubType>Content</SubType>
+    </Compile>
+    <Compile Include="assets/SpeckleLogo80.png">
+      <SubType>Content</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="assets\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <UsingTask TaskName="BuildExtension" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
