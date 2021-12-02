@@ -155,7 +155,6 @@ GetObjFromBranch.Type = type function (
     ];
 GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) as table => 
     let
-        x = Speckle.GetByUrl(""),
         decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         query = "query($streamId: String!, $branchName: String!) { 
@@ -182,7 +181,7 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
             if rr then objectsTable else objectsTable;
 
 
-Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromBranch.Impl, GetObjFromCommit.Type);
+Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromCommit.Impl, GetObjFromCommit.Type);
 
 GetObjFromCommit.Publish = GetPublish("GetObjFromCommit");
 
@@ -232,7 +231,7 @@ GetObjFromCommit.Impl = (server as text, streamId as text, commitId as text) as 
             if rr then objectsTable else objectsTable;
 
 Speckle.GetObjectFromObject = (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) => 
-    Speckle.Api.GetAllObjectChildren(server, streamId, objectId, limit, cursor);
+    Speckle.Api.GetAllObjectChildren(server, streamId, objectId, cursor);
 
 Speckle.CleanUpObjects = (objects as list) as list  =>
     let
