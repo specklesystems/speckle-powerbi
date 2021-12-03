@@ -65,7 +65,6 @@ GetByUrl.Impl = (url as text) as table =>
         // Get server and streamId, and branchName / commitId / objectid from the input url
         s = Text.Combine({"https://", Uri.Parts(url)[Host]}),
         server = Speckle.LogToMatomo(s),
-
         segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
         streamId = segments{1},
         branchName = if( List.Count(segments) = 4 and segments{2} = "branches" ) then segments{3} else null,
@@ -155,7 +154,7 @@ GetObjFromBranch.Type = type function (
     ];
 GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) as table => 
     let
-        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?A=" & branchName),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
+        decodedBranchName = Record.Field(Record.Field(Uri.Parts("http://www.dummy.com?" & Uri.BuildQueryString([A=branchName])),"Query"),"A"), // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         query = "query($streamId: String!, $branchName: String!) { 
             stream( id: $streamId ) { 
@@ -176,6 +175,7 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
         rr = Speckle.CommitReceived( server, streamId, commit[id] )
     in
         if branch = null then error Text.Format("The branch '#{0}' does not exist in stream '#{1}'",{decodedBranchName, streamId})
+        else if List.Count(branch[commits][items]) = 0 then error Text.Format("The branch '#{0}' in stream #{1} has no commits", { decodedBranchName, streamId })
         else
             // Force evaluation of read receipt (ideally it should happen after fetching, but can't find a way)
             if rr then objectsTable else objectsTable;
