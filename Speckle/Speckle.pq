@@ -6,15 +6,6 @@ Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
-Authentication = [
-        Key = [
-            KeyLabel="Personal Access Token",
-            Label = "Private stream"
-        ],
-        Implicit = [
-            Label = "Public stream"
-        ]
-    ];
 
 GetPublish = (key as text) as record => [
     Beta = Beta,
@@ -64,7 +55,7 @@ GetByUrl.Impl = (url as text) as table =>
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
         s = Text.Combine({"https://", Uri.Parts(url)[Host]}),
-        server = Speckle.LogToMatomo(s),
+        server = Speckle.LogEvent(s),
         segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
         streamId = segments{1},
         branchName = if( List.Count(segments) = 4 and segments{2} = "branches" ) then segments{3} else null,
@@ -84,17 +75,7 @@ GetByUrl.Impl = (url as text) as table =>
         commitTable;
 
 Speckle.GetObjectFromStream = Value.ReplaceType(GetObjFromStream.Impl, GetObjFromStream.Type);
-GetObjFromStreamKind = [
-    Authentication = [
-        Key = [
-            KeyLabel="Personal Access Token",
-            Label = "Private stream"
-        ],
-        Implicit = [
-            Label = "Public stream"
-        ]
-    ]
-];
+
 GetObjFromStream.Publish = [
     Beta = true,
     Category = "Other",
@@ -103,7 +84,6 @@ GetObjFromStream.Publish = [
     SourceImage = Icons,
     SourceTypeImage = Icons
 ];
-
 GetObjFromStream.Type = type function (
     server as (Text.Type meta [
         Documentation.FieldCaption = "Speckle Server",
@@ -123,10 +103,10 @@ GetObjFromStream.Type = type function (
             Code = "Speckle.GetObjectFromStream(""https://speckle.xyz"", ""8325294b8f"")"
         ]}
     ];
-
 GetObjFromStream.Impl = (server as text, streamId as text) as table => Speckle.GetObjectFromBranch(server, streamId, "main");
 
 Speckle.GetObjectFromBranch = Value.ReplaceType(GetObjFromBranch.Impl, GetObjFromBranch.Type);
+
 GetObjFromBranch.Publish = GetPublish("GetObjFromBranch");
 GetObjFromBranch.Type = type function (
     server as (Text.Type meta [
@@ -184,7 +164,6 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
 Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromCommit.Impl, GetObjFromCommit.Type);
 
 GetObjFromCommit.Publish = GetPublish("GetObjFromCommit");
-
 GetObjFromCommit.Type = type function (
     server as (Text.Type meta [
         Documentation.FieldCaption = "Speckle Server",
@@ -209,7 +188,6 @@ GetObjFromCommit.Type = type function (
             Code = "Speckle.GetObjectFromCommit(""https://speckle.xyz"", ""8325294b8f"", ""asdfw456a"")"
         ]}
     ];
-
 GetObjFromCommit.Impl = (server as text, streamId as text, commitId as text) as table =>
     let
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
@@ -315,54 +293,34 @@ Speckle.CommitReceived = (server, streamId, commitId) =>
         try Speckle.Api.Fetch(server, query, variables)[commitReceive] otherwise false;
 
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
-Speckle.LogToMatomo = (server) =>
+shared Speckle.LogEvent = (server) =>
     let
-        matomoUrl = "https://speckle.matomo.cloud/matomo.php",
-        action = "receive/manual",
-        appName = "Power BI",
-        userId = "powerBIuser",
+        matomoUrl = "https://analytics.speckle.systems/track?ip=1",
+        body = [
+          event = "receive",
+          properties = [
+            distinct_id = "powerBIuser",
+            server_id = "fake.speckle.server.xyz",
+            token = "acd87c5a50b56df91a795e999812a3a4",
+            hostApp = "powerbi",
+            hostAppVersion = "0"
+          ]
+        ],
+        Result = Web.Contents(matomoUrl,
+        [
+            Headers=[
+                #"Method"="POST",
+                #"Accept"="text/plain",
+                #"Content-Type" = "application/json"
+            ],
+            Content=Text.ToBinary(Text.Combine({"data=", Text.FromBinary(Json.FromValue(body))}))
+        ]),
 
-        params = [
-            idsite = "2",
-            rec = "1",
-            apiv = "1",
-            uid = userId,
-            action_name = action,
-            url = Text.Combine({"http://connectors/PowerBI/", action}),
-            urlref = Text.Combine({"http://connectors/PowerBI/", action}),
-            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName]))
-        ],
-        visitQuery = Uri.BuildQueryString(params),
-        visitRes = Web.Contents(Text.Combine({matomoUrl, "?", visitQuery}),
-        [
-            Headers=[
-                #"Method"="POST"
-            ],
-            Content=Text.ToBinary(server)
-        ]),
-        
-        eventParams = [
-            idsite = "2",
-            rec = "1",
-            apiv = "1",
-            uid = userId,
-            _cvar = Text.FromBinary(Json.FromValue([hostApplication = appName])),
-            e_c = appName,
-            e_a = action
-        ],
-        eventQuery = Uri.BuildQueryString(eventParams),
-        eventRes = Web.Contents(Text.Combine({ matomoUrl, "?", eventQuery}),
-        [
-            Headers=[
-                #"Method"="POST"
-            ],
-            Content=Text.ToBinary(server)
-        ]),
-        Result = Text.FromBinary(visitRes) & Text.FromBinary(eventRes),
-        Combined = Text.Combine({server,Result},"___"),
-        Split = Text.Split(Combined,"___"){0}
+        // Hack to force execution
+        Join = Text.Combine({ server, Text.From(Json.Document(Result))}, "_____"),
+        Disjoin = Text.Split(Join,"_____"){0}
     in
-        Split;
+        Disjoin;
 
 // The getNextPage function takes a single argument and is expected to return a nullable table
 Table.GenerateByPage = (getNextPage as function) as table =>
