@@ -1,4 +1,4 @@
-﻿section Speckle;
+section Speckle;
 
 Beta = true;
 Category = "Other";
@@ -292,18 +292,37 @@ Speckle.CommitReceived = (server, streamId, commitId) =>
         // Read receipts should fail gracefully no matter what
         try Speckle.Api.Fetch(server, query, variables)[commitReceive] otherwise false;
 
+shared Speckle.Api.GetUser = (server) =>
+    let
+        query = "query {
+            user { email }
+        }"
+    in
+        // Read receipts should fail gracefully no matter what
+        try Speckle.Api.Fetch(server, query)[user] otherwise null;
+
+
+Hash = (Value as text) =>
+    let
+      Solution = Binary.ToText(
+        Binary.FromList(
+          Binary.ToList(
+            Binary.Compress( Text.ToBinary(Value, BinaryEncoding.Base64), Compression.GZip))))
+    in
+      if Value = null then null else Value;
+
+
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
-shared Speckle.LogEvent = (server) =>
+Speckle.LogEvent = (server as text, optional serverId as text, optional userId as text) =>
     let
         matomoUrl = "https://analytics.speckle.systems/track?ip=1",
         body = [
           event = "receive",
           properties = [
-            distinct_id = "powerBIuser",
-            server_id = "fake.speckle.server.xyz",
+            distinct_id = userId,
+            server_id = serverId,
             token = "acd87c5a50b56df91a795e999812a3a4",
-            hostApp = "powerbi",
-            hostAppVersion = "0"
+            hostApp = "powerbi"
           ]
         ],
         Result = Web.Contents(matomoUrl,
