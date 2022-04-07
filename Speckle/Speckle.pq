@@ -302,30 +302,31 @@ shared Speckle.Api.GetUser = (server) =>
         try Speckle.Api.Fetch(server, query)[user] otherwise null;
 
 
-Hash = (Value as text) =>
+shared Hash = (Value as text) =>
     let
       Solution = Binary.ToText(
         Binary.FromList(
           Binary.ToList(
             Binary.Compress( Text.ToBinary(Value, BinaryEncoding.Base64), Compression.GZip))))
     in
-      if Value = null then null else Value;
+      if Value = null then null else Solution;
 
 
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
-Speckle.LogEvent = (server as text, optional serverId as text, optional userId as text) =>
+Speckle.LogEvent = (server as text) =>
     let
-        matomoUrl = "https://analytics.speckle.systems/track?ip=1",
+        trackUrl = "https://analytics.speckle.systems/track?ip=1",
+        user = Speckle.Api.GetUser(server),
         body = [
           event = "receive",
           properties = [
-            distinct_id = userId,
-            server_id = serverId,
+            distinct_id = if user = null then null else Hash(user),
+            server_id = Hash(server),
             token = "acd87c5a50b56df91a795e999812a3a4",
             hostApp = "powerbi"
           ]
         ],
-        Result = Web.Contents(matomoUrl,
+        Result = Web.Contents(trackUrl,
         [
             Headers=[
                 #"Method"="POST",
