@@ -1,5 +1,5 @@
 ﻿// Use this file to write queries to test your data connector
 let
-    result = Speckle.GetByUrl("https://speckle.xyz/streams/6ead215ec5/branches/main"){0}
+    result = Speckle.GetByUrl("https://latest.speckle.dev/streams/0c1e0c0266/branches/main")
 in
-    result[data]
+    result

@@ -62,7 +62,17 @@ GetByUrl.Impl = (url as text) as table =>
         commitId = if (List.Count(segments) = 4 and segments{2} = "commits" ) then segments{3} else null,
         objectId = if (List.Count(segments) = 4 and segments{2} = "objects" ) then segments{3} else null,
         
-        commitTable = 
+        urlType = 
+            if (commitId <> null) 
+                then "Commit"
+            else if (objectId <> null) 
+                then "Object"
+            else if (branchName <> null) 
+                then "Branch"
+            else 
+                "Stream",
+
+        commitObjectsTable = 
             if (commitId <> null) 
                 then Speckle.GetObjectFromCommit(server, streamId, commitId)
             else if (objectId <> null) 
@@ -70,9 +80,17 @@ GetByUrl.Impl = (url as text) as table =>
             else if (branchName <> null) 
                 then Speckle.GetObjectFromBranch(server,streamId,branchName)
             else 
-                Speckle.GetObjectFromStream(server, streamId)
+                Speckle.GetObjectFromStream(server, streamId),
+
+        addStreamUrl = Table.AddColumn(commitObjectsTable, "Stream URL", each server & "/streams/" & streamId),
+        addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each urlType),
+        addStreamId = Table.AddColumn(addUrlType, "Stream ID", each streamId),
+        addBranchCol = Table.AddColumn(addStreamId, "Branch Name", each branchName),
+        addCommitCol = Table.AddColumn(addBranchCol, "Commit ID", each commitId),
+        addObjectCol = Table.AddColumn(addCommitCol, "Object ID", each objectId),
+        final = Table.ReorderColumns(addObjectCol, {"Stream URL", "Stream ID", "URL Type", "Branch Name", "Commit ID", "Object ID", "data"})
     in
-        commitTable;
+        final;
 
 Speckle.GetObjectFromStream = Value.ReplaceType(GetObjFromStream.Impl, GetObjFromStream.Type);
 
@@ -316,7 +334,7 @@ shared Hash = (Value as text) =>
 Speckle.LogEvent = (server as text) =>
     let
         trackUrl = "https://analytics.speckle.systems/track?ip=1",
-        user = Speckle.Api.GetUser(server),
+        user = Speckle.Api.GetUser(server)[email],
         body = [
           event = "receive",
           properties = [
