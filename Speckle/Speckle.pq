@@ -90,7 +90,7 @@ GetByUrl.Impl = (url as text) as table =>
         addObjectCol = Table.AddColumn(addCommitCol, "Object ID", each objectId),
         final = Table.ReorderColumns(addObjectCol, {"Stream URL", "Stream ID", "URL Type", "Branch Name", "Commit ID", "Object ID", "data"})
     in
-        final;
+        Table.RemoveLastN(final, 1);
 
 Speckle.GetObjectFromStream = Value.ReplaceType(GetObjFromStream.Impl, GetObjFromStream.Type);
 
