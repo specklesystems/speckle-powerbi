@@ -84,11 +84,9 @@ GetByUrl.Impl = (url as text) as table =>
 
         addStreamUrl = Table.AddColumn(commitObjectsTable, "Stream URL", each server & "/streams/" & streamId),
         addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each urlType),
-        addStreamId = Table.AddColumn(addUrlType, "Stream ID", each streamId),
-        addBranchCol = Table.AddColumn(addStreamId, "Branch Name", each branchName),
-        addCommitCol = Table.AddColumn(addBranchCol, "Commit ID", each commitId),
-        addObjectCol = Table.AddColumn(addCommitCol, "Object ID", each objectId),
-        final = Table.ReorderColumns(addObjectCol, {"Stream URL", "Stream ID", "URL Type", "Branch Name", "Commit ID", "Object ID", "data"})
+        addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each [data][id]),
+        addSpeckleTypeCol = Table.AddColumn(addObjectIdCol, "speckle_type", each [data][speckle_type]),
+        final = Table.ReorderColumns(addSpeckleTypeCol,{"Stream URL", "URL Type", "Object ID", "speckle_type", "data" })
     in
         Table.RemoveLastN(final, 1);
 
