@@ -312,10 +312,13 @@ shared Speckle.Api.GetUser = (server) =>
     let
         query = "query {
             user { email }
-        }"
+        }",
+        res = try Speckle.Api.Fetch(server, query) otherwise null,
+        user = if res <> null then res[user] else null,
+        email = if user <> null then user[email] else null
     in
         // Read receipts should fail gracefully no matter what
-        try Speckle.Api.Fetch(server, query)[user] otherwise null;
+        email;
 
 
 shared Hash = (Value as text) =>
@@ -332,7 +335,7 @@ shared Hash = (Value as text) =>
 Speckle.LogEvent = (server as text) =>
     let
         trackUrl = "https://analytics.speckle.systems/track?ip=1",
-        user = Speckle.Api.GetUser(server)[email],
+        user = Speckle.Api.GetUser(server),
         body = [
           event = "receive",
           properties = [
@@ -356,7 +359,7 @@ Speckle.LogEvent = (server as text) =>
         Join = Text.Combine({ server, Text.From(Json.Document(Result))}, "_____"),
         Disjoin = Text.Split(Join,"_____"){0}
     in
-        Disjoin;
+        if user <> null then Disjoin else server; // Skip when no user is found (i.e. no credentials)
 
 // The getNextPage function takes a single argument and is expected to return a nullable table
 Table.GenerateByPage = (getNextPage as function) as table =>
