@@ -341,7 +341,7 @@ Speckle.LogEvent = (server as text) =>
           properties = [
             distinct_id = if user = null then null else Hash(user),
             server_id = Hash(server),
-            token = try Extension.CurrentCredential()[Key] otherwise null,
+            token = "acd87c5a50b56df91a795e999812a3a4",
             hostApp = "powerbi"
           ]
         ],
