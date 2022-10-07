@@ -54,8 +54,7 @@ GetByUrl.Type = type function (
 GetByUrl.Impl = (url as text) as table => 
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
-        s = Text.Combine({"https://", Uri.Parts(url)[Host]}),
-        server = Speckle.LogEvent(s),
+        server = Text.Combine({"https://", Uri.Parts(url)[Host]}),
         segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
         streamId = segments{1},
         branchName = if( List.Count(segments) = 4 and segments{2} = "branches" ) then segments{3} else null,
@@ -159,6 +158,7 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
                         items {
                             id
                             referencedObject
+                            sourceApplication
                         }
                     }
                 }
@@ -168,13 +168,13 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
         branch=res[stream][branch],
         commit = branch[commits][items]{0},
         objectsTable = Speckle.Api.GetAllObjectChildren(server, streamId, commit[referencedObject]),
-        rr = Speckle.CommitReceived( server, streamId, commit[id] )
+        rr = Speckle.CommitReceived( server, streamId, commit )
     in
         if branch = null then error Text.Format("The branch '#{0}' does not exist in stream '#{1}'",{decodedBranchName, streamId})
         else if List.Count(branch[commits][items]) = 0 then error Text.Format("The branch '#{0}' in stream #{1} has no commits", { decodedBranchName, streamId })
         else
             // Force evaluation of read receipt (ideally it should happen after fetching, but can't find a way)
-            if rr then objectsTable else objectsTable;
+            if rr then objectsTable else error "Failed to log receive";
 
 
 Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromCommit.Impl, GetObjFromCommit.Type);
@@ -210,6 +210,8 @@ GetObjFromCommit.Impl = (server as text, streamId as text, commitId as text) as 
         query = "query($streamId: String!, $commitId: String!) {
             stream( id: $streamId ) {
                 commit (id: $commitId) {
+                    id
+                    sourceApplication
                     referencedObject
                 }
             }
@@ -218,7 +220,7 @@ GetObjFromCommit.Impl = (server as text, streamId as text, commitId as text) as 
         #"JSON" = Speckle.Api.Fetch(server, query, variables),
         commit = #"JSON"[stream][commit],
         objectsTable = Speckle.Api.GetAllObjectChildren(server, streamId, commit[referencedObject]),
-        rr = Speckle.CommitReceived(server, streamId, commitId)
+        rr = Speckle.CommitReceived(server, streamId, commit)
     in
         if commit = null then error "The commit did not exist on this stream"
         else
@@ -292,7 +294,7 @@ Speckle.Api.GetObjectChildren = (server as text, streamId as text, objectId as t
     in
        Table.FromRecords(clean) meta [Cursor=nextCursor];
 
-Speckle.CommitReceived = (server, streamId, commitId) =>
+Speckle.CommitReceived = (server, streamId, commit) =>
     let
         query = "mutation($input: CommitReceivedInput!) {
             commitReceive(input: $input) 
@@ -300,25 +302,24 @@ Speckle.CommitReceived = (server, streamId, commitId) =>
         variables = [
             input = [
                 streamId=streamId,
-                commitId=commitId,
+                commitId=commit[id],
                 sourceApplication="PowerBI"
             ]
-        ] 
+        ],
+        s = Speckle.LogEvent(server, commit)
     in
         // Read receipts should fail gracefully no matter what
-        try Speckle.Api.Fetch(server, query, variables)[commitReceive] otherwise false;
+        try Speckle.Api.Fetch(s, query, variables)[commitReceive] otherwise false;
 
 shared Speckle.Api.GetUser = (server) =>
     let
         query = "query {
             user { email }
         }",
-        res = try Speckle.Api.Fetch(server, query) otherwise null,
-        user = if res <> null then res[user] else null,
-        email = if user <> null then user[email] else null
+        res = Speckle.Api.Fetch(server, query)
     in
         // Read receipts should fail gracefully no matter what
-        email;
+        try res[user][email] otherwise "hey";
 
 
 shared Hash = (Value as text) =>
@@ -330,19 +331,54 @@ shared Hash = (Value as text) =>
     in
       if Value = null then null else Solution;
 
+Speckle.GetApplicationSlug = (appName as text) =>
+  let
+    replaced = Text.Replace(appName, " ", ""),
+    name = Text.Lower(replaced)
+  in
+    if Text.Contains(name, "dynamo") then "dynamo" else
+    if Text.Contains(name, "revit") then "revit" else
+    if Text.Contains(name, "autocad") then "autocad" else
+    if Text.Contains(name, "civil") then "civil" else
+    if Text.Contains(name, "rhino") then "rhino" else
+    if Text.Contains(name, "grasshopper") then "grasshopper" else
+    if Text.Contains(name, "unity") then "unity" else
+    if Text.Contains(name, "gsa") then "gsa" else
+    if Text.Contains(name, "microstation") then "microstation" else
+    if Text.Contains(name, "openroads") then "openroads" else
+    if Text.Contains(name, "openrail") then "openrail" else
+    if Text.Contains(name, "openbuildings") then "openbuildings" else
+    if Text.Contains(name, "etabs") then "etabs" else
+    if Text.Contains(name, "sap") then "sap" else
+    if Text.Contains(name, "csibridge") then "csibridge" else
+    if Text.Contains(name, "safe") then "safe" else
+    if Text.Contains(name, "teklastructures") then "teklastructures" else
+    if Text.Contains(name, "dxf") then "dxf" else
+    if Text.Contains(name, "excel") then "excel" else
+    if Text.Contains(name, "unreal") then "unreal" else
+    if Text.Contains(name, "powerbi") then "powerbi" else
+    if Text.Contains(name, "blender") then "blender" else
+    if Text.Contains(name, "qgis") then "qgis" else
+    if Text.Contains(name, "arcgis") then "arcgis" else
+    if Text.Contains(name, "sketchup") then "sketchup" else
+    if Text.Contains(name, "archicad") then "archicad" else
+    if Text.Contains(name, "topsolid") then "topsolid" else
+    if Text.Contains(name, "python") then "python" else
+    if Text.Contains(name, "net") then "net" else "other";
 
 /* Since everything is lazily evaluated, we must join and split the result of the matomo call with the server, and spit back the server url for PowerBI to actually log the calls to Matomo */
-Speckle.LogEvent = (server as text) =>
+shared Speckle.LogEvent = (server as text, commit as any) =>
     let
         trackUrl = "https://analytics.speckle.systems/track?ip=1",
         user = Speckle.Api.GetUser(server),
         body = [
-          event = "receive",
+          event = "Receive",
           properties = [
-            distinct_id = if user = null then null else Hash(user),
             server_id = Hash(server),
             token = "acd87c5a50b56df91a795e999812a3a4",
-            hostApp = "powerbi"
+            hostApp = "powerbi",
+            sourceHostApp = Speckle.GetApplicationSlug(commit[sourceApplication]),
+            sourceHostAppVersion = commit[sourceApplication]
           ]
         ],
         Result = Web.Contents(trackUrl,
@@ -359,7 +395,7 @@ Speckle.LogEvent = (server as text) =>
         Join = Text.Combine({ server, Text.From(Json.Document(Result))}, "_____"),
         Disjoin = Text.Split(Join,"_____"){0}
     in
-        if user <> null then Disjoin else server; // Skip when no user is found (i.e. no credentials)
+        Disjoin; // Skip when no user is found (i.e. no credentials)
 
 // The getNextPage function takes a single argument and is expected to return a nullable table
 Table.GenerateByPage = (getNextPage as function) as table =>
