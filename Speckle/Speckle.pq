@@ -174,7 +174,7 @@ GetObjFromBranch.Impl = (server as text, streamId as text, branchName as text) a
         else if List.Count(branch[commits][items]) = 0 then error Text.Format("The branch '#{0}' in stream #{1} has no commits", { decodedBranchName, streamId })
         else
             // Force evaluation of read receipt (ideally it should happen after fetching, but can't find a way)
-            if rr then objectsTable else error "Failed to log receive";
+            if rr then objectsTable else objectsTable;
 
 
 Speckle.GetObjectFromCommit = Value.ReplaceType(GetObjFromCommit.Impl, GetObjFromCommit.Type);
