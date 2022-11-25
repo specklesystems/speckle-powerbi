@@ -80,14 +80,15 @@ GetByUrl.Impl = (url as text) as table =>
                 then Speckle.GetObjectFromBranch(server,streamId,branchName)
             else 
                 Speckle.GetObjectFromStream(server, streamId),
-
-        addStreamUrl = Table.AddColumn(commitObjectsTable, "Stream URL", each server & "/streams/" & streamId),
+        
+        removeEmpty = Table.RemoveLastN(commitObjectsTable, 1),
+        addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & streamId),
         addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each urlType),
-        addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each [data][id]),
-        addSpeckleTypeCol = Table.AddColumn(addObjectIdCol, "speckle_type", each [data][speckle_type]),
+        addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try [data][id] otherwise null),
+        addSpeckleTypeCol = Table.AddColumn(addObjectIdCol, "speckle_type", each try [data][speckle_type] otherwise null),
         final = Table.ReorderColumns(addSpeckleTypeCol,{"Stream URL", "URL Type", "Object ID", "speckle_type", "data" })
     in
-        Table.RemoveLastN(final, 1);
+        final;
 
 Speckle.GetObjectFromStream = Value.ReplaceType(GetObjFromStream.Impl, GetObjFromStream.Type);
 
