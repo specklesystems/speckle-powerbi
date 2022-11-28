@@ -1,0 +1,14 @@
+(producer as function, interval as function, optional count as number) as any =>
+    let
+        list = List.Generate(
+            () => {0, null},
+            (state) => state{0} <> null and (count = null or state{0} < count),
+            (state) =>
+                if state{1} <> null then
+                    {null, state{1}}
+                else
+                    {1 + state{0}, Function.InvokeAfter(() => producer(state{0}), interval(state{0}))},
+            (state) => state{1}
+        )
+    in
+        List.Last(list)
