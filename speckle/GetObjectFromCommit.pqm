@@ -1,0 +1,42 @@
+let
+    Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    GetAllObjectChildren = Extension.LoadFunction("GetAllObjectChildren.pqm"),
+    CommitReceived = Extension.LoadFunction("CommitReceived.pqm"),
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared) catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ]
+in
+    (server as text, streamId as text, commitId as text) as table =>
+        let
+            apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+            query = "query($streamId: String!, $commitId: String!) {
+            stream( id: $streamId ) {
+                commit (id: $commitId) {
+                    id
+                    sourceApplication
+                    referencedObject
+                }
+            }
+        }",
+            variables = [streamId = streamId, commitId = commitId],
+            #"JSON" = Fetch(server, query, variables),
+            commit = #"JSON"[stream][commit],
+            objectsTable = GetAllObjectChildren(server, streamId, commit[referencedObject]),
+            rr = CommitReceived(server, streamId, commit)
+        in
+            if commit = null then
+                error "The commit did not exist on this stream"
+            else if rr then
+                objectsTable
+            else
+                objectsTable

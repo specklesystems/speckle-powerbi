@@ -1,0 +1,55 @@
+let
+    Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
+    CommitReceived = Extension.LoadFunction("CommitReceived.pqm"),
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared) catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ]
+in
+    (server as text, streamId as text, branchName as text) as table =>
+        let
+            decodedBranchName = Record.Field(
+                Record.Field(Uri.Parts("http://www.dummy.com?" & Uri.BuildQueryString([A = branchName])), "Query"),
+                "A"
+            ),
+            // Hacky way to decode base64 strings: Put them in a url query param and parse the URL
+            apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+            query = "query($streamId: String!, $branchName: String!) { 
+            stream( id: $streamId ) { 
+                branch (name: $branchName ){
+                    commits (limit: 1) {
+                        items {
+                            id
+                            referencedObject
+                            sourceApplication
+                        }
+                    }
+                }
+            }
+        }",
+            res = Fetch(server, query, [streamId = streamId, branchName = decodedBranchName]),
+            branch = res[stream][branch],
+            commit = branch[commits][items]{0},
+            objectsTable = GetAllObjectChildren(server, streamId, commit[referencedObject]),
+            rr = CommitReceived(server, streamId, commit)
+        in
+            if branch = null then
+                error Text.Format("The branch '#{0}' does not exist in stream '#{1}'", {decodedBranchName, streamId})
+            else if List.Count(branch[commits][items]) = 0 then
+                error Text.Format("The branch '#{0}' in stream #{1} has no commits", {decodedBranchName, streamId})
+            else
+            // Force evaluation of read receipt (ideally it should happen after fetching, but can't find a way)
+            if rr then
+                objectsTable
+            else
+                objectsTable

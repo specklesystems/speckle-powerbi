@@ -1,0 +1,59 @@
+let
+    Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    GetAllObjectChildren = Extension.LoadFunction("GetAllObjectChildren.pqm"),
+    GetObjectFromCommit = Extension.LoadFunction("GetObjectFromCommit.pqm"),
+    GetObjectFromBranch = Extension.LoadFunction("GetObjectFromBranch.pqm"),
+    CommitReceived = Extension.LoadFunction("CommitReceived.pqm"),
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared) catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ]
+in
+    (url as text) as table =>
+        let
+            // Get server and streamId, and branchName / commitId / objectid from the input url
+            server = Text.Combine({"https://", Uri.Parts(url)[Host]}),
+            segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
+            streamId = segments{1},
+            branchName = if (List.Count(segments) = 4 and segments{2} = "branches") then segments{3} else null,
+            commitId = if (List.Count(segments) = 4 and segments{2} = "commits") then segments{3} else null,
+            objectId = if (List.Count(segments) = 4 and segments{2} = "objects") then segments{3} else null,
+            urlType =
+                if (commitId <> null) then
+                    "Commit"
+                else if (objectId <> null) then
+                    "Object"
+                else if (branchName <> null) then
+                    "Branch"
+                else
+                    "Stream",
+            commitObjectsTable =
+                if (commitId <> null) then
+                    GetObjectFromCommit(server, streamId, commitId)
+                else if (objectId <> null) then
+                    GetAllObjectChildren(server, streamId, objectId)
+                else if (branchName <> null) then
+                    GetObjectFromBranch(server, streamId, branchName)
+                else
+                    GetObjectFromBranch(server, streamId, "main"),
+            removeEmpty = Table.RemoveLastN(commitObjectsTable, 1),
+            addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & streamId),
+            addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each urlType),
+            addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
+            addSpeckleTypeCol = Table.AddColumn(
+                addObjectIdCol, "speckle_type", each try[data][speckle_type] otherwise null
+            ),
+            final = Table.ReorderColumns(
+                addSpeckleTypeCol, {"Stream URL", "URL Type", "Object ID", "speckle_type", "data"}
+            )
+        in
+            final

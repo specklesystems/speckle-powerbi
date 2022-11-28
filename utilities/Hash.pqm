@@ -1,0 +1,12 @@
+(Value as text) =>
+    let
+        Solution = Binary.ToText(
+            Binary.FromList(
+                Binary.ToList(Binary.Compress(Text.ToBinary(Value, BinaryEncoding.Base64), Compression.GZip))
+            )
+        )
+    in
+        if Value = null then
+            null
+        else
+            Solution
