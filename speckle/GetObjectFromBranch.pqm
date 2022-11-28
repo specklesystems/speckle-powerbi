@@ -1,7 +1,7 @@
 let
     Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
     GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
-    CommitReceived = Extension.LoadFunction("CommitReceived.pqm"),
+    CommitReceived = Extension.LoadFunction("Api.CommitReceived.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
             binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
