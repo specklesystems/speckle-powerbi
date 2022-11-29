@@ -1,0 +1,22 @@
+(server as text, query as text, optional variables as record) as record =>
+    let
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        Source = Web.Contents(
+            Text.Combine({server, "graphql"}, "/"),
+            [
+                Headers = [
+                    #"Method" = "POST",
+                    #"Content-Type" = "application/json",
+                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                ],
+                ManualStatusHandling = {400},
+                Content = Json.FromValue([query = Text.From(query), variables = variables])
+            ]
+        ),
+        #"JSON" = Json.Document(Source)
+    in
+        // Check if response contains errors, if so, return first error.
+        if Record.HasFields(#"JSON", {"errors"}) then
+            error #"JSON"[errors]{0}[message]
+        else
+            #"JSON"[data]

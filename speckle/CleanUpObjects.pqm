@@ -1,0 +1,19 @@
+(objects as list) as list =>
+    let
+        // remove closures from records, and remove DataChunk records
+        removeClosureField = List.Transform(
+            objects, each [data = Record.RemoveFields(_[data], "__closure", MissingField.Ignore)]
+        ),
+        removeTotals = List.Transform(
+            removeClosureField,
+            each
+                [
+                    data = try
+                        Record.RemoveFields(_[data], "totalChildrenCount", MissingField.Ignore) otherwise _[data]
+                ]
+        ),
+        removeDatachunkRecords = List.RemoveItems(
+            removeTotals, List.FindText(removeTotals, "Speckle.Core.Models.DataChunk")
+        )
+    in
+        removeDatachunkRecords
