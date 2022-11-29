@@ -1,7 +1,5 @@
 section Speckle;
 
-GetPublish = Extension.LoadFunction("GetPublish.pqm");
-
 Speckle = [
     Authentication = [
         Key = [
@@ -18,6 +16,7 @@ Speckle = [
 shared Speckle.GetByUrl = Value.ReplaceType(GetByUrl.Impl, GetByUrl.Type);
 
 GetByUrl.Publish = GetPublish("GetByUrl");
+
 GetByUrl.Type = type function (
     url as (
         Uri.Type meta [
@@ -46,6 +45,8 @@ GetByUrl.Type = type function (
 ];
 
 GetByUrl.Impl = Extension.LoadFunction("GetByUrl.pqm");
+
+GetPublish = Extension.LoadFunction("GetPublish.pqm");
 
 Extension.LoadFunction = (fileName as text) =>
     let

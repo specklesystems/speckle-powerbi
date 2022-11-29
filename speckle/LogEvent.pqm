@@ -1,5 +1,6 @@
 let
     GetApplicationSlug = Extension.LoadFunction("GetApplicationSlug.pqm"),
+    GetUser = Extension.LoadFunction("GetUser.pqm"),
     Hash = Extension.LoadFunction("Hash.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
@@ -18,7 +19,7 @@ in
     (server as text, commit as any) =>
         let
             trackUrl = "https://analytics.speckle.systems/track?ip=1",
-            user = Speckle.Api.GetUser(server),
+            user = GetUser(server),
             body = [
                 event = "Receive",
                 properties = [
