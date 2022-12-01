@@ -12,6 +12,7 @@ Speckle = [
     ]
 ];
 
+// The GetByUrl publicly visible function
 [DataSource.Kind = "Speckle", Publish = "GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(GetByUrl.Impl, GetByUrl.Type);
 
@@ -46,9 +47,10 @@ GetByUrl.Type = type function (
 
 GetByUrl.Impl = Extension.LoadFunction("GetByUrl.pqm");
 
+// Utility function to create the publish record for a function. This will be shown in the PowerBI UI.
 GetPublish = Extension.LoadFunction("GetPublish.pqm");
 
-Extension.LoadFunction = (fileName as text) =>
+shared Extension.LoadFunction = (fileName as text) =>
     let
         binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
     in

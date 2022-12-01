@@ -1,6 +1,6 @@
 let
     Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    GetAllObjectChildren = Extension.LoadFunction("GetAllObjectChildren.pqm"),
+    GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
     CommitReceived = Extension.LoadFunction("Api.CommitReceived.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
