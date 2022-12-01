@@ -10,22 +10,6 @@ in
                     result = Speckle.GetByUrl("https://latest.speckle.dev/streams/0c1e0c0266")
                 in
                     result <> null
-            ),
-            Fact(
-                "Can receive from branch",
-                true,
-                let
-                    result = Speckle.GetByUrl("https://latest.speckle.dev/streams/0c1e0c0266/branches/main")
-                in
-                    result <> null
-            ),
-            Fact(
-                "Can receive from commit",
-                true,
-                let
-                    result = Speckle.GetByUrl("https://latest.speckle.dev/streams/0c1e0c0266/commits/4966afe5d5")
-                in
-                    result <> null
             )
         },
         report = Facts.Summarize(facts)
