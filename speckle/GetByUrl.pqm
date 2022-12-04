@@ -1,6 +1,6 @@
 let
     Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    GetAllObjectChildren = Extension.LoadFunction("GetAllObjectChildren.pqm"),
+    GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
     GetObjectFromCommit = Extension.LoadFunction("GetObjectFromCommit.pqm"),
     GetObjectFromBranch = Extension.LoadFunction("GetObjectFromBranch.pqm"),
     CommitReceived = Extension.LoadFunction("Api.CommitReceived.pqm"),
@@ -23,19 +23,19 @@ in
         let
             // Get server and streamId, and branchName / commitId / objectid from the input url
             stream = ParseStreamUrl(url),
-            streamId = stream[id],
+            id = stream[id],
             server = stream[server],
             commitObjectsTable =
                 if (stream[urlType] = "Commit") then
-                    GetObjectFromCommit(server, streamId, stream[commit])
+                    GetObjectFromCommit(server, id, stream[commit])
                 else if (stream[urlType] = "Object") then
-                    GetAllObjectChildren(server, streamId, stream[object])
+                    GetAllObjectChildren(server, id, stream[object])
                 else if (stream[urlType] = "Branch") then
-                    GetObjectFromBranch(server, streamId, stream[branch])
+                    GetObjectFromBranch(server, id, stream[branch])
                 else
-                    GetObjectFromBranch(server, streamId, "main"),
+                    GetObjectFromBranch(server, id, "main"),
             removeEmpty = Table.RemoveLastN(commitObjectsTable, 1),
-            addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & streamId),
+            addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & id),
             addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each stream[urlType]),
             addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
             addSpeckleTypeCol = Table.AddColumn(

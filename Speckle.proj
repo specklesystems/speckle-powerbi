@@ -26,6 +26,11 @@
     <MakeDir Directories="$(OutputPath)" Condition="!Exists('$(OutputPath)')" />
     <ZipDirectory SourceDirectory="$(MezIntermediatePath)" DestinationFile="$(MezOutputPath)" Overwrite="true" />
   </Target>
+  <Target Name="CopyToConnectors" AfterTargets="BuildMez">
+    <Message Text="Copying .mez file to: $(UserProfile)\Documents\Power BI Desktop\Custom Connectors" Importance="High" />
+    <MakeDir Directories="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\" />
+    <Copy SourceFiles="$(MezOutputPath)" DestinationFolder="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\"/>
+  </Target>
   <Target Name="Clean">
     <RemoveDir Directories="$(MezIntermediatePath)" />
     <Delete Files="$(MezOutputPath)" />

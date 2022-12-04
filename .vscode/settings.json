@@ -1,5 +1,8 @@
 {
   "powerquery.general.mode": "SDK",
   "powerquery.sdk.defaultExtension": "${workspaceFolder}\\bin\\Speckle.mez",
-  "powerquery.sdk.defaultQueryFile": "${workspaceFolder}\\Speckle.query.pq"
+  "powerquery.sdk.defaultQueryFile": "${workspaceFolder}\\Speckle.query.pq",
+  "powerquery.general.experimental": true,
+  "powerquery.diagnostics.typeStrategy": "Extended",
+  "powerquery.sdk.features.useServiceHost": true
 }
