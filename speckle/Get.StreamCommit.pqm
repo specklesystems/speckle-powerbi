@@ -1,7 +1,5 @@
 let
     Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
-    CommitReceived = Extension.LoadFunction("Api.CommitReceived.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
             binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
@@ -16,7 +14,7 @@ let
                             Detail = [File = fileName, Error = e]
                         ]
 in
-    (server as text, streamId as text, commitId as text) as table =>
+    (server as text, streamId as text, commitId as text) as record =>
         let
             apiKey = try Extension.CurrentCredential()[Key] otherwise null,
             query = "query($streamId: String!, $commitId: String!) {
@@ -30,13 +28,9 @@ in
         }",
             variables = [streamId = streamId, commitId = commitId],
             #"JSON" = Fetch(server, query, variables),
-            commit = #"JSON"[stream][commit],
-            objectsTable = GetAllObjectChildren(server, streamId, commit[referencedObject]),
-            rr = CommitReceived(server, streamId, commit)
+            commit = #"JSON"[stream][commit]
         in
             if commit = null then
                 error "The commit did not exist on this stream"
-            else if rr then
-                objectsTable
             else
-                objectsTable
+                commit

@@ -1,0 +1,12 @@
+{
+  "configurations": [
+    {
+      "type": "powerquery",
+      "request": "launch",
+      "name": "Test powerquery file",
+      "program": "${workspaceFolder}/${command:AskForPowerQueryFileName}",
+      "additionalArgs": ["--logMashupEngineTraces", "user"],
+      "preLaunchTask": "build"
+    }
+  ]
+}

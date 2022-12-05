@@ -1,10 +1,11 @@
-(server) =>
+(url as text) =>
     let
         query = "query {
-            user { email }
+            activeUser { name email }
         }",
         // Imports
         Speckle.Api.Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        server = Extension.LoadFunction("ParseStreamUrl.pqm"),
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
@@ -20,4 +21,4 @@
                             ]
     in
         // Read receipts should fail gracefully no matter what
-        try Speckle.Api.Fetch(server, query)[user][email] otherwise "hey"
+        try Speckle.Api.Fetch(server, query)[activeUser][email] otherwise "hey"

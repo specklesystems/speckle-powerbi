@@ -1,6 +1,17 @@
-(server as text, query as text, optional variables as record) as record =>
+(server as text, optional query as text, optional variables as record) as record =>
     let
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        defaultQuery = "query {
+                activeUser {
+                    email 
+                    name
+                }
+                serverInfo {
+                    name 
+                    company 
+                    version
+                }
+            }",
         Source = Web.Contents(
             Text.Combine({server, "graphql"}, "/"),
             [
@@ -10,7 +21,7 @@
                     #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
                 ],
                 ManualStatusHandling = {400},
-                Content = Json.FromValue([query = Text.From(query), variables = variables])
+                Content = Json.FromValue([query = Text.From(query ?? defaultQuery), variables = variables])
             ]
         ),
         #"JSON" = Json.Document(Source)
