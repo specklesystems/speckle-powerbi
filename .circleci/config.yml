@@ -20,23 +20,22 @@ jobs:
       - run:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+      - store_artifacts:
+          path: /bin
       - persist_to_workspace:
           root: ./bin
           paths:
             - /*
-      - store_artifacts:
-          path: /bin/*.mez
   deploy-connector:
-    executor:
-      name: win/default
-      shell: powershell.exe
+    docker:
+      - image: cibuilds/github:0.10
     steps:
       - attach_workspace:
           at: ./artifacts
       - run:
-          name: "Deploy Data Connector"
-          command: "ls bin/"
-
+          name: "Publish Release on GitHub"
+          command: |
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ./artifacts/
 workflows:
   build:
     jobs:
