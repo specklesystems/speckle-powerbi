@@ -29,7 +29,7 @@ in
                         if (previous <> null and nextCursor = null) then
                             null
                         else
-                            Speckle.Api.GetObjectChildren(server, streamId, objectId, 50, nextCursor)
+                            Speckle.Api.GetObjectChildren(server, streamId, objectId, 1000, nextCursor)
                 in
                     page
         ) meta [server = server, streamId = streamId, objectId = objectId]

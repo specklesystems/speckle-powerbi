@@ -15,22 +15,37 @@ let
                             Detail = [File = fileName, Error = e]
                         ]
 in
-    (server as text, streamId as text, objectId as text, optional limit as number, optional cursor as text) =>
+    (
+        server as text,
+        streamId as text,
+        objectId as text,
+        optional limit as number,
+        optional cursor as text,
+        optional select as list
+    ) =>
         let
-            query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String) { 
+            query = "query($streamId: String!, $objectId: String!, $limit: Int, $cursor: String, $select: [String]) { 
             stream( id: $streamId ) { 
                 object (id: $objectId) { 
-                    children(limit: $limit, cursor: $cursor) { 
+                    children(select: $select, limit: $limit, cursor: $cursor) { 
                         cursor
-                        objects { 
-                            data 
+                        objects {
+                            data
                         } 
                     } 
                 } 
             } 
         }",
             #"JSON" = Speckle.Api.Fetch(
-                server, query, [streamId = streamId, objectId = objectId, limit = limit, cursor = cursor]
+                server,
+                query,
+                [
+                    streamId = streamId,
+                    objectId = objectId,
+                    limit = limit,
+                    cursor = cursor,
+                    select = select
+                ]
             ),
             children = #"JSON"[stream][object][children],
             nextCursor = children[cursor],
