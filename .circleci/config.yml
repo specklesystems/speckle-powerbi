@@ -2,25 +2,47 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
-    docker:
-      - image: cimg/base:stable
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
+  build:
+    executor:
+      name: win/default
+      shell: powershell.exe
     steps:
       - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: "Build Data Connector"
+          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+      - persist_to_workspace:
+          root: /tmp/dir
+          paths:
+            - bin/*
+  deploy:
+    executor:
+      name: win/default
+      shell: powershell.exe
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
+      - run:
+          name: "Build Data Connector"
+          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
 
-# Invoke jobs via workflows
-# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
-  say-hello-workflow:
+  build:
     jobs:
-      - say-hello
+      - build
+  deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: /.*/ # For testing only: /ci\/.*/
+            tags:
+              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
+      - deploy:
+          filters:
+            branches:
+              ignore: /.*/ # For testing only: /ci\/.*/
+            tags:
+              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
