@@ -22,7 +22,7 @@ Speckle = [
 // Gets the object referenced by a specific speckle URL
 [DataSource.Kind = "Speckle", Publish = "Get.ByUrl.Publish"]
 shared Speckle.Get.ByUrl = Value.ReplaceType(
-    Extension.LoadFunction("Get.ByUrl.pqm"),
+    Speckle.LoadFunction("Get.ByUrl.pqm"),
     type function (
         url as (
             Uri.Type meta [
@@ -53,7 +53,7 @@ shared Speckle.GetObjectAsNavTable = Value.ReplaceType(
 // Get's a flat list of speckle objects from a URL
 [DataSource.Kind = "Speckle", Publish = "GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
-    Extension.LoadFunction("GetByUrl.pqm"),
+    Speckle.LoadFunction("GetByUrl.pqm"),
     type function (
         url as (
             Uri.Type meta [
@@ -79,18 +79,18 @@ shared Speckle.GetByUrl = Value.ReplaceType(
 // Gets the current authenticated user, if any
 [DataSource.Kind = "Speckle"]
 shared Speckle.Api.GetUser = Value.ReplaceType(
-    Extension.LoadFunction("Api.GetUser.pqm"), type function (url as Uri.Type) as record
+    Speckle.LoadFunction("Api.GetUser.pqm"), type function (url as Uri.Type) as record
 );
 
 // Generic fetch function to our GraphQL endpoint
 [DataSource.Kind = "Speckle"]
 shared Speckle.Api.Fetch = Value.ReplaceType(
-    Extension.LoadFunction("Api.Fetch.pqm"),
+    Speckle.LoadFunction("Api.Fetch.pqm"),
     type function (url as Uri.Type, optional query as text, optional variables as record) as record
 );
 
 // Parses a stream url and returns a record with the type and values
-shared Speckle.ParseUrl = Extension.LoadFunction("ParseStreamUrl.pqm");
+shared Speckle.ParseUrl = Speckle.LoadFunction("ParseStreamUrl.pqm");
 
 Get.ByUrl.Publish = GetPublish("GetStream");
 
@@ -98,13 +98,13 @@ NavTable.Publish = GetPublish("GetObjectAsNavTable");
 
 GetByUrl.Publish = GetPublish("GetByUrl");
 
-GetPublish = Extension.LoadFunction("GetPublish.pqm");
+GetPublish = Speckle.LoadFunction("GetPublish.pqm");
 
 // Navigation table utility function
-Table.ToNavigationTable = Extension.LoadFunction("Table.ToNavigationTable.pqm");
+Table.ToNavigationTable = Speckle.LoadFunction("Table.ToNavigationTable.pqm");
 
 // Function to load `pqm` files
-Extension.LoadFunction = (fileName as text) =>
+shared Speckle.LoadFunction = (fileName as text) =>
     let
         binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
     in
@@ -112,7 +112,7 @@ Extension.LoadFunction = (fileName as text) =>
             Expression.Evaluate(asText, #shared) catch (e) =>
                 error
                     [
-                        Reason = "Extension.LoadFunction Failure",
+                        Reason = "Speckle.LoadFunction Failure",
                         Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
                         Message.Parameters = {fileName, e[Reason], e[Message]},
                         Detail = [File = fileName, Error = e]
