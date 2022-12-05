@@ -23,19 +23,19 @@ jobs:
       - store_artifacts:
           path: /bin
       - persist_to_workspace:
-          root: ./bin
+          root: ./
           paths:
-            - /*
+            - bin/*
   deploy-connector:
     docker:
       - image: cibuilds/github:0.10
     steps:
       - attach_workspace:
-          at: ./artifacts
+          at: ./
       - run:
           name: "Publish Release on GitHub"
           command: |
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ./artifacts/
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ./bin/
 workflows:
   build:
     jobs:
