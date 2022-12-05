@@ -1,0 +1,58 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+orbs:
+  win: circleci/windows@5.0
+
+jobs:
+  build-connector:
+    executor:
+      name: win/default
+      shell: powershell.exe
+    steps:
+      - checkout
+      - run:
+          name: "Set connector internal version"
+          command: |
+            $VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
+            (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
+      - run:
+          name: "Build Data Connector"
+          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+      - store_artifacts:
+          path: ./bin
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - bin/*
+  deploy-connector:
+    docker:
+      - image: cibuilds/github:0.10
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: "Publish Release on GitHub"
+          command: |
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/
+workflows:
+  build:
+    jobs:
+      - build-connector
+  deploy:
+    jobs:
+      - build-connector:
+          filters:
+            branches:
+              ignore: /.*/ # For testing only: /ci\/.*/
+            tags:
+              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
+      - deploy-connector:
+          filters:
+            branches:
+              ignore: /.*/ # For testing only: /ci\/.*/
+            tags:
+              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
+          requires:
+            - build-connector
