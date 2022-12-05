@@ -21,7 +21,7 @@ jobs:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
       - store_artifacts:
-          path: /bin
+          path: ./bin
       - persist_to_workspace:
           root: ./
           paths:
