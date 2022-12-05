@@ -21,9 +21,9 @@ jobs:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
       - persist_to_workspace:
-          root: ./bin/
+          root: ./bin
           paths:
-            - "*.mez"
+            - /*
       - store_artifacts:
           path: /bin/*.mez
   deploy-connector:
@@ -32,7 +32,7 @@ jobs:
       shell: powershell.exe
     steps:
       - attach_workspace:
-          at: ./
+          at: ./artifacts
       - run:
           name: "Deploy Data Connector"
           command: "ls bin/"
