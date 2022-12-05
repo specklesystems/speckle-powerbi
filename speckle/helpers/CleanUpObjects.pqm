@@ -12,8 +12,6 @@
                         Record.RemoveFields(_[data], "totalChildrenCount", MissingField.Ignore) otherwise _[data]
                 ]
         ),
-        removeDatachunkRecords = List.RemoveItems(
-            removeTotals, List.FindText(removeTotals, "Speckle.Core.Models.DataChunk")
-        )
+        removed = List.Select(removeTotals, each _[data][speckle_type] <> "Speckle.Core.Models.DataChunk")
     in
-        removeDatachunkRecords
+        objects
