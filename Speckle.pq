@@ -1,4 +1,4 @@
-[Version = "0.0.14"]
+[Version = "2.0.0"]
 section Speckle;
 
 // The data source definition, used when connecting to any speckle server

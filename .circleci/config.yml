@@ -13,23 +13,29 @@ jobs:
     steps:
       - checkout
       - run:
+          name: "Set connector internal version"
+          command: |
+            $VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
+            (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
+      - run:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
       - persist_to_workspace:
-          root: ./
+          root: ./bin/
           paths:
-            - bin/*
+            - "*.mez"
+      - store_artifacts:
+          path: /bin/*.mez
   deploy-connector:
     executor:
       name: win/default
       shell: powershell.exe
     steps:
-      - checkout
       - attach_workspace:
           at: ./
       - run:
-          name: "Build Data Connector"
-          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+          name: "Deploy Data Connector"
+          command: "ls bin/"
 
 workflows:
   build:
