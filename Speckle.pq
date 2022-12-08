@@ -92,6 +92,12 @@ shared Speckle.Api.Fetch = Value.ReplaceType(
 // Parses a stream url and returns a record with the type and values
 shared Speckle.ParseUrl = Speckle.LoadFunction("ParseStreamUrl.pqm");
 
+[DataSource.Kind = "Speckle"]
+shared Speckle.Api.REST.GetObject = Value.ReplaceType(
+    Speckle.LoadFunction("Api.REST.GetObject.pqm"),
+    type function (url as Uri.Type, optional streamId as text, optional objectId as text) as list
+);
+
 Get.ByUrl.Publish = GetPublish("GetStream");
 
 NavTable.Publish = GetPublish("GetObjectAsNavTable");
