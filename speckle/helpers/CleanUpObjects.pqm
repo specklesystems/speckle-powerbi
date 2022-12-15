@@ -14,4 +14,4 @@
         ),
         removed = List.Select(removeTotals, each _[data][speckle_type] <> "Speckle.Core.Models.DataChunk")
     in
-        objects
+        removed

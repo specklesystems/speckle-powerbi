@@ -7,7 +7,85 @@ Speckle = [
     TestConnection = (path) => {"Speckle.Api.GetUser", path},
     // This is the custom authentication strategy for our Connector
     Authentication = [
-        //
+        OAuth = [
+            Label = "Speckle Login (latest only)",
+            StartLogin = (clientApplication, dataSourcePath, state, display) =>
+                [
+                    LoginUri = Text.Combine({"https://latest.speckle.dev/authn/verify", "1ea917e25a", state}, "/"),
+                    CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
+                    WindowHeight = 800,
+                    WindowWidth = 600,
+                    Context = null
+                ],
+            FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
+                let
+                    Parts = Uri.Parts(callbackUri)[Query],
+                    Source = Web.Contents(
+                        Text.Combine({"https://latest.speckle.dev", "auth", "token"}, "/"),
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json"
+                            ],
+                            Content = Json.FromValue(
+                                [
+                                    accessCode = Parts[access_code],
+                                    appId = "1ea917e25a",
+                                    appSecret = "7d1cb26028",
+                                    challenge = state
+                                ]
+                            )
+                        ]
+                    ),
+                    json = Json.Document(Source)
+                in
+                    [
+                        access_token = json[token],
+                        scope = null,
+                        token_type = "bearer",
+                        refresh_token = json[refreshToken]
+                    ],
+            Refresh = (dataSourcePath, refreshToken) =>
+                let
+                    Source = Web.Contents(
+                        Text.Combine({"https://latest.speckle.dev", "auth", "token"}, "/"),
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json"
+                            ],
+                            Content = Json.FromValue(
+                                [
+                                    refreshToken = refreshToken,
+                                    appId = "1ea917e25a",
+                                    appSecret = "7d1cb26028"
+                                ]
+                            )
+                        ]
+                    ),
+                    json = Json.Document(Source)
+                in
+                    [
+                        access_token = json[token],
+                        scope = null,
+                        token_type = "bearer",
+                        refresh_token = json[refreshToken]
+                    ],
+            Logout = (clientApplication, dataSourcePath, accessToken) =>
+                let
+                    Source = Web.Contents(
+                        Text.Combine({"https://latest.speckle.dev", "auth", "logout"}, "/"),
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json"
+                            ],
+                            Content = Json.FromValue([
+                                token = accessToken
+                            ])
+                        ]
+                    ),
+                    json = Json.Document(Source)
+                in
+                    json
+        ],
         Key = [
             KeyLabel = "Personal Access Token",
             Label = "Private stream"
@@ -21,7 +99,7 @@ Speckle = [
 
 // Gets the object referenced by a specific speckle URL
 [DataSource.Kind = "Speckle", Publish = "Get.ByUrl.Publish"]
-shared Speckle.Get.ByUrl = Value.ReplaceType(
+shared Speckle.GetByUrl.Structured = Value.ReplaceType(
     Speckle.LoadFunction("Get.ByUrl.pqm"),
     type function (
         url as (
@@ -45,11 +123,10 @@ shared Speckle.Get.ByUrl = Value.ReplaceType(
     ]
 );
 
-[DataSource.Kind = "Speckle", Publish = "NavTable.Publish"]
-shared Speckle.GetObjectAsNavTable = Value.ReplaceType(
-    NavigationTable.Simple, type function (url as Uri.Type) as table
-);
-
+// [DataSource.Kind = "Speckle", Publish = "NavTable.Publish"]
+// shared Speckle.GetObjectAsNavTable = Value.ReplaceType(
+//     NavigationTable.Simple, type function (url as Uri.Type) as table
+// );
 // Get's a flat list of speckle objects from a URL
 [DataSource.Kind = "Speckle", Publish = "GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
@@ -92,6 +169,11 @@ shared Speckle.Api.Fetch = Value.ReplaceType(
 // Parses a stream url and returns a record with the type and values
 shared Speckle.ParseUrl = Speckle.LoadFunction("ParseStreamUrl.pqm");
 
+// [DataSource.Kind = "Speckle"]
+// shared Speckle.Api.REST.GetObject = Value.ReplaceType(
+//     Speckle.LoadFunction("Api.REST.GetObject.pqm"),
+//     type function (url as Uri.Type, optional streamId as text, optional objectId as text) as list
+// );
 Get.ByUrl.Publish = GetPublish("GetStream");
 
 NavTable.Publish = GetPublish("GetObjectAsNavTable");
@@ -117,33 +199,3 @@ shared Speckle.LoadFunction = (fileName as text) =>
                         Message.Parameters = {fileName, e[Reason], e[Message]},
                         Detail = [File = fileName, Error = e]
                     ];
-
-//HACK: Test functions for nav table stuff
-NavigationTable.Simple = (url as text) =>
-    let
-        objects = #table(
-            {"Name", "Key", "Data", "ItemKind", "ItemName", "IsLeaf"},
-            {
-                {"Item1", "item1", #table({"Column1"}, {{"Item1"}}), "Table", "Table", true},
-                {"Item2", "item2", #table({"Column1"}, {{"Item2"}}), "Table", "Table", true},
-                {"Item3", "item3", FunctionCallThatReturnsATable(), "Table", "Table", true},
-                {url, "myfunction", FunctionCallThatReturnsATable, "Function", "Function", true}
-            }
-        ),
-        NavTable = Table.ToNavigationTable(objects, {"Key"}, "Name", "Data", "ItemKind", "ItemName", "IsLeaf")
-    in
-        NavTable;
-
-FunctionCallThatReturnsATable = () => #table({"DynamicColumn"}, {{"Dynamic Value"}});
-CreateNavTable = (message as text) as table =>
-    let
-        objects = #table(
-            {"Name", "Key", "Data", "ItemKind", "ItemName", "IsLeaf"},
-            {
-                {"Item1", "item1", #table({"Column1"}, {{message}}), "Table", "Table", true},
-                {"Item2", "item2", #table({"Column1"}, {{message}}), "Table", "Table", true}
-            }
-        ),
-        NavTable = Table.ToNavigationTable(objects, {"Key"}, "Name", "Data", "ItemKind", "ItemName", "IsLeaf")
-    in
-        NavTable;
