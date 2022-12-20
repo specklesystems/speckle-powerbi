@@ -151,7 +151,7 @@
         <value>Speckle</value>
     </data>
     <data name="GetStream.Title" xml:space="preserve">
-        <value>Speckle - Get Stream</value>
+        <value>Speckle - Get Stream by URL [Structured]</value>
     </data>
     <data name="GetObjectAsNavTable.Title" xml:space="preserve">
         <value>Speckle - Get Object as NavTable</value>

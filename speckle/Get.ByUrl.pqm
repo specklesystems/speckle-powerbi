@@ -37,6 +37,11 @@ in
                 else
                     //We deal with object URLs directly
                     [referencedObject = stream[object]],
-            object = GetObject(server, id, commit[referencedObject])
+            object = GetObject(server, id, commit[referencedObject]),
+            rr = CommitReceived(server, id, commit),
+            result = Traverse(CleanUpObject(object) meta [server = server, stream = id, commit = commit])
         in
-            Traverse(CleanUpObject(object) meta [server = server, stream = id, commit = commit])
+            if rr then
+                result
+            else
+                result

@@ -1,6 +1,10 @@
 [Version = "2.0.0"]
 section Speckle;
 
+AuthAppId = "63463ba25d";
+AuthAppSecret = "c317a7ce45";
+AuthServer = "https://speckle.xyz";
+
 // The data source definition, used when connecting to any speckle server
 Speckle = [
     // This is used when running the connector on an on-premises data gateway
@@ -8,10 +12,10 @@ Speckle = [
     // This is the custom authentication strategy for our Connector
     Authentication = [
         OAuth = [
-            Label = "Speckle Login (latest only)",
+            Label = "Speckle.xyz",
             StartLogin = (clientApplication, dataSourcePath, state, display) =>
                 [
-                    LoginUri = Text.Combine({"https://latest.speckle.dev/authn/verify", "1ea917e25a", state}, "/"),
+                    LoginUri = Text.Combine({AuthServer, "authn", "verify", AuthAppId, state}, "/"),
                     CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
                     WindowHeight = 800,
                     WindowWidth = 600,
@@ -21,7 +25,7 @@ Speckle = [
                 let
                     Parts = Uri.Parts(callbackUri)[Query],
                     Source = Web.Contents(
-                        Text.Combine({"https://latest.speckle.dev", "auth", "token"}, "/"),
+                        Text.Combine({AuthServer, "auth", "token"}, "/"),
                         [
                             Headers = [
                                 #"Content-Type" = "application/json"
@@ -29,8 +33,8 @@ Speckle = [
                             Content = Json.FromValue(
                                 [
                                     accessCode = Parts[access_code],
-                                    appId = "1ea917e25a",
-                                    appSecret = "7d1cb26028",
+                                    appId = AuthAppId,
+                                    appSecret = AuthAppSecret,
                                     challenge = state
                                 ]
                             )
@@ -47,7 +51,7 @@ Speckle = [
             Refresh = (dataSourcePath, refreshToken) =>
                 let
                     Source = Web.Contents(
-                        Text.Combine({"https://latest.speckle.dev", "auth", "token"}, "/"),
+                        Text.Combine({AuthServer, "auth", "token"}, "/"),
                         [
                             Headers = [
                                 #"Content-Type" = "application/json"
@@ -55,8 +59,8 @@ Speckle = [
                             Content = Json.FromValue(
                                 [
                                     refreshToken = refreshToken,
-                                    appId = "1ea917e25a",
-                                    appSecret = "7d1cb26028"
+                                    appId = AuthAppId,
+                                    appSecret = AuthAppSecret
                                 ]
                             )
                         ]
@@ -68,23 +72,7 @@ Speckle = [
                         scope = null,
                         token_type = "bearer",
                         refresh_token = json[refreshToken]
-                    ],
-            Logout = (clientApplication, dataSourcePath, accessToken) =>
-                let
-                    Source = Web.Contents(
-                        Text.Combine({"https://latest.speckle.dev", "auth", "logout"}, "/"),
-                        [
-                            Headers = [
-                                #"Content-Type" = "application/json"
-                            ],
-                            Content = Json.FromValue([
-                                token = accessToken
-                            ])
-                        ]
-                    ),
-                    json = Json.Document(Source)
-                in
-                    json
+                    ]
         ],
         Key = [
             KeyLabel = "Personal Access Token",
