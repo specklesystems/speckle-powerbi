@@ -15,7 +15,7 @@ jobs:
       - run:
           name: "Set connector internal version"
           command: |
-            $VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
+            $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
             (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
       - run:
           name: "Build Data Connector"
