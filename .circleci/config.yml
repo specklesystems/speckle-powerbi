@@ -49,7 +49,6 @@ workflows:
               ignore: /.*/ # For testing only: /ci\/.*/
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
-          context: github-dev-bot
       - deploy-connector:
           filters:
             branches:
@@ -58,4 +57,4 @@ workflows:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
           requires:
             - build-connector
-          context: do-spaces-speckle-releases
+          context: github-dev-bot
