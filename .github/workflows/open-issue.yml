@@ -2,7 +2,7 @@ name: Move new issues into Project
 
 on:
   issues:
-    types: [opened, reopened]
+    types: [opened]
 
 jobs:
   track_issue:
