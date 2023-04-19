@@ -1,6 +1,6 @@
 let
     Speckle.Api.Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    Speckle.LogEvent = Extension.LoadFunction("LogEvent.pqm"),
+    Speckle.Log.Receive = Extension.LoadFunction("Log.Receive.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
             binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)

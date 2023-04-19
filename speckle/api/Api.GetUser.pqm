@@ -1,11 +1,13 @@
 (url as text) =>
     let
+        userType = type [name = text, email = text, id = text],
         query = "query {
-            activeUser { name email }
+            activeUser { name email id }
         }",
         // Imports
         Speckle.Api.Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-        server = Extension.LoadFunction("ParseStreamUrl.pqm"),
+        ParseUrl = Extension.LoadFunction("ParseStreamUrl.pqm"),
+        urlObject = ParseUrl(url),
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
@@ -18,7 +20,8 @@
                                 Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
                                 Message.Parameters = {fileName, e[Reason], e[Message]},
                                 Detail = [File = fileName, Error = e]
-                            ]
+                            ],
+        user = Speckle.Api.Fetch(urlObject[server], query)[activeUser]
     in
         // Read receipts should fail gracefully no matter what
-        try Speckle.Api.Fetch(server, query)[activeUser][email] otherwise "hey"
+        Value.ReplaceType(user, userType)

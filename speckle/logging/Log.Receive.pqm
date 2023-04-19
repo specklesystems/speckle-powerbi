@@ -1,0 +1,33 @@
+let
+    GetApplicationSlug = Extension.LoadFunction("GetApplicationSlug.pqm"),
+    GetUser = Extension.LoadFunction("Api.GetUser.pqm"),
+    LogEvent = Extension.LoadFunction("LogEvent.pqm"),
+    Hash = Extension.LoadFunction("Hash.pqm"),
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared) catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ]
+in
+    (server as text, commit as text) =>
+        let
+            user = GetUser(server),
+            event = "Receive",
+            properties = [
+                server_id = Hash(server),
+                token = "acd87c5a50b56df91a795e999812a3a4",
+                hostApp = "powerbi",
+                sourceHostApp = GetApplicationSlug(commit[sourceApplication]),
+                sourceHostAppVersion = commit[sourceApplication],
+                isMultiplayer = commit[authorId] <> user[id]
+            ]
+        in
+            LogEvent(server, event, properties)
