@@ -27,7 +27,7 @@ jobs:
             certutil -decode "tools\AEC Systems Ltd.txt" "tools\AEC Systems Ltd.pfx"
       - run:
           name: Create Signed PFX file
-          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t dist/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
+          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
       - store_artifacts:
           path: ./bin
       - persist_to_workspace:
