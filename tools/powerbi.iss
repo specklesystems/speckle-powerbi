@@ -47,7 +47,7 @@ DisableProgramGroupPage=yes
 DisableWelcomePage=yes
 DisableFinishedPage=yes
 
-SignTool=byparam {#BasePath}tools\SignTool\signtool.exe sign /f $q{#BasePath}tools\SignTool\AEC Systems Ltd.pfx$q /p {#PFX_PSW} /tr http://timestamp.digicert.com /td sha256 /fd sha256 $f
+SignTool=byparam tools\SignTool\signtool.exe sign /f $qtools\AEC Systems Ltd.pfx$q /p {#PFX_PSW} /tr http://timestamp.digicert.com /td sha256 /fd sha256 $f
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
