@@ -30,7 +30,7 @@ jobs:
           command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
       - run:
           name: Build Installer
-          command: tools\InnoSetup\ISCC.exe speckle-sharp-ci-tools\powerbi.iss /Sbyparam=$p
+          command: tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p
           shell: cmd.exe #does not work in powershell
       - store_artifacts:
           path: ./bin
