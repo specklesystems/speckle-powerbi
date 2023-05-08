@@ -27,7 +27,7 @@ in
                     sourceApplication = "PowerBI"
                 ]
             ],
-            s = Speckle.LogEvent(server, commit)
+            s = Speckle.Log.Receive(server, commit)
         in
             // Read receipts should fail gracefully no matter what
             try Speckle.Api.Fetch(s, query, variables)[commitReceive] otherwise false
