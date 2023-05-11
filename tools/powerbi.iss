@@ -56,47 +56,4 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
 
 [Registry]
-
-Root: HKLM; Subkey: "Software\Policies\Microsoft\Power BI Desktop"; ValueType: multisz; ValueName: "TrustedCertificateThumbprints"; ValueData: "{code:GetThumbprintValue}"; Flags: uninsdeletekey
-
-[Code]
-
-var
-  ServiceInstallationPath: TArrayOfString;
-
-function InitializeSetup(): Boolean;
-var
-  Value: TArrayOfString;
-  I: Integer;
-begin
-  if RegQueryMultiStringValue(
-       HKEY_LOCAL_MACHINE, 'Software\Policies\Microsoft\Power BI Desktop',
-       'TrustedCertificateThumbprints', Value) then
-  begin
-    for I := 0 to GetArrayLength(Value) - 1 do
-    begin
-      if Value[I] = '4797ACC22464ED1CF9AFF4C09C2CCF4CF1873EFB' then
-      begin
-        ServiceInstallationPath := Value;
-        Log('User had thumbprint already added');
-        Exit;
-      end;
-    end;
-    SetArrayLength(Value, GetArrayLength(Value) + 1);
-    Value[GetArrayLength(Value) - 1] := '4797ACC22464ED1CF9AFF4C09C2CCF4CF1873EFB';
-    ServiceInstallationPath := Value;
-    Log('User had pre-existing thumbprints');
-  end
-  else
-  begin
-    SetArrayLength(Value, 1);
-    Value[0] := '4797ACC22464ED1CF9AFF4C09C2CCF4CF1873EFB';
-    ServiceInstallationPath := Value;
-    Log('User had no pre-existing thumbprints');
-  end;
-  if not RegSetMultiStringValue(
-       HKEY_LOCAL_MACHINE, 'Software\Policies\Microsoft\Power BI Desktop',
-       'TrustedCertificateThumbprints', Value) then
-    Log('Failed to write thumbprints to registry');
-  Result := True;
-end;
+Root: HKLM; Subkey: "Software\Policies\Microsoft\Power BI Desktop"; ValueType: multisz; ValueName: "TrustedCertificateThumbprints"; ValueData: "4797ACC22464ED1CF9AFF4C09C2CCF4CF1873EFB"; Flags: uninsdeletekey
