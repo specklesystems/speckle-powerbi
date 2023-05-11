@@ -1,38 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="BuildMez">
-  <PropertyGroup>
-    <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\bin\</OutputPath>
-    <IntermediateOutputPath Condition="'$(IntermediateOutputPath)' == ''">$(MSBuildProjectDirectory)\obj\</IntermediateOutputPath>
-    <MezIntermediatePath>$(IntermediateOutputPath)MEZ\</MezIntermediatePath>
-    <MezOutputPath>$(OutputPath)$(MsBuildProjectName).mez</MezOutputPath>
-  </PropertyGroup>
-  <ItemGroup>
-    <MezContent Include="Speckle.pq" />
-    <MezContent Include="utilities\**\*.pqm" />
-    <MezContent Include="speckle\**\*.pqm" />
-    <MezContent Include="assets\SpeckleLogo16.png" />
-    <MezContent Include="assets\SpeckleLogo20.png" />
-    <MezContent Include="assets\SpeckleLogo24.png" />
-    <MezContent Include="assets\SpeckleLogo32.png" />
-    <MezContent Include="assets\SpeckleLogo40.png" />
-    <MezContent Include="assets\SpeckleLogo48.png" />
-    <MezContent Include="assets\SpeckleLogo64.png" />
-    <MezContent Include="assets\SpeckleLogo80.png" />
-    <MezContent Include="assets\resources.resx" />
-  </ItemGroup>
-  <Target Name="BuildMez" AfterTargets="Build" Inputs="@(MezContent)" Outputs="$(MezOutputPath)">
-    <RemoveDir Directories="$(MezIntermediatePath)" />
-    <Copy SourceFiles="@(MezContent)" DestinationFolder="$(MezIntermediatePath)" />
-    <MakeDir Directories="$(OutputPath)" Condition="!Exists('$(OutputPath)')" />
-    <ZipDirectory SourceDirectory="$(MezIntermediatePath)" DestinationFile="$(MezOutputPath)" Overwrite="true" />
-  </Target>
-  <Target Name="CopyToConnectors" AfterTargets="BuildMez">
-    <Message Text="Copying .mez file to: $(UserProfile)\Documents\Power BI Desktop\Custom Connectors" Importance="High" />
-    <MakeDir Directories="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\" />
-    <Copy SourceFiles="$(MezOutputPath)" DestinationFolder="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\"/>
-  </Target>
-  <Target Name="Clean">
-    <RemoveDir Directories="$(MezIntermediatePath)" />
-    <Delete Files="$(MezOutputPath)" />
-  </Target>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003"
+    DefaultTargets="BuildMez">
+    <PropertyGroup>
+        <Version Condition="'$(Version)' == ''">2.0.0-wip</Version>
+        <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\bin\</OutputPath>
+        <IntermediateOutputPath Condition="'$(IntermediateOutputPath)' == ''">
+            $(MSBuildProjectDirectory)\obj\</IntermediateOutputPath>
+        <MezIntermediatePath>$(IntermediateOutputPath)MEZ\</MezIntermediatePath>
+        <MezOutputPath>$(OutputPath)$(MsBuildProjectName).mez</MezOutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <MezContent Include="Speckle.pq" />
+        <MezContent Include="utilities\**\*.pqm" />
+        <MezContent Include="speckle\**\*.pqm" />
+        <MezContent Include="assets\SpeckleLogo16.png" />
+        <MezContent Include="assets\SpeckleLogo20.png" />
+        <MezContent Include="assets\SpeckleLogo24.png" />
+        <MezContent Include="assets\SpeckleLogo32.png" />
+        <MezContent Include="assets\SpeckleLogo40.png" />
+        <MezContent Include="assets\SpeckleLogo48.png" />
+        <MezContent Include="assets\SpeckleLogo64.png" />
+        <MezContent Include="assets\SpeckleLogo80.png" />
+        <MezContent Include="assets\resources.resx" />
+    </ItemGroup>
+    <Target Name="BuildMez" AfterTargets="Build" Inputs="@(MezContent)" Outputs="$(MezOutputPath)">
+        <RemoveDir Directories="$(MezIntermediatePath)" />
+        <Copy SourceFiles="@(MezContent)" DestinationFolder="$(MezIntermediatePath)" />
+        <MakeDir Directories="$(OutputPath)" Condition="!Exists('$(OutputPath)')" />
+        <ZipDirectory SourceDirectory="$(MezIntermediatePath)" DestinationFile="$(MezOutputPath)"
+            Overwrite="true" />
+    </Target>
+    <Target Name="CopyToConnectors" AfterTargets="BuildMez">
+        <Message
+            Text="Copying .mez file to: $(UserProfile)\Documents\Power BI Desktop\Custom Connectors"
+            Importance="High" />
+        <MakeDir Directories="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\" />
+        <Copy SourceFiles="$(MezOutputPath)"
+            DestinationFolder="$(UserProfile)\Documents\Power BI Desktop\Custom Connectors\" />
+    </Target>
+    <Target Name="Clean">
+        <RemoveDir Directories="$(MezIntermediatePath)" />
+        <Delete Files="$(MezOutputPath)" />
+    </Target>
 </Project>

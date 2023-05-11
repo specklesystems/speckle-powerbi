@@ -1,9 +1,8 @@
 [Version = "2.0.0"]
 section Speckle;
 
-AuthAppId = "63463ba25d";
-AuthAppSecret = "c317a7ce45";
-AuthServer = "https://speckle.xyz";
+AuthAppId = "spklpwerbi";
+AuthAppSecret = "spklpwerbi";
 
 // The data source definition, used when connecting to any speckle server
 Speckle = [
@@ -14,18 +13,22 @@ Speckle = [
         OAuth = [
             Label = "Speckle.xyz",
             StartLogin = (clientApplication, dataSourcePath, state, display) =>
-                [
-                    LoginUri = Text.Combine({AuthServer, "authn", "verify", AuthAppId, state}, "/"),
-                    CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
-                    WindowHeight = 800,
-                    WindowWidth = 600,
-                    Context = null
-                ],
+                let
+                    server = Text.Combine({"https://", Uri.Parts(dataSourcePath)[Host]})
+                in
+                    [
+                        LoginUri = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/"),
+                        CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
+                        WindowHeight = 800,
+                        WindowWidth = 600,
+                        Context = null
+                    ],
             FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
                 let
+                    server = Text.Combine({"https://", Uri.Parts(dataSourcePath)[Host]}),
                     Parts = Uri.Parts(callbackUri)[Query],
                     Source = Web.Contents(
-                        Text.Combine({AuthServer, "auth", "token"}, "/"),
+                        Text.Combine({server, "auth", "token"}, "/"),
                         [
                             Headers = [
                                 #"Content-Type" = "application/json"
@@ -50,8 +53,9 @@ Speckle = [
                     ],
             Refresh = (dataSourcePath, refreshToken) =>
                 let
+                    server = Text.Combine({"https://", Uri.Parts(dataSourcePath)[Host]}),
                     Source = Web.Contents(
-                        Text.Combine({AuthServer, "auth", "token"}, "/"),
+                        Text.Combine({server, "auth", "token"}, "/"),
                         [
                             Headers = [
                                 #"Content-Type" = "application/json"

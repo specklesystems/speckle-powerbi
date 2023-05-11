@@ -36,13 +36,23 @@ in
                     GetObjectFromBranch(server, id, "main"),
             removeEmpty = Table.RemoveLastN(commitObjectsTable, 1),
             addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & id),
-            addUrlType = Table.AddColumn(addStreamUrl, "URL Type", each stream[urlType]),
+            addParentObjectId = Table.AddColumn(
+                addStreamUrl, "Commit Object ID", each Value.Metadata(commitObjectsTable)[objectId]
+            ),
+            addUrlType = Table.AddColumn(addParentObjectId, "URL Type", each stream[urlType]),
             addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
             addSpeckleTypeCol = Table.AddColumn(
                 addObjectIdCol, "speckle_type", each try[data][speckle_type] otherwise null
             ),
             final = Table.ReorderColumns(
-                addSpeckleTypeCol, {"Stream URL", "URL Type", "Object ID", "speckle_type", "data"}
+                addSpeckleTypeCol, {
+                    "Stream URL",
+                    "URL Type",
+                    "Commit Object ID",
+                    "Object ID",
+                    "speckle_type",
+                    "data"
+                }
             )
         in
             final
