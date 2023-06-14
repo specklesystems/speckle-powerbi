@@ -4,6 +4,7 @@
 </h1>
 <h3 align="center">
     Data Connector for Microsoft's PowerBI platform
+    Expected use case is that this data be used as source for the Speckle Visualization for PowerBI (https://github.com/specklesystems/speckle-powerbi-visuals)
 </h3>
 <p align="center"><b>Speckle</b> is the data infrastructure for the AEC industry.</p><br/>
 
