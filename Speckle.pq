@@ -1,4 +1,4 @@
-[Version = "2.0.0"]
+[Version = "2.15.0"]
 section Speckle;
 
 AuthAppId = "spklpwerbi";
@@ -191,3 +191,26 @@ shared Speckle.LoadFunction = (fileName as text) =>
                         Message.Parameters = {fileName, e[Reason], e[Message]},
                         Detail = [File = fileName, Error = e]
                     ];
+
+shared Speckle.Revit.Parameters.ToNameValueRecord = (r as record, optional exclude as list) as record =>
+    let
+        defaultExclude = {"id", "speckle_type", "applicationId", "totalChildrenCount"},
+        fullExclusion = if exclude = null then defaultExclude else List.Union(defaultExclude, exclude),
+        clean = Record.RemoveFields(r, fullExclusion, MissingField.Ignore),
+        recTable = Record.ToTable(clean),
+        cleanTable = Table.RemoveColumns(recTable, "Name"),
+        expanded = Table.ExpandRecordColumn(
+            cleanTable, "Value", {"name", "value", "applicationInternalName"}, {"Name", "Value", "UID"}
+        ),
+        joined = Table.AddColumn(expanded, "Combo", each [Name] & " [" & [UID] & "]"),
+        renamed = Table.RenameColumns(joined, {{"Name", "x"}, {"Combo", "Name"}}),
+        result = Record.FromTable(renamed)
+    in
+        result;
+
+shared Speckle.Utils.DynamicColumnExpand = (tbl as table, col as text) as table =>
+    let
+        uniqueFields = List.Distinct(List.Combine(List.Transform(Table.Column(tbl, col), Record.FieldNames))),
+        expanded = Table.ExpandRecordColumn(tbl, col, uniqueFields)
+    in
+        expanded;
