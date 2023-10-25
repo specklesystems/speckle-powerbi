@@ -1,7 +1,7 @@
 (url as text) as record =>
     let
         // Get server and streamId, and branchName / commitId / objectid from the input url
-        server = Text.Combine({"https://", Uri.Parts(url)[Host]}),
+        server = Text.Combine({Uri.Parts(url)[Scheme], "://", Uri.Parts(url)[Host]}),
         segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
         streamId = segments{1},
         branchName = if (List.Count(segments) = 4 and segments{2} = "branches") then segments{3} else null,
