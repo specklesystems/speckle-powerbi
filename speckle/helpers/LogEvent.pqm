@@ -1,4 +1,7 @@
 let
+    GetApplicationSlug = Extension.LoadFunction("GetApplicationSlug.pqm"),
+    GetUser = Extension.LoadFunction("Api.GetUser.pqm"),
+    Hash = Extension.LoadFunction("Hash.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
             binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
@@ -13,12 +16,21 @@ let
                             Detail = [File = fileName, Error = e]
                         ]
 in
-    (server as text, event as text, properties as record) =>
+    (server as text, commit as any) =>
         let
             trackUrl = "https://analytics.speckle.systems/track?ip=1",
+            user = GetUser(server),
+            isMultiplayer = user[id] <> commit[authorId],
             body = [
-                event = event,
-                properties = properties
+                event = "Receive",
+                properties = [
+                    server_id = Hash(server),
+                    token = "acd87c5a50b56df91a795e999812a3a4",
+                    hostApp = "powerbi",
+                    sourceHostApp = GetApplicationSlug(commit[sourceApplication]),
+                    sourceHostAppVersion = commit[sourceApplication],
+                    isMultiplayer = user[id] <> commit[authorId]
+                ]
             ],
             Result = Web.Contents(
                 trackUrl,
