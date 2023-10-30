@@ -25,7 +25,8 @@
         "${workspaceFolder}\\tests",
         "--prettyPrint"
       ],
-      "problemMatcher": []
+      "problemMatcher": [],
+      "dependsOn": ["build"]
     }
   ]
 }

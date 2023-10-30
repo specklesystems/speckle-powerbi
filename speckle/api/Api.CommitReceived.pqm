@@ -1,6 +1,6 @@
 let
     Speckle.Api.Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    Speckle.Log.Receive = Extension.LoadFunction("Log.Receive.pqm"),
+    Speckle.LogEvent = Extension.LoadFunction("LogEvent.pqm"),
     Extension.LoadFunction = (fileName as text) =>
         let
             binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
@@ -27,7 +27,7 @@ in
                     sourceApplication = "PowerBI"
                 ]
             ],
-            s = Speckle.Log.Receive(server, commit)
+            s = Speckle.LogEvent(server, commit)
         in
             // Read receipts should fail gracefully no matter what
             try Speckle.Api.Fetch(s, query, variables)[commitReceive] otherwise false
