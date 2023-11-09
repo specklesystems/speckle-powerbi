@@ -1,0 +1,32 @@
+let
+    Speckle.Api.Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared) catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ]
+in
+    (server as text, projectId as text, modelId as text) =>
+        let
+            query = "query Project($projectId: String!, $modelId: String!) {
+                project(id: $projectId) {
+                    model(id: $modelId) {
+                            name
+                        }
+                    }
+                }",
+            variables = [
+                projectId = projectId,
+                modelId = modelId
+            ]
+        in
+            // Read receipts should fail gracefully no matter what
+            try Speckle.Api.Fetch(server, query, variables)[project][model] otherwise null

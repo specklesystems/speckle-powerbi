@@ -159,7 +159,10 @@ shared Speckle.Api.Fetch = Value.ReplaceType(
 );
 
 // Parses a stream url and returns a record with the type and values
-shared Speckle.ParseUrl = Speckle.LoadFunction("ParseStreamUrl.pqm");
+[DataSource.Kind = "Speckle"]
+shared Speckle.ParseUrl = Value.ReplaceType(
+    Speckle.LoadFunction("ParseStreamUrl.pqm"), type function (url as Uri.Type) as record
+);
 
 // [DataSource.Kind = "Speckle"]
 // shared Speckle.Api.REST.GetObject = Value.ReplaceType(
