@@ -14,7 +14,9 @@ Speckle = [
             Label = "Speckle.xyz",
             StartLogin = (clientApplication, dataSourcePath, state, display) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]})
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    )
                 in
                     [
                         LoginUri = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/"),
@@ -25,7 +27,9 @@ Speckle = [
                     ],
             FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}),
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    ),
                     Parts = Uri.Parts(callbackUri)[Query],
                     Source = Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
@@ -53,7 +57,9 @@ Speckle = [
                     ],
             Refresh = (dataSourcePath, refreshToken) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}),
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    ),
                     Source = Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
                         [
@@ -159,7 +165,10 @@ shared Speckle.Api.Fetch = Value.ReplaceType(
 );
 
 // Parses a stream url and returns a record with the type and values
-shared Speckle.ParseUrl = Speckle.LoadFunction("ParseStreamUrl.pqm");
+[DataSource.Kind = "Speckle"]
+shared Speckle.ParseUrl = Value.ReplaceType(
+    Speckle.LoadFunction("ParseStreamUrl.pqm"), type function (url as Uri.Type) as record
+);
 
 // [DataSource.Kind = "Speckle"]
 // shared Speckle.Api.REST.GetObject = Value.ReplaceType(
