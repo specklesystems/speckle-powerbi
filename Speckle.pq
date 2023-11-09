@@ -14,7 +14,9 @@ Speckle = [
             Label = "Speckle.xyz",
             StartLogin = (clientApplication, dataSourcePath, state, display) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]})
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    )
                 in
                     [
                         LoginUri = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/"),
@@ -25,7 +27,9 @@ Speckle = [
                     ],
             FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}),
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    ),
                     Parts = Uri.Parts(callbackUri)[Query],
                     Source = Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
@@ -53,7 +57,9 @@ Speckle = [
                     ],
             Refresh = (dataSourcePath, refreshToken) =>
                 let
-                    server = Text.Combine({Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}),
+                    server = Text.Combine(
+                        {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
+                    ),
                     Source = Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
                         [
