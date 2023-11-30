@@ -12,40 +12,61 @@ let
                             Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
-                        ]
+                        ],
+    IsFe2Url = (segments as list) as logical => List.Count(segments) = 4 and segments{2} = "models",
+    GetUrlType = (branchName as nullable text, commitId as nullable text, objectId as nullable text) as text =>
+        if (commitId <> null) then
+            "Commit"
+        else if (objectId <> null) then
+            "Object"
+        else if (branchName <> null) then
+            "Branch"
+        else
+            "Stream",
+    ParseFe1Url = (server as text, segments as list) as record =>
+        let
+            streamId = segments{1},
+            branchName = if (List.Count(segments) = 4 and segments{2} = "branches") then segments{3} else null,
+            commitId = if (List.Count(segments) = 4 and segments{2} = "commits") then segments{3} else null,
+            objectId = if (List.Count(segments) = 4 and segments{2} = "objects") then segments{3} else null,
+            urlType = GetUrlType(branchName, commitId, objectId)
+        in
+            [
+                urlType = urlType,
+                server = server as text,
+                id = streamId as nullable text,
+                branch = branchName as nullable text,
+                commit = commitId as nullable text,
+                object = objectId as nullable text
+            ],
+    ParseFe2Url = (server as text, segments as list) as record =>
+        let
+            streamId = segments{1},
+            modelList = segments{3},
+            firstModel = Text.Split(modelList, ","){0},
+            modelAndVersion = Text.Split(firstModel, "@"),
+            modelId = modelAndVersion{0},
+            versionId = if (List.Count(modelAndVersion) > 1) then modelAndVersion{1} else null,
+            model = if (modelId <> null) then GetModel(server, streamId, modelId) else null,
+            urlType = GetUrlType(model[name], versionId, null)
+        in
+            [
+                urlType = urlType,
+                server = server,
+                id = streamId,
+                branch = model[name],
+                commit = versionId,
+                object = null
+            ]
 in
     (url as text) as record =>
         let
             // Get server and streamId, and branchName / commitId / objectid from the input url
             server = Text.Combine({Uri.Parts(url)[Scheme], "://", Uri.Parts(url)[Host]}),
             segments = Text.Split(Text.AfterDelimiter(Uri.Parts(url)[Path], "/", 0), "/"),
-            streamId = segments{1},
-            modelList = if (List.Count(segments) = 4 and segments{2} = "models") then segments{3} else null,
-            firstModel = Text.Split(modelList, ","){0},
-            modelAndVersion = Text.Split(firstModel, "@"),
-            modelId = modelAndVersion{0},
-            versionId = if (List.Count(modelAndVersion) > 1) then modelAndVersion{1} else null,
-            model = if (modelId <> null) then GetModel(server, streamId, modelId) else null,
-            branchName = if (List.Count(segments) = 4 and segments{2} = "branches") then segments{3} else null,
-            commitId = if (List.Count(segments) = 4 and segments{2} = "commits") then segments{3} else null,
-            objectId = if (List.Count(segments) = 4 and segments{2} = "objects") then segments{3} else null,
-            modelOrBranchName = if (model <> null) then model[name] else branchName,
-            commitOrVersion = if (versionId <> null) then versionId else commitId,
-            urlType =
-                if (commitOrVersion <> null) then
-                    "Commit"
-                else if (objectId <> null) then
-                    "Object"
-                else if (modelOrBranchName <> null) then
-                    "Branch"
-                else
-                    "Stream"
+            isFe2 = IsFe2Url(segments)
         in
-            [
-                urlType = urlType,
-                server = server,
-                id = streamId,
-                branch = modelOrBranchName,
-                commit = commitOrVersion,
-                object = objectId
-            ]
+            if (isFe2) then
+                ParseFe2Url(server, segments)
+            else
+                ParseFe1Url(server, segments)
