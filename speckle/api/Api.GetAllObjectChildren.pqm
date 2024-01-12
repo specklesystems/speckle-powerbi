@@ -35,10 +35,12 @@ in
                                 Speckle.Api.GetObjectChildren(server, streamId, objectId, 1000, nextCursor)
                     in
                         page
-            ) meta [server = server, streamId = streamId, objectId = objectId],
-            parentTable = Table.FromRecords({[data = parentObject]})
+            ),
+            parentTable = Table.FromRecords({[data = parentObject]}),
+            resultTable =
+                if (Table.ColumnCount(childrenTable) = 0) then
+                    parentTable
+                else
+                    Table.Combine({parentTable, childrenTable})
         in
-            if (Table.ColumnCount(childrenTable) = 0) then
-                parentTable
-            else
-                Table.Combine({parentTable, childrenTable})
+            resultTable meta [server = server, streamId = streamId, objectId = objectId]
