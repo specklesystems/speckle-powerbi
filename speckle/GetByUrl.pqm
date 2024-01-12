@@ -1,5 +1,6 @@
 let
     Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    GetObject = Extension.LoadFunction("Api.GetObject.pqm"),
     GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
     GetObjectFromCommit = Extension.LoadFunction("GetObjectFromCommit.pqm"),
     GetObjectFromBranch = Extension.LoadFunction("GetObjectFromBranch.pqm"),
@@ -34,8 +35,7 @@ in
                     GetObjectFromBranch(server, id, stream[branch])
                 else
                     GetObjectFromBranch(server, id, "main"),
-            removeEmpty = Table.RemoveLastN(commitObjectsTable, 1),
-            addStreamUrl = Table.AddColumn(removeEmpty, "Stream URL", each server & "/streams/" & id),
+            addStreamUrl = Table.AddColumn(commitObjectsTable, "Stream URL", each server & "/streams/" & id),
             addParentObjectId = Table.AddColumn(
                 addStreamUrl, "Commit Object ID", each Value.Metadata(commitObjectsTable)[objectId]
             ),
