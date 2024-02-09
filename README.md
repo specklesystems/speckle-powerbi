@@ -54,6 +54,7 @@ Go to the [Releases](https://github.com/specklesystems/speckle-powerbi/releases)
 ```
 YOUR_USER_FOLDER\Documents\Power BI Desktop\Custom Connectors\
 ```
+If the folder doesn't exist, create it.
 
 ### Allow custom extensions to run
 
