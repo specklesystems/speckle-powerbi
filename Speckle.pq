@@ -86,10 +86,10 @@ Speckle = [
         ],
         Key = [
             KeyLabel = "Personal Access Token",
-            Label = "Private stream"
+            Label = "Private Project"
         ],
         Implicit = [
-            Label = "Public stream"
+            Label = "Public Project"
         ]
     ],
     Label = "Speckle"
@@ -103,20 +103,19 @@ shared Speckle.GetByUrl.Structured = Value.ReplaceType(
         url as (
             Uri.Type meta [
                 Documentation.FieldCaption = "Gets a Speckle Object preserving it's structure",
-                Documentation.FieldDescription = "The url of a stream in a Speckle server. You can copy it directly from your browser.",
+                Documentation.FieldDescription = "The url of a model in a Speckle server project. You can copy it directly from your browser.",
                 Documentation.SampleValues = {
-                    "https://speckle.xyz/streams/23401adf",
-                    "https://speckle.xyz/streams/23401adf/branches/main"
+                    "https://app.speckle.systems/projects/23401adf/models/1234568",
+                    "https://app.speckle.systems/projects/23401adf/branches/main"
                 }
             ]
         )
     ) as record meta [
         Documentation.Name = "Speckle - Get Structured Object by URL",
         Documentation.LongDescription = "Returns the Speckle object the URL points to, while also preserving it's structure.
-            Supports all types of stream url:#(lf)
-            - Stream: will get the latest commit on the 'main' branch (i.e. 'https://speckle.xyz/streams/STREAM_ID')#(lf)
-            - Branch: will get the latest commit on the specified branch (i.e. 'https://speckle.xyz/streams/STREAM_ID/branches/BRANCH_NAME')#(lf)
-            - Commit: will get a specific commit from the stream (i.e. 'https://speckle.xyz/streams/STREAM_ID/commits/COMMIT_ID')
+            Supports all types of model url:#(lf)
+            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/BRANCH_ID')#(lf)
+            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/commits/BRANCH_ID@COMMIT_ID')
         "
     ]
 );
@@ -132,8 +131,8 @@ shared Speckle.GetByUrl = Value.ReplaceType(
     type function (
         url as (
             Uri.Type meta [
-                Documentation.FieldCaption = "Stream URL",
-                Documentation.FieldDescription = "The url of a stream in a Speckle server. You can copy it directly from your browser.",
+                Documentation.FieldCaption = "Model URL",
+                Documentation.FieldDescription = "The url of a model in a Speckle server. You can copy it directly from your browser.",
                 Documentation.SampleValues = {
                     "https://speckle.xyz/streams/23401adf",
                     "https://speckle.xyz/streams/23401adf/branches/main"
@@ -141,12 +140,11 @@ shared Speckle.GetByUrl = Value.ReplaceType(
             ]
         )
     ) as table meta [
-        Documentation.Name = "Speckle - Get stream by URL",
-        Documentation.LongDescription = "Returns a flat list of all objects contained in a specific Speckle stream/branch/commit/object.
-            Supports all types of stream url:#(lf)
-            - Stream: will get the latest commit on the 'main' branch (i.e. 'https://speckle.xyz/streams/STREAM_ID')#(lf)
-            - Branch: will get the latest commit on the specified branch (i.e. 'https://speckle.xyz/streams/STREAM_ID/branches/BRANCH_NAME')#(lf)
-            - Commit: will get a specific commit from the stream (i.e. 'https://speckle.xyz/streams/STREAM_ID/commits/COMMIT_ID')
+        Documentation.Name = "Speckle - Get Model by URL",
+        Documentation.LongDescription = "Returns a flat list of all objects contained in a Speckle model/version of a specific a project.
+            Supports all types of model url:#(lf)
+            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/BRANCH_ID')#(lf)
+            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/commits/BRANCH_ID@COMMIT_ID')
         "
     ]
 );
