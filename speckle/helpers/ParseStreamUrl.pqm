@@ -43,6 +43,7 @@ let
         let
             streamId = segments{1},
             modelList = segments{3},
+            isMultimodel = Text.Contains(modelList, ","),
             firstModel = Text.Split(modelList, ","){0},
             modelAndVersion = Text.Split(firstModel, "@"),
             modelId = modelAndVersion{0},
@@ -50,14 +51,22 @@ let
             model = if (modelId <> null) then GetModel(server, streamId, modelId) else null,
             urlType = GetUrlType(model[name], versionId, null)
         in
-            [
-                urlType = urlType,
-                server = server,
-                id = streamId,
-                branch = model[name],
-                commit = versionId,
-                object = null
-            ]
+            if isMultimodel then
+                error
+                    Error.Record(
+                        "NotSupported",
+                        "Multi-model URLs are not supported.",
+                        "Try to select just one single model in the web app and paste that in."
+                    )
+            else
+                [
+                    urlType = urlType,
+                    server = server,
+                    id = streamId,
+                    branch = model[name],
+                    commit = versionId,
+                    object = null
+                ]
 in
     (url as text) as record =>
         let
