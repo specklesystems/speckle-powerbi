@@ -20,18 +20,18 @@ jobs:
       - run:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
-      - run:
-          name: Create Innosetup signing cert
-          command: |
-            echo $env:PFX_B64 > "tools\AEC Systems Ltd.txt"
-            certutil -decode "tools\AEC Systems Ltd.txt" "tools\AEC Systems Ltd.pfx"
-      - run:
-          name: Create Signed PFX file
-          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
-      - run:
-          name: Build Installer
-          command: tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p
-          shell: cmd.exe #does not work in powershell
+      # - run:
+      #     name: Create Innosetup signing cert
+      #     command: |
+      #       echo $env:PFX_B64 > "tools\AEC Systems Ltd.txt"
+      #       certutil -decode "tools\AEC Systems Ltd.txt" "tools\AEC Systems Ltd.pfx"
+      # - run:
+      #     name: Create Signed PFX file
+      #     command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
+      # - run:
+      #     name: Build Installer
+      #     command: tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p
+      #     shell: cmd.exe #does not work in powershell
       - store_artifacts:
           path: ./bin
       - persist_to_workspace:
@@ -40,7 +40,7 @@ jobs:
             - bin/*
   deploy-connector:
     docker:
-      - image: cibuilds/github:0.10
+      - image: cibuilds/github:0.13
     steps:
       - attach_workspace:
           at: ./
