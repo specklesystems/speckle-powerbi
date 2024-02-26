@@ -35,9 +35,9 @@ in
                     GetObjectFromBranch(server, id, stream[branch])
                 else
                     GetObjectFromBranch(server, id, "main"),
-            addStreamUrl = Table.AddColumn(commitObjectsTable, "Stream URL", each server & "/streams/" & id),
+            addStreamUrl = Table.AddColumn(commitObjectsTable, "Model URL", each server & "/streams/" & id),
             addParentObjectId = Table.AddColumn(
-                addStreamUrl, "Commit Object ID", each Value.Metadata(commitObjectsTable)[objectId]
+                addStreamUrl, "Version Object ID", each Value.Metadata(commitObjectsTable)[objectId]
             ),
             addUrlType = Table.AddColumn(addParentObjectId, "URL Type", each stream[urlType]),
             addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
@@ -46,9 +46,9 @@ in
             ),
             final = Table.ReorderColumns(
                 addSpeckleTypeCol, {
-                    "Stream URL",
+                    "Model URL",
                     "URL Type",
-                    "Commit Object ID",
+                    "Version Object ID",
                     "Object ID",
                     "speckle_type",
                     "data"
