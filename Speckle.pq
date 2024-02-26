@@ -11,7 +11,7 @@ Speckle = [
     // This is the custom authentication strategy for our Connector
     Authentication = [
         OAuth = [
-            Label = "Speckle.xyz",
+            Label = "Speckle Account",
             StartLogin = (clientApplication, dataSourcePath, state, display) =>
                 let
                     server = Text.Combine(
@@ -104,18 +104,15 @@ shared Speckle.GetByUrl.Structured = Value.ReplaceType(
             Uri.Type meta [
                 Documentation.FieldCaption = "Gets a Speckle Object preserving it's structure",
                 Documentation.FieldDescription = "The url of a model in a Speckle server project. You can copy it directly from your browser.",
-                Documentation.SampleValues = {
-                    "https://app.speckle.systems/projects/23401adf/models/1234568",
-                    "https://app.speckle.systems/projects/23401adf/branches/main"
-                }
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/23401adf/models/1234568"}
             ]
         )
     ) as record meta [
         Documentation.Name = "Speckle - Get Structured Object by URL",
         Documentation.LongDescription = "Returns the Speckle object the URL points to, while also preserving it's structure.
             Supports all types of model url:#(lf)
-            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/BRANCH_ID')#(lf)
-            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/commits/BRANCH_ID@COMMIT_ID')
+            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
+            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')
         "
     ]
 );
@@ -133,18 +130,15 @@ shared Speckle.GetByUrl = Value.ReplaceType(
             Uri.Type meta [
                 Documentation.FieldCaption = "Model URL",
                 Documentation.FieldDescription = "The url of a model in a Speckle server. You can copy it directly from your browser.",
-                Documentation.SampleValues = {
-                    "https://speckle.xyz/streams/23401adf",
-                    "https://speckle.xyz/streams/23401adf/branches/main"
-                }
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/23401adf/models/1234568"}
             ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Model by URL",
         Documentation.LongDescription = "Returns a flat list of all objects contained in a Speckle model/version of a specific a project.
             Supports all types of model url:#(lf)
-            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/BRANCH_ID')#(lf)
-            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/commits/BRANCH_ID@COMMIT_ID')
+            - Model: will get the latest version of the specified model (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
+            - Version: will get a specific version from the project (i.e. 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')
         "
     ]
 );
