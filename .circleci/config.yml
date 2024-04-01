@@ -84,7 +84,7 @@ workflows:
   build:
     jobs:
       - build-connector:
-          context: innosetup
+          context: digicert-keylocker
   deploy:
     jobs:
       - build-connector:
@@ -93,13 +93,13 @@ workflows:
               ignore: /.*/ # For testing only: /ci\/.*/
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
-          context: innosetup
-      - deploy-connector:
-          filters:
-            branches:
-              ignore: /.*/ # For testing only: /ci\/.*/
-            tags:
-              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
-          requires:
-            - build-connector
-          context: github-dev-bot
+          context: digicert-keylocker
+      # - deploy-connector:
+      #     filters:
+      #       branches:
+      #         ignore: /.*/ # For testing only: /ci\/.*/
+      #       tags:
+      #         only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
+      #     requires:
+      #       - build-connector
+      #     context: github-dev-bot
