@@ -33,15 +33,9 @@ jobs:
                 shell: cmd.exe #does not work in powershell
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
-                command: set tag=2.0.999 &&
-                  set semver=%tag:/=% &&
-                  set ver=%semver:-=% &&
-                  set version=%ver%.%WORKFLOW_NUM% &&
-                  echo %semver% &&
-                  tools\InnoSetup\ISCC.exe tools\powerbi.iss
-                  /Sbyparam=$p
-                  /DINFO_VERSION=%version%
-                  /DVERSION=%semver%
+                command: set CIRCLE_TAG=2.0.999-beta/all
+                  for /f "tokens=1 delims=-" %i in ("%CIRCLE_TAG%") do set "TAG=%i.%WORKFLOW_NUM%" && for /f "tokens=1 delims=/" %j in ("%CIRCLE_TAG%") do set "SEMVER=%j"
+                  tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DINFO_VERSION=%version% /DVERSION=%semver%
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
           steps:
