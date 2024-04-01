@@ -1,7 +1,5 @@
-#ifdef SIGN_INSTALLER
-
 [Code]
-function AddThumbPrintToRegistry(): Boolean;
+function AddThumbPrintToRegistry(fingerprint: String): Boolean;
 var
   CurrentValues: TStringList;
   RegData: string;
@@ -10,10 +8,10 @@ begin
   if RegQueryMultiStringValue(HKLM, 'Software\Policies\Microsoft\Power BI Desktop', 'TrustedCertificateThumbprints', RegData) then
     CurrentValues.Text:= RegData;
 
-  if CurrentValues.IndexOf({#CODE_SIGNING_CERT_FINGERPRINT}) = -1 then 
+  if CurrentValues.IndexOf(fingerprint) = -1 then 
   begin
     // If Thumbprint is not already added
-    CurrentValues.Add({#CODE_SIGNING_CERT_FINGERPRINT});
+    CurrentValues.Add(fingerprint);
     RegData:= CurrentValues.Text;
     Result := RegWriteMultiStringvalue(HKLM, 'Software\Policies\Microsoft\Power BI Desktop', 'TrustedCertificateThumbprints', RegData);
   end
@@ -23,7 +21,7 @@ begin
   CurrentValues.Free;
 end;
 
-function DelThumbPrintFromRegistry(): Boolean;
+function DelThumbPrintFromRegistry(fingerprint: String): Boolean;
 var
   CurrentValues: TStringList;
   Index: Integer;
@@ -35,7 +33,7 @@ begin
   if RegQueryMultiStringValue(HKLM, 'Software\Policies\Microsoft\Power BI Desktop', 'TrustedCertificateThumbprints', RegData) then
   begin
     CurrentValues.Text:= RegData;
-    Index := CurrentValues.IndexOf({#CODE_SIGNING_CERT_FINGERPRINT});
+    Index := CurrentValues.IndexOf(fingerprint);
     // If found, remove it
     if Index <> -1 then
     begin
@@ -50,12 +48,18 @@ begin
   CurrentValues.Free;
 end;
 
+#ifdef CODE_SIGNING_CERT_FINGERPRINT
+  #define FINGERPRINT=CODE_SIGNING_CERT_FINGERPRINT
+#else
+  #define FINGERPRINT=AppPublisher
+#endif
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
     begin
        // this is the installer
-       if not AddThumbPrintToRegistry() then
+       if not AddThumbPrintToRegistry('{#FINGERPRINT}') then
        MsgBox('Failed to add thumbprint', mbError, MB_OK);
     end;
 end;
@@ -65,8 +69,7 @@ begin
   if CurUninstallStep = usUninstall then
     begin
         // Remove thumbprint on uninstall
-        DelThumbPrintFromRegistry();
+        DelThumbPrintFromRegistry('{#FINGERPRINT}');
     end;
 end;
 
-#endif
