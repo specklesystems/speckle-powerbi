@@ -9,7 +9,11 @@
 #define Bin BasePath + "bin\"
 
 #ifndef Version
-    #define Version "2.0.0"
+    #define Version "2.0.999"
+#endif
+
+#ifndef InfoVersion
+    #define InfoVersion "2.0.999.9999"
 #endif
 
 #define AppPublisher "Speckle"
@@ -23,14 +27,14 @@ AppId={{6759e9e1-8c6b-4974-87c3-bb3c8b8ce619}
 ; Shouldn't need to update these
 AppName={#AppName}
 AppVersion={#Version }
-AppVerName={#AppName} {#Version }
+AppVerName={#AppName} {#Version}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
 AppUpdatesURL={#AppURL}
 AppCopyright=Copyright (C) 2020-2024 AEC SYSTEMS LTD
 DefaultDirName={#UninstallerFolder}
-VersionInfoVersion={#Version}
+VersionInfoVersion={#InfoVersion}
 CloseApplications=false
 PrivilegesRequired=admin
 OutputDir={#Bin}
