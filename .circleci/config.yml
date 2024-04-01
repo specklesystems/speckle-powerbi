@@ -33,10 +33,10 @@ jobs:
                 shell: cmd.exe #does not work in powershell
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
-                command: set "tag=2.0.999" &&
-                  set "semver=%tag:/=%" &&
-                  set "ver=%semver:-=%" &&
-                  set "version=%ver%.%WORKFLOW_NUM%" &&
+                command: set tag=2.0.999 &&
+                  set semver=%tag:/=% &&
+                  set ver=%semver:-=% &&
+                  set version=%ver%.%WORKFLOW_NUM% &&
                   tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DVERSION=%semver% /DINFO_VERSION=%version%
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
@@ -60,9 +60,9 @@ jobs:
             - run:
                 name: Build Installer
                 command: set "tag=%CIRCLE_TAG%" &&
-                  set "semver=%tag:/=%" &&
-                  set "ver=%semver:-=%" &&
-                  set "version=%ver%.%WORKFLOW_NUM%" &&
+                  set semver=%tag:/=% &&
+                  set ver=%semver:-=% &&
+                  set version=%ver%.%WORKFLOW_NUM% &&
                   tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH% /DVERSION=%semver% /DINFO_VERSION=%version%
                 shell: cmd.exe #does not work in powershell
       - store_artifacts:
