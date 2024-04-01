@@ -31,6 +31,8 @@ jobs:
             - run:
                 name: Build Installer
                 shell: cmd.exe #does not work in powershell
+                environment:
+                  WORKFLOW_NUM: << pipeline.number >>
                 command: set "tag=2.0.999" &&
                   set "semver=%tag:/=%" &&
                   set "ver=%semver:-=%" &&
