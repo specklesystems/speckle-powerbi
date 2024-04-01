@@ -53,7 +53,7 @@ DisableFinishedPage=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-;Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
+Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
 
 
 [Code]
