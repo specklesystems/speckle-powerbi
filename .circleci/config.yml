@@ -25,16 +25,18 @@ jobs:
       - run:
           name: Create PQX file
           command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
-      - run:
-          name: Exit if External PR
-          shell: bash.exe
-          command: if [ "$CIRCLE_PR_REPONAME" ]; then circleci-agent step halt; fi
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
             - run:
                 name: Build Installer
-                command: tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p
+                command: |
+                  set tag=%CIRCLE_TAG%
+                  if %tag%=="" set tag=2.0.999
+                  set semver=%tag:/" & set semver=%
+                  set ver=%semver:-= & set ver=%
+                  set version=%ver%.%WORKFLOW_NUM%
+                  echo %semver% //// %version%
                 shell: cmd.exe #does not work in powershell
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
@@ -64,7 +66,6 @@ jobs:
                   set ver=%semver:-= & set ver=%
                   set version=%ver%.%WORKFLOW_NUM%
                   echo %semver% //// %version%
-
                   tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH% /DVERSION=%semver% /DINFO_VERSION=%version%
                 shell: cmd.exe #does not work in powershell
       - store_artifacts:
