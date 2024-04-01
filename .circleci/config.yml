@@ -31,12 +31,14 @@ jobs:
             - run:
                 name: Build Installer
                 command: |
+                  setlocal
                   set tag=%CIRCLE_TAG%
                   if %tag%=="" set tag=2.0.999
                   set semver=%tag:/" & set semver=%
                   set ver=%semver:-= & set ver=%
                   set version=%ver%.%WORKFLOW_NUM%
                   echo %semver% //// %version%
+                  endlocal
                 shell: cmd.exe #does not work in powershell
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
