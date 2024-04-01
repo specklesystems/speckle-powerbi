@@ -1,6 +1,4 @@
 #include "includes\custom-ui.iss"
-#include "includes\code-signing.iss"
-#include "includes\registry-thumbprint-edit.iss"
 
 #define AppName "Speckle for PowerBI (Data Connector)"
 #define Slug "powerbi"
@@ -49,6 +47,9 @@ DisableDirPage=yes
 DisableProgramGroupPage=yes
 DisableWelcomePage=yes
 DisableFinishedPage=yes
+
+#include "includes\code-signing.iss"
+#include "includes\registry-thumbprint-edit.iss"
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
