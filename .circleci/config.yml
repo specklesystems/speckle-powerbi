@@ -34,8 +34,7 @@ jobs:
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
                   CIRCLE_TAG: 2.0.999-beta/all
-                command: build-installer.bat
-                working_directory: .circleci
+                command: .circleci\build-installer.bat
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
           steps:
