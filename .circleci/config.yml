@@ -10,6 +10,8 @@ jobs:
     executor:
       name: win/default
       shell: powershell.exe
+    environment:
+      SSM: 'C:\Program Files\DigiCert\DigiCert One Signing Manager Tools'
     steps:
       - checkout
       - run:
@@ -23,6 +25,10 @@ jobs:
       - run:
           name: Create PQX file
           command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
+      - run:
+          name: Exit if External PR
+          shell: bash.exe
+          command: if [ "$CIRCLE_PR_REPONAME" ]; then circleci-agent step halt; fi
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
