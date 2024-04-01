@@ -31,8 +31,7 @@ jobs:
             - run:
                 name: Build Installer
                 shell: cmd.exe #does not work in powershell
-                command: |
-                  echo "hey" &&
+                command: echo "hey" &&
                   echo "ho" &&
                   echo "multilining" &&
                   echo "ending" &&
