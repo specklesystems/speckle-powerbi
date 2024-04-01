@@ -34,10 +34,7 @@ jobs:
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
                   CIRCLE_TAG: 2.0.999-beta/all
-                command: |
-                  for /f "tokens=1 delims=-" %%i in ("%CIRCLE_TAG%") do set "TAG=%%i.%WORKFLOW_NUM%"
-                  for /f "tokens=1 delims=/" %%j in ("%CIRCLE_TAG%") do set "SEMVER=%%j"
-                  tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DINFO_VERSION=%TAG% /DVERSION=%SEMVER%
+                command: for /f "tokens=1 delims=-" %i in ("%CIRCLE_TAG%") do set "TAG=%i.%WORKFLOW_NUM%"
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
           steps:
