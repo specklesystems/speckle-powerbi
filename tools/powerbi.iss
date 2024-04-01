@@ -1,4 +1,5 @@
 #include "custom-ui.iss"
+#include "registry-thumbprint-edit.iss"
 
 #define AppName "Speckle for PowerBI (Data Connector)"
 #define Slug "powerbi"
@@ -13,7 +14,6 @@
 #define UninstallerFolder "{autoappdata}\Speckle\Uninstallers\" + Slug
 
 #define CustomConnectorFolder "{%USERPROFILE}\Documents\Power BI Desktop\Custom Connectors"
-#define PFX_PSW GetEnv('PFX_PSW') 
 
 [Setup]
 AppId={{6759e9e1-8c6b-4974-87c3-bb3c8b8ce619}
@@ -48,12 +48,30 @@ DisableWelcomePage=yes
 DisableFinishedPage=yes
 
 ;SignTool=byparam tools\SignTool\signtool.exe sign /f $qtools\AEC Systems Ltd.pfx$q /p {#PFX_PSW} /tr http://timestamp.digicert.com /td sha256 /fd sha256 $f
-
+          
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
+;Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
 
-[Registry]
-Root: HKLM; Subkey: "Software\Policies\Microsoft\Power BI Desktop"; ValueType: multisz; ValueName: "TrustedCertificateThumbprints"; ValueData: "4797ACC22464ED1CF9AFF4C09C2CCF4CF1873EFB"; Flags: uninsdeletekey
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+    begin
+       // this is the installer
+       if not AddThumbPrintToRegistry() then
+       MsgBox('Failed to add thumbprint', mbError, MB_OK);
+    end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // Remove thumbprint on uninstall
+    DelThumbPrintFromRegistry();
+  end;
+end;
