@@ -82,7 +82,25 @@ jobs:
           name: "Publish Release on GitHub"
           command: |
             ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.pqx
-
+  deploy-connector-to-feed:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:6.0
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: Install Manager Feed CLI
+          command: dotnet tool install --global Speckle.Manager.Feed
+      - run:
+          name: Upload new version
+          command: |
+            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.999"; fi;)
+            SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
+            VER=$(echo "$SEMVER" | sed -e 's/-.*//')
+            VERSION=$(echo $VER.$WORKFLOW_NUM)
+            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.pqx -o Win -a Any -f ./bin/powerbi-${SEMVER}.pqx
+          environment:
+            WORKFLOW_NUM: << pipeline.number >>
 workflows:
   build:
     jobs:
@@ -97,8 +115,8 @@ workflows:
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
           context: digicert-keylocker
-      - deploy-connector:
+      - deploy-connector-to-feed:
           filters: *deploy_filter
           requires:
             - build-connector
-          context: github-dev-bot
+          context: do-spaces-speckle-releases
