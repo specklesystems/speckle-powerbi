@@ -5,6 +5,27 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0
 
+commands:
+  setup_digicert:
+    description: Set up Digicert Keylocker certificate for code-signing
+    steps:
+      - run:
+          name: "Digicert Signing Manager Setup"
+          command: |
+            cd C:\
+            curl.exe -X GET  https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi/download -H "x-api-key:$env:SM_API_KEY" -o smtools-windows-x64.msi
+            msiexec.exe /i smtools-windows-x64.msi /quiet /qn | Wait-Process
+      - run:
+          name: Setup Digicert ONE Client Cert
+          command: |
+            cd C:\
+            echo $env:SM_CLIENT_CERT_FILE_B64 > certificate.txt
+            certutil -decode certificate.txt certificate.p12
+      - run:
+          name: Sync Certs
+          command: |
+            & $env:SSM\smksp_cert_sync.exe
+
 jobs:
   build-connector:
     executor:
@@ -38,22 +59,7 @@ jobs:
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
           steps:
-            - run:
-                name: "Digicert Signing Manager Setup"
-                command: |
-                  cd C:\
-                  curl.exe -X GET  https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi/download -H "x-api-key:$env:SM_API_KEY" -o smtools-windows-x64.msi
-                  msiexec.exe /i smtools-windows-x64.msi /quiet /qn | Wait-Process
-            - run:
-                name: Setup Digicert ONE Client Cert
-                command: |
-                  cd C:\
-                  echo $env:SM_CLIENT_CERT_FILE_B64 > certificate.txt
-                  certutil -decode certificate.txt certificate.p12
-            - run:
-                name: Sync Certs
-                command: |
-                  & $env:SSM\smksp_cert_sync.exe
+            - setup_digicert
             - run:
                 name: Build Installer
                 shell: cmd.exe #does not work in powershell
@@ -76,6 +82,7 @@ jobs:
           name: "Publish Release on GitHub"
           command: |
             ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.pqx
+
 workflows:
   build:
     jobs:
@@ -84,18 +91,14 @@ workflows:
   deploy:
     jobs:
       - build-connector:
-          filters:
+          filters: &deploy_filter
             branches:
               ignore: /.*/ # For testing only: /ci\/.*/
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
           context: digicert-keylocker
-      # - deploy-connector:
-      #     filters:
-      #       branches:
-      #         ignore: /.*/ # For testing only: /ci\/.*/
-      #       tags:
-      #         only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
-      #     requires:
-      #       - build-connector
-      #     context: github-dev-bot
+      - deploy-connector:
+          filters: *deploy_filter
+          requires:
+            - build-connector
+          context: github-dev-bot
