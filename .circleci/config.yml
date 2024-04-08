@@ -59,7 +59,6 @@ jobs:
                 shell: cmd.exe #does not work in powershell
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
-                  CIRCLE_TAG: 2.0.999-beta/all
                 command: .circleci\build-installer.bat /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH%
       - store_artifacts:
           path: ./bin
