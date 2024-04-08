@@ -56,12 +56,11 @@ jobs:
                   & $env:SSM\smksp_cert_sync.exe
             - run:
                 name: Build Installer
-                command: set "tag=%CIRCLE_TAG%" &&
-                  set semver=%tag:/=% &&
-                  set ver=%semver:-=% &&
-                  set version=%ver%.%WORKFLOW_NUM% &&
-                  tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH% /DVERSION=%semver% /DINFO_VERSION=%version%
                 shell: cmd.exe #does not work in powershell
+                environment:
+                  WORKFLOW_NUM: << pipeline.number >>
+                  CIRCLE_TAG: 2.0.999-beta/all
+                command: .circleci\build-installer.bat /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH%
       - store_artifacts:
           path: ./bin
       - persist_to_workspace:
