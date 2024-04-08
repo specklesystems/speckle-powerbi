@@ -98,7 +98,7 @@ jobs:
             SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
             VER=$(echo "$SEMVER" | sed -e 's/-.*//')
             VERSION=$(echo $VER.$WORKFLOW_NUM)
-            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.pqx -o Win -a Any -f ./bin/powerbi-${SEMVER}.pqx
+            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./bin/powerbi-${SEMVER}.exe
           environment:
             WORKFLOW_NUM: << pipeline.number >>
 workflows:
