@@ -5,11 +5,34 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0
 
+commands:
+  setup_digicert:
+    description: Set up Digicert Keylocker certificate for code-signing
+    steps:
+      - run:
+          name: "Digicert Signing Manager Setup"
+          command: |
+            cd C:\
+            curl.exe -X GET  https://one.digicert.com/signingmanager/api-ui/v1/releases/smtools-windows-x64.msi/download -H "x-api-key:$env:SM_API_KEY" -o smtools-windows-x64.msi
+            msiexec.exe /i smtools-windows-x64.msi /quiet /qn | Wait-Process
+      - run:
+          name: Setup Digicert ONE Client Cert
+          command: |
+            cd C:\
+            echo $env:SM_CLIENT_CERT_FILE_B64 > certificate.txt
+            certutil -decode certificate.txt certificate.p12
+      - run:
+          name: Sync Certs
+          command: |
+            & $env:SSM\smksp_cert_sync.exe
+
 jobs:
   build-connector:
     executor:
       name: win/default
       shell: powershell.exe
+    environment:
+      SSM: 'C:\Program Files\DigiCert\DigiCert One Signing Manager Tools'
     steps:
       - checkout
       - run:
@@ -20,24 +43,35 @@ jobs:
       - run:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
-      # - run:
-      #     name: Create Innosetup signing cert
-      #     command: |
-      #       echo $env:PFX_B64 > "tools\AEC Systems Ltd.txt"
-      #       certutil -decode "tools\AEC Systems Ltd.txt" "tools\AEC Systems Ltd.pfx"
-      # - run:
-      #     name: Create Signed PFX file
-      #     command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx -c "tools\AEC Systems Ltd.pfx" -p $env:PFX_PSW
-      # - run:
-      #     name: Build Installer
-      #     command: tools\InnoSetup\ISCC.exe tools\powerbi.iss /Sbyparam=$p
-      #     shell: cmd.exe #does not work in powershell
+      - run:
+          name: Create PQX file
+          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
+      - unless: # Build installers unsigned on non-tagged builds
+          condition: << pipeline.git.tag >>
+          steps:
+            - run:
+                name: Build Installer
+                shell: cmd.exe #does not work in powershell
+                environment:
+                  WORKFLOW_NUM: << pipeline.number >>
+                  CIRCLE_TAG: 2.0.999-beta/all
+                command: .circleci\build-installer.bat
+      - when: # Setup certificates and build installers signed for tagged builds
+          condition: << pipeline.git.tag >>
+          steps:
+            - setup_digicert
+            - run:
+                name: Build Installer
+                shell: cmd.exe #does not work in powershell
+                environment:
+                  WORKFLOW_NUM: << pipeline.number >>
+                command: .circleci\build-installer.bat /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH%
       - store_artifacts:
           path: ./bin
       - persist_to_workspace:
           root: ./
           paths:
-            - bin/*
+            - bin/*.exe
   deploy-connector:
     docker:
       - image: cibuilds/github:0.13
@@ -47,27 +81,42 @@ jobs:
       - run:
           name: "Publish Release on GitHub"
           command: |
-            ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.mez
+            ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.pqx
+  deploy-connector-to-feed:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:6.0
+    steps:
+      - attach_workspace:
+          at: ./
+      - run:
+          name: Install Manager Feed CLI
+          command: dotnet tool install --global Speckle.Manager.Feed
+      - run:
+          name: Upload new version
+          command: |
+            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.999"; fi;)
+            SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
+            VER=$(echo "$SEMVER" | sed -e 's/-.*//')
+            VERSION=$(echo $VER.$WORKFLOW_NUM)
+            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./bin/powerbi-${SEMVER}.exe
+          environment:
+            WORKFLOW_NUM: << pipeline.number >>
 workflows:
   build:
     jobs:
       - build-connector:
-          context: innosetup
+          context: digicert-keylocker
   deploy:
     jobs:
       - build-connector:
-          filters:
+          filters: &deploy_filter
             branches:
               ignore: /.*/ # For testing only: /ci\/.*/
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
-          context: innosetup
-      - deploy-connector:
-          filters:
-            branches:
-              ignore: /.*/ # For testing only: /ci\/.*/
-            tags:
-              only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
+          context: digicert-keylocker
+      - deploy-connector-to-feed:
+          filters: *deploy_filter
           requires:
             - build-connector
-          context: github-dev-bot
+          context: do-spaces-speckle-releases
