@@ -34,7 +34,6 @@ AppCopyright=Copyright (C) 2020-2024 AEC SYSTEMS LTD
 DefaultDirName={#UninstallerFolder}
 VersionInfoVersion={#InfoVersion}
 CloseApplications=false
-PrivilegesRequired=admin
 OutputDir={#Bin}
 OutputBaseFilename={#Slug}-{#Version}
 ; UI
