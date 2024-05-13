@@ -18,7 +18,7 @@
 #define AppURL "https://speckle.systems"
 #define UninstallerFolder "{autoappdata}\Speckle\Uninstallers\" + Slug
 
-#define CustomConnectorFolder "{%USERPROFILE}\Documents\Power BI Desktop\Custom Connectors"
+#define CustomConnectorFolder "{userdocs}\Power BI Desktop\Custom Connectors"
 
 [Setup]
 AppId={{6759e9e1-8c6b-4974-87c3-bb3c8b8ce619}
@@ -34,14 +34,13 @@ AppCopyright=Copyright (C) 2020-2024 AEC SYSTEMS LTD
 DefaultDirName={#UninstallerFolder}
 VersionInfoVersion={#InfoVersion}
 CloseApplications=false
-PrivilegesRequired=admin
 OutputDir={#Bin}
 OutputBaseFilename={#Slug}-{#Version}
 ; UI
 WindowShowCaption=no
 WizardSizePercent=100,100
 ; SetupIconFile=.\InnoSetup\speckle.ico
-
+PrivilegesRequired=lowest
 ; Disable wizard pages
 DisableDirPage=yes
 DisableProgramGroupPage=yes
