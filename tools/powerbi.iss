@@ -59,3 +59,7 @@ Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
 ; TODO: Including the thumbprint in the registry will enable this running in higher security environments.
 ; Currently blocked because of MakePQX.exe not being ready to work with online CSP's like Digicert Keylocker.
 ; #include "includes\registry-thumbprint-edit.iss"
+
+[InstallDelete]
+; Remove old .mez file connector to prevent conflicts
+Type: filesandordirs; Name: "{#CustomConnectorFolder}\Speckle.mez"
