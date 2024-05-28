@@ -4,7 +4,7 @@
 #define Slug "powerbi"
 
 #define BasePath "..\"
-#define Bin BasePath + "bin\"
+#define Bin BasePath + "src\powerbi-data-connector\bin\"
 
 #ifndef Version
     #define Version "2.0.999"
@@ -34,7 +34,7 @@ AppCopyright=Copyright (C) 2020-2024 AEC SYSTEMS LTD
 DefaultDirName={#UninstallerFolder}
 VersionInfoVersion={#InfoVersion}
 CloseApplications=false
-OutputDir={#Bin}
+OutputDir={#BasePath}+installer
 OutputBaseFilename={#Slug}-{#Version}
 ; UI
 WindowShowCaption=no
