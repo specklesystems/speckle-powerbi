@@ -1,0 +1,241 @@
+{
+  "dataRoles": [
+    {
+      "displayName": "Model URL",
+      "kind": "Grouping",
+      "name": "stream"
+    },
+    {
+      "displayName": "Version Object ID",
+      "kind": "Grouping",
+      "name": "parentObject"
+    },
+    {
+      "displayName": "Object ID",
+      "kind": "Grouping",
+      "name": "object"
+    },
+    {
+      "displayName": "Color By",
+      "kind": "Grouping",
+      "name": "objectColorBy"
+    },
+    {
+      "displayName": "Tooltip Data",
+      "kind": "Measure",
+      "name": "objectData"
+    }
+  ],
+  "dataViewMappings": [
+    {
+      "matrix": {
+        "rows": {
+          "dataReductionAlgorithm": {
+            "top": {
+              "count": 30000
+            }
+          },
+          "select": [
+            {
+              "bind": {
+                "to": "stream"
+              }
+            },
+            {
+              "bind": {
+                "to": "parentObject"
+              }
+            },
+            {
+              "bind": {
+                "to": "objectColorBy"
+              }
+            },
+            {
+              "for": {
+                "in": "object"
+              }
+            }
+          ]
+        },
+        "values": {
+          "select": [
+            {
+              "bind": {
+                "to": "objectData"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "objects": {
+    "camera": {
+      "properties": {
+        "defaultView": {
+          "type": {
+            "enumeration": [
+              {
+                "displayName": "Perspective",
+                "value": "perspective"
+              },
+              {
+                "displayName": "Top",
+                "value": "top"
+              },
+              {
+                "displayName": "Front",
+                "value": "front"
+              },
+              {
+                "displayName": "Left",
+                "value": "left"
+              },
+              {
+                "displayName": "Back",
+                "value": "back"
+              },
+              {
+                "displayName": "Right",
+                "value": "right"
+              }
+            ]
+          }
+        },
+        "allowCameraUnder": {
+          "type": {
+            "bool": true
+          }
+        },
+        "zoomOnDataChange": {
+          "type": {
+            "bool": true
+          }
+        },
+        "projection": {
+          "type": {
+            "enumeration": [
+              {
+                "displayName": "Perspective",
+                "value": "perspective"
+              },
+              {
+                "displayName": "Orthographic",
+                "value": "orthographic"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "color": {
+      "properties": {
+        "enabled": {
+          "type": {
+            "bool": true
+          }
+        },
+        "fill": {
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "context": {
+          "type": {
+            "enumeration": [
+              {
+                "displayName": "Hidden",
+                "value": "hidden"
+              },
+              {
+                "displayName": "Ghosted",
+                "value": "ghosted"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "lighting": {
+      "properties": {
+        "enabled": {
+          "type": {
+            "bool": true
+          }
+        },
+        "intensity": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "elevation": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "azimuth": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "indirect": {
+          "type": {
+            "numeric": true
+          }
+        },
+        "shadows": {
+          "type": {
+            "bool": true
+          }
+        },
+        "shadowCatcher": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    }
+  },
+  "privileges": [
+    {
+      "essential": true,
+      "name": "WebAccess",
+      "parameters": [
+        "https://speckle.xyz",
+        "https://*.speckle.xyz",
+        "https://latest.speckle.dev",
+        "https://*.speckle.dev",
+        "https://analytics.speckle.systems",
+        "*"
+      ]
+    },
+    {
+      "essential": false,
+      "name": "ExportContent"
+    },
+    {
+      "essential": true,
+      "name": "LocalStorage",
+      "parameters": []
+    }
+  ],
+  "sorting": {
+    "default": {}
+  },
+  "supportsEmptyDataView": true,
+  "supportsHighlight": true,
+  "supportsKeyboardFocus": true,
+  "supportsLandingPage": true,
+  "keepAllMetadataColumns": true,
+  "supportsMultiVisualSelection": true,
+  "supportsSynchronizingFilterState": true,
+  "suppressDefaultTitle": true,
+  "tooltips": {
+    "supportEnhancedTooltips": true
+  }
+}
