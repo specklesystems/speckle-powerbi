@@ -334,3 +334,9 @@ ASALocalRun/
 .localhistory/
 
 **/.DS_Store
+
+**/dist/
+**/.tmp/
+**/webpack.statistics.*.html
+**/webpack.statistics.html
+**/Thumbs.db

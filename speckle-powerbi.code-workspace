@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "name": "root",
+      "path": "."
+    },
+    {
+      "name": "DataConnector",
+      "path": "src/powerbi-data-connector"
+    },
+    {
+      "name": "Visual",
+      "path": "src/powerbi-visual"
+    }
+  ],
+  "settings": {
+    "powerquery.general.mode": "SDK"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csharp",
+      "powerquery.vscode-powerquery-sdk"
+    ]
+  }
+}
