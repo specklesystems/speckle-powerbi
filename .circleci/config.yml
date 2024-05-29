@@ -34,11 +34,15 @@ jobs:
       - checkout
       - run: node --version
       - run:
-          name: "3D Visual - npm install"
+          name: "npm install"
           command: "npm i"
           working_directory: src/powerbi-visual
       - run:
-          name: "3D Visual - npm run pack"
+          name: "npm run build"
+          command: "npm run build"
+          working_directory: src/powerbi-visual
+      - run:
+          name: "npm run pack"
           command: "npm run pack"
           working_directory: src/powerbi-visual
       - store_artifacts:
@@ -70,32 +74,10 @@ jobs:
           name: Create PQX file
           command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
           working_directory: src/powerbi-data-connector
-      - unless: # Build installers unsigned on non-tagged builds
-          condition: << pipeline.git.tag >>
-          steps:
-            - run:
-                name: Build Installer
-                shell: cmd.exe #does not work in powershell
-                environment:
-                  WORKFLOW_NUM: << pipeline.number >>
-                  CIRCLE_TAG: 2.0.999-beta/all
-                command: .circleci\build-installer.bat
-      - when: # Setup certificates and build installers signed for tagged builds
-          condition: << pipeline.git.tag >>
-          steps:
-            - setup_digicert
-            - run:
-                name: Build Installer
-                shell: cmd.exe #does not work in powershell
-                environment:
-                  WORKFLOW_NUM: << pipeline.number >>
-                command: .circleci\build-installer.bat /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH%
-      - store_artifacts:
-          path: ./installer
       - persist_to_workspace:
           root: ./
           paths:
-            - installer/*.exe
+            - src/powerbi-data-connector/bin/Speckle.pqx
 
   build-installer:
     executor:
