@@ -2,7 +2,7 @@
   "visual": {
     "name": "Speckle PowerBI Viewer",
     "displayName": "Speckle PowerBI Viewer",
-    "guid": "powerbiSpeckleVisualAA98F06515D847E8ACB33BAB487244E0",
+    "guid": "powerbiSpeckleVisual",
     "visualClassName": "Visual",
     "version": "2.19.0",
     "description": "An interactive 3D viewer for Speckle Data",
