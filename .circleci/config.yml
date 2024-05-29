@@ -45,7 +45,7 @@ jobs:
           command: "msbuild ./src/powerbi-data-connector/Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
       - run:
           name: Create PQX file
-          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
+          command: .\tools\MakePQX\MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
@@ -71,7 +71,7 @@ jobs:
       - persist_to_workspace:
           root: ./
           paths:
-            - bin/*.exe
+            - src/powerbi-data-connector/bin/*.exe
   deploy-connector:
     docker:
       - image: cibuilds/github:0.13
@@ -81,7 +81,7 @@ jobs:
       - run:
           name: "Publish Release on GitHub"
           command: |
-            ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.pqx
+            ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./src/powerbi-data-connector/bin/Speckle.pqx
   deploy-connector-to-feed:
     docker:
       - image: mcr.microsoft.com/dotnet/sdk:6.0
@@ -98,7 +98,7 @@ jobs:
             SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
             VER=$(echo "$SEMVER" | sed -e 's/-.*//')
             VERSION=$(echo $VER.$WORKFLOW_NUM)
-            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./bin/powerbi-${SEMVER}.exe
+            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./src/powerbi-data-connector/bin/powerbi-${SEMVER}.exe
           environment:
             WORKFLOW_NUM: << pipeline.number >>
 workflows:
