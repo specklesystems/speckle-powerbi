@@ -30,20 +30,21 @@ jobs:
   build-visual:
     docker:
       - image: cimg/node:18.20.3
-    working_directory: ~/project/src/powerbi-visual
     steps:
       - checkout
       - run: node --version
       - run:
           name: "3D Visual - npm install"
           command: "npm i"
+          working_directory: src/powerbi-visual
       - run:
           name: "3D Visual - npm run pack"
           command: "npm run pack"
+          working_directory: src/powerbi-visual
       - store_artifacts:
           path: dist/*.pbiviz
       - persist_to_workspace:
-          root: ../../
+          root: ./
           paths:
             - src/powerbi-visual/dist/*.pbiviz
 
@@ -53,7 +54,6 @@ jobs:
       shell: powershell.exe
     environment:
       SSM: 'C:\Program Files\DigiCert\DigiCert One Signing Manager Tools'
-    working_directory: ~/project/src/powerbi-data-connector
     steps:
       - checkout
       - run:
@@ -61,12 +61,15 @@ jobs:
           command: |
             $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
             (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
+          working_directory: src/powerbi-data-connector
       - run:
           name: "Build Data Connector"
           command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+          working_directory: src/powerbi-data-connector
       - run:
           name: Create PQX file
           command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
+          working_directory: src/powerbi-data-connector
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
