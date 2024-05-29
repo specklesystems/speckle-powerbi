@@ -40,7 +40,7 @@ jobs:
       - run:
           name: Set version
           command: |
-            npm version ${CIRCLE_TAG:-2.0.0}
+            npm version ${CIRCLE_TAG:-2.0.0} --allow-same-version
           working_directory: src/powerbi-visual
       - run:
           name: "npm run build"
