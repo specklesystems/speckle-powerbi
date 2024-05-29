@@ -340,3 +340,4 @@ ASALocalRun/
 **/webpack.statistics.*.html
 **/webpack.statistics.html
 **/Thumbs.db
+installer/
