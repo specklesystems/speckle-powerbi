@@ -1,4 +1,4 @@
-[Version = "2.15.0-rc"]
+[Version = "2.0.0"]
 section Speckle;
 
 AuthAppId = "spklpwerbi";

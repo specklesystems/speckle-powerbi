@@ -38,6 +38,11 @@ jobs:
           command: "npm i"
           working_directory: src/powerbi-visual
       - run:
+          name: Set version
+          command: |
+            npm version ${CIRCLE_TAG:-2.0.0}
+          working_directory: src/powerbi-visual
+      - run:
           name: "npm run build"
           command: "npm run build"
           working_directory: src/powerbi-visual
@@ -63,7 +68,7 @@ jobs:
       - run:
           name: "Set connector internal version"
           command: |
-            $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
+            $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0" } else { $env:CIRCLE_TAG }
             (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
           working_directory: src/powerbi-data-connector
       - run:
