@@ -101,7 +101,7 @@ jobs:
                 shell: cmd.exe #does not work in powershell
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
-                  CIRCLE_TAG: 2.0.999-beta/all
+                  CIRCLE_TAG: 2.0.0
                 command: .circleci\build-installer.bat
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
@@ -132,7 +132,7 @@ jobs:
       - run:
           name: Upload new version
           command: |
-            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.999"; fi;)
+            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.0"; fi;)
             SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
             VER=$(echo "$SEMVER" | sed -e 's/-.*//')
             VERSION=$(echo $VER.$WORKFLOW_NUM)
