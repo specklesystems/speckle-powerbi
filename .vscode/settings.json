@@ -1,5 +1,0 @@
-{
-  "powerquery.general.mode": "SDK",
-  "powerquery.sdk.defaultExtension": "${workspaceFolder}\\bin\\Speckle.mez",
-  "powerquery.sdk.defaultQueryFile": "${workspaceFolder}\\Speckle.query.pq"
-}

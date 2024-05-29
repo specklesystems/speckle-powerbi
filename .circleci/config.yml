@@ -39,13 +39,13 @@ jobs:
           name: "Set connector internal version"
           command: |
             $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
-            (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
+            (Get-Content ./src/powerbi-data-connector/Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./src/powerbi-data-connector/Speckle.pq
       - run:
           name: "Build Data Connector"
-          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+          command: "msbuild ./src/powerbi-data-connector/Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
       - run:
           name: Create PQX file
-          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
+          command: .\tools\MakePQX\MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
@@ -67,21 +67,12 @@ jobs:
                   WORKFLOW_NUM: << pipeline.number >>
                 command: .circleci\build-installer.bat /DSIGN_INSTALLER /DCODE_SIGNING_CERT_FINGERPRINT=%SM_CODE_SIGNING_CERT_SHA1_HASH%
       - store_artifacts:
-          path: ./bin
+          path: ./installer
       - persist_to_workspace:
           root: ./
           paths:
-            - bin/*.exe
-  deploy-connector:
-    docker:
-      - image: cibuilds/github:0.13
-    steps:
-      - attach_workspace:
-          at: ./
-      - run:
-          name: "Publish Release on GitHub"
-          command: |
-            ghr -t ${GH_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${CIRCLE_TAG} ./bin/Speckle.pqx
+            - installer/*.exe
+
   deploy-connector-to-feed:
     docker:
       - image: mcr.microsoft.com/dotnet/sdk:6.0
@@ -98,7 +89,7 @@ jobs:
             SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
             VER=$(echo "$SEMVER" | sed -e 's/-.*//')
             VERSION=$(echo $VER.$WORKFLOW_NUM)
-            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./bin/powerbi-${SEMVER}.exe
+            /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./installer/powerbi-${SEMVER}.exe
           environment:
             WORKFLOW_NUM: << pipeline.number >>
 workflows:
