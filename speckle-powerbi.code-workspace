@@ -14,7 +14,36 @@
     }
   ],
   "settings": {
-    "powerquery.general.mode": "SDK"
+    "powerquery.general.mode": "SDK",
+    "powerquery.sdk.defaultQueryFile": "${workspaceFolder}\\src\\powerbi-data-connector\\Speckle.query.pq",
+    "powerquery.sdk.defaultExtension": "${workspaceFolder}\\bin\\${workspaceFolderBasename}.mez",
+    "files.eol": "\n",
+    "files.watcherExclude": {
+      "**/.git/objects/**": true,
+      "**/node_modules/**": true,
+      ".tmp": true
+    },
+    "files.exclude": {
+      ".tmp": true
+    },
+    "search.exclude": {
+      ".tmp": true,
+      "typings": true
+    },
+    "json.schemas": [
+      {
+        "fileMatch": ["/pbiviz.json"],
+        "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.pbiviz.json"
+      },
+      {
+        "fileMatch": ["/capabilities.json"],
+        "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.capabilities.json"
+      },
+      {
+        "fileMatch": ["/dependencies.json"],
+        "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.dependencies.json"
+      }
+    ]
   },
   "extensions": {
     "recommendations": [
