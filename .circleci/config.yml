@@ -72,7 +72,7 @@ jobs:
           working_directory: src/powerbi-data-connector
       - run:
           name: Create PQX file
-          command: .\tools\MakePQX\MakePQX.exe pack -mz bin/Speckle.mez -t bin/Speckle.pqx
+          command: .\tools\MakePQX\MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
       - persist_to_workspace:
           root: ./
           paths:
