@@ -57,7 +57,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
-Source: "{#VisualDistPath}specklePowerBiVisual.{#Version}.pbiviz"; DestDir: "{#CustomVisualFolder}"; DestName: specklePowerBiVisual.pbiviz;
+Source: "{#VisualDistPath}specklePowerBiVisual.{#Version}.pbiviz"; DestDir: "{#CustomVisualFolder}"; DestName: "Speckle Power BI 3D Visual.pbiviz";
 
 ; TODO: Including the thumbprint in the registry will enable this running in higher security environments.
 ; Currently blocked because of MakePQX.exe not being ready to work with online CSP's like Digicert Keylocker.
