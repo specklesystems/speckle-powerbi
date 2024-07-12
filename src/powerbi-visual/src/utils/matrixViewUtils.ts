@@ -124,7 +124,7 @@ export function processMatrixView(
     objectTooltipData = new Map<string, IViewerTooltip>()
 
   // Assume this has color filter
-  matrixView.rows.root.children.forEach((colorByGroup) => {
+  matrixView.rows.root?.children?.forEach((colorByGroup) => {
     const colorByValue = colorByGroup.value
     console.log('Color by group', colorByValue, colorByGroup)
 

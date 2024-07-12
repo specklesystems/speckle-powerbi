@@ -90,32 +90,36 @@ export default class ViewerHandler {
   }
 
   public async unloadObjects(
-    objects: string[],
+    objectIds: string[],
     signal?: AbortSignal,
     onObjectUnloaded?: (url: string) => void
   ) {
-    for (const url of objects) {
+    console.log('Unloading objects', objectIds)
+    for (const speckleObjectId of objectIds) {
       if (signal?.aborted) return
       // TODO: Here's where the viewer unloads any objects that have been removed. It first ensures any loading is cancelled.
-      await this.viewer
-        .cancelLoad(url, true)
-        .catch((e) => console.warn('Viewer error while cancelling load', url, e))
-        .finally(() => {
-          if (this.loadedObjectsCache.has(url)) this.loadedObjectsCache.delete(url)
-          if (onObjectUnloaded) onObjectUnloaded(url)
-        })
+      // await this.viewer
+      //   .cancelLoad(url, true)
+      //   .catch((e) => console.warn('Viewer error while cancelling load', url, e))
+
+      if (this.loadedObjectsCache.has(speckleObjectId))
+        this.loadedObjectsCache.delete(speckleObjectId)
+      if (onObjectUnloaded) onObjectUnloaded(speckleObjectId)
     }
   }
 
   public async loadObjectsWithAutoUnload(
-    objectUrls: string[],
+    objects: any[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
   ) {
-    var objectsToUnload = _.difference([...this.loadedObjectsCache], objectUrls)
+    var objectsToUnload = _.difference(
+      [...this.loadedObjectsCache],
+      objects.map((o) => o.id as string)
+    )
     await this.unloadObjects(objectsToUnload, signal)
-    await this.loadObjects(objectUrls, onLoad, onError, signal)
+    await this.loadObjects(objects, onLoad, onError, signal)
   }
 
   public async loadObjects(
@@ -124,32 +128,34 @@ export default class ViewerHandler {
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
   ) {
+    console.log('Loading objects', objectsToLoad)
     try {
-      let index = 0
+      //let index = 0
       let promises = []
       for (const speckleObject of objectsToLoad) {
         signal.throwIfAborted()
-        console.log('Attempting to load', speckleObject.id)
+        console.log('Attempting to load', speckleObject.id, speckleObject)
 
         if (!this.loadedObjectsCache.has(speckleObject.id)) {
           console.log('Object is not in cache')
 
           // TODO: Here's were the viewer loads each object, this used to be done via URL but is now changed to use JSON objects instead (already deserialized)
-          const promise = this.viewer
-            .loadObjectAsync(speckleObject, this.config.authToken, false)
-            .then(() => onLoad(speckleObject.id, index++))
-            .catch((e: Error) => onError(speckleObject, e))
-            .finally(() => {
-              if (!this.loadedObjectsCache.has(speckleObject.id))
-                this.loadedObjectsCache.add(speckleObject.id)
-            })
 
-          promises.push(promise)
+          // const promise = this.viewer
+          //   .loadObjectAsync(speckleObject, this.config.authToken, false)
+          //   .then(() => onLoad(speckleObject.id, index++))
+          //   .catch((e: Error) => onError(speckleObject, e))
+
+          // promises.push(promise)
+
+          // If batchSize has been reached, wait till all promises resolve before continuing
           if (promises.length == this.config.batchSize) {
-            //this.promises.push(Promise.resolve(this.later(1000)))
             await Promise.all(promises)
             promises = []
           }
+
+          if (!this.loadedObjectsCache.has(speckleObject.id))
+            this.loadedObjectsCache.add(speckleObject.id)
         } else {
           console.log('Object was already in cache/already loaded')
         }
@@ -180,6 +186,7 @@ export default class ViewerHandler {
       objects: res.objects
     }
   }
+
   public zoom(objectIds?: string[]) {
     this.viewer.zoom(objectIds)
   }
@@ -187,6 +194,7 @@ export default class ViewerHandler {
   public zoomExtents() {
     this.viewer.zoom()
   }
+
   public async unIsolateObjects() {
     if (this.state.isolatedObjects)
       this.state = await this.viewer.unIsolateObjects(this.state.isolatedObjects, 'powerbi', true)
