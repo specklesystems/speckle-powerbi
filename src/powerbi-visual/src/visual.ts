@@ -20,11 +20,6 @@ import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructor
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import IVisual = powerbi.extensibility.visual.IVisual
 import ITooltipService = powerbi.extensibility.ITooltipService
-import {
-  createDataViewWildcardSelector,
-  DataViewWildcardMatchingOption
-} from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
-import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {

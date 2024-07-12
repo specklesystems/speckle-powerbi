@@ -1,10 +1,6 @@
 import powerbi from 'powerbi-visuals-api'
 import { IViewerTooltip, IViewerTooltipData, SpeckleDataInput } from '../types'
 import { formattingSettings as fs } from 'powerbi-visuals-utils-formattingmodel'
-import {
-  createDataViewWildcardSelector,
-  DataViewWildcardMatchingOption
-} from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 
@@ -15,23 +11,18 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   const matrixVew = options.dataViews[0].matrix
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
-  let hasStream = false,
-    hasParentObject = false,
-    hasObject = false,
+  let hasObject = false,
     hasColorFilter = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasStream) hasStream = source.roles['stream'] != undefined
-      if (!hasParentObject) hasParentObject = source.roles['parentObject'] != undefined
       if (!hasObject) hasObject = source.roles['object'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
   })
 
-  if (!hasStream) throw new Error('Missing Stream ID input')
-  if (!hasParentObject) throw new Error('Missing Commit Object ID input')
   if (!hasObject) throw new Error('Missing Object Id input')
+
   return {
     hasColorFilter,
     view: matrixVew
@@ -65,7 +56,7 @@ function processObjectValues(
         displayName: colInfo.displayName,
         value: value.value.toString()
       }
-      objectData.push(propData)
+      if (value.valueSourceIndex) objectData.push(propData)
     })
   return { data: objectData, shouldColor, shouldSelect }
 }
@@ -126,98 +117,85 @@ export function processMatrixView(
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
 ): SpeckleDataInput {
-  const objectUrlsToLoad = [],
+  const objectJsonToLoad = [],
     objectIds = [],
     selectedIds = [],
     colorByIds = [],
     objectTooltipData = new Map<string, IViewerTooltip>()
 
-  matrixView.rows.root.children.forEach((streamUrlChild) => {
-    const url = streamUrlChild.value
+  // Assume this has color filter
+  matrixView.rows.root.children.forEach((colorByGroup) => {
+    const colorByValue = colorByGroup.value
+    console.log('Color by group', colorByValue, colorByGroup)
 
-    streamUrlChild.children?.forEach((parentObjectIdChild) => {
-      const parentId = parentObjectIdChild.value
-      objectUrlsToLoad.push(`${url}/objects/${parentId}`)
+    const colorGroup = createColorGroup(host, colorByGroup, matrixView)
 
-      if (!hasColorFilter) {
-        processObjectIdLevel(parentObjectIdChild, host, matrixView).forEach((objRes) => {
-          objectIds.push(objRes.id)
-          onSelectionPair(objRes.id, objRes.selectionId)
-          if (objRes.shouldSelect) selectedIds.push(objRes.id)
-          if (objRes.color) {
-            let group = colorByIds.find((g) => g.color === objRes.color)
-            if (!group) {
-              group = {
-                color: objRes.color,
-                objectIds: []
-              }
-              colorByIds.push(group)
-            }
-            group.objectIds.push(objRes.id)
-          }
-          objectTooltipData.set(objRes.id, {
-            selectionId: objRes.selectionId,
-            data: objRes.data
-          })
-        })
-      } else {
-        if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-        parentObjectIdChild.children?.forEach((colorByChild) => {
-          const colorSelectionId = host
-            .createSelectionIdBuilder()
-            .withMatrixNode(colorByChild, matrixView.rows.levels)
-            .createSelectionId()
+    colorByGroup.children.forEach((objectIdGroup) => {
+      const uniqueId = objectIdGroup.value
+      const jsonValue = objectIdGroup.values[0] // TODO: Json value is set as first value in capabilities.json
 
-          const color = host.colorPalette.getColor(colorByChild.value as string)
-          if (colorByChild.objects) {
-            console.log(
-              '⚠️COLOR NODE HAS objects',
-              colorByChild.objects,
-              colorByChild.objects.color?.fill
-            )
-          }
+      objectJsonToLoad.push(JSON.parse(jsonValue.value.toString()))
+      colorGroup.objectIds.push(uniqueId)
 
-          const colorSlice = new fs.ColorPicker({
-            name: 'selectorFill',
-            displayName: colorByChild.value.toString(),
-            value: {
-              value: color.value
-            },
-            selector: colorSelectionId.getSelector()
-          })
+      if (jsonValue.highlight) console.log(uniqueId, jsonValue)
+      var processedObject = processObjectNode(objectIdGroup, host, matrixView)
+      console.log(processedObject)
 
-          const colorGroup = {
-            color: color.value,
-            slice: colorSlice,
-            objectIds: []
-          }
+      onSelectionPair(uniqueId.toString(), processedObject.selectionId)
 
-          processObjectIdLevel(colorByChild, host, matrixView).forEach((objRes) => {
-            objectIds.push(objRes.id)
-            onSelectionPair(objRes.id, objRes.selectionId)
-            if (objRes.shouldSelect) selectedIds.push(objRes.id)
-            if (objRes.shouldColor) {
-              colorGroup.objectIds.push(objRes.id)
-            }
-            objectTooltipData.set(objRes.id, {
-              selectionId: objRes.selectionId,
-              data: objRes.data
-            })
-          })
-          if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
-        })
-      }
+      if (processedObject.shouldSelect) selectedIds.push(processedObject.id)
+      if (processedObject.shouldColor) colorGroup.objectIds.push(processedObject.id)
+
+      objectTooltipData.set(processedObject.id, {
+        selectionId: processedObject.selectionId,
+        data: processedObject.data
+      })
     })
+
+    if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
   })
+
+  // TODO: Code behavior without color filter
 
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objectsToLoad: objectUrlsToLoad,
+    objectsToLoad: objectJsonToLoad,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
     view: matrixView
   }
+}
+function createColorGroup(
+  host: powerbi.extensibility.visual.IVisualHost,
+  colorByGroup: powerbi.DataViewMatrixNode,
+  matrixView: powerbi.DataViewMatrix
+) {
+  const colorSelectionId = host
+    .createSelectionIdBuilder()
+    .withMatrixNode(colorByGroup, matrixView.rows.levels)
+    .createSelectionId()
+
+  const color = host.colorPalette.getColor(colorByGroup.value as string)
+  if (colorByGroup.objects) {
+    console.log('⚠️COLOR NODE HAS objects', colorByGroup.objects, colorByGroup.objects.color?.fill)
+  }
+
+  const colorSlice = new fs.ColorPicker({
+    name: 'selectorFill',
+    displayName: colorByGroup.value.toString(),
+    value: {
+      value: color.value
+    },
+    selector: colorSelectionId.getSelector()
+  })
+
+  const colorGroup = {
+    color: color.value,
+    slice: colorSlice,
+    objectIds: []
+  }
+  return colorGroup
 }

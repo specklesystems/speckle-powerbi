@@ -96,9 +96,10 @@ export default class ViewerHandler {
   ) {
     for (const url of objects) {
       if (signal?.aborted) return
+      // TODO: Here's where the viewer unloads any objects that have been removed. It first ensures any loading is cancelled.
       await this.viewer
         .cancelLoad(url, true)
-        .catch((e) => console.warn('Viewer Unload error', url, e))
+        .catch((e) => console.warn('Viewer error while cancelling load', url, e))
         .finally(() => {
           if (this.loadedObjectsCache.has(url)) this.loadedObjectsCache.delete(url)
           if (onObjectUnloaded) onObjectUnloaded(url)
@@ -118,7 +119,7 @@ export default class ViewerHandler {
   }
 
   public async loadObjects(
-    objectUrls: string[],
+    objectsToLoad: any[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
@@ -126,18 +127,23 @@ export default class ViewerHandler {
     try {
       let index = 0
       let promises = []
-      for (const url of objectUrls) {
+      for (const speckleObject of objectsToLoad) {
         signal.throwIfAborted()
-        console.log('Attempting to load', url)
-        if (!this.loadedObjectsCache.has(url)) {
+        console.log('Attempting to load', speckleObject.id)
+
+        if (!this.loadedObjectsCache.has(speckleObject.id)) {
           console.log('Object is not in cache')
+
+          // TODO: Here's were the viewer loads each object, this used to be done via URL but is now changed to use JSON objects instead (already deserialized)
           const promise = this.viewer
-            .loadObjectAsync(url, this.config.authToken, false)
-            .then(() => onLoad(url, index++))
-            .catch((e: Error) => onError(url, e))
+            .loadObjectAsync(speckleObject, this.config.authToken, false)
+            .then(() => onLoad(speckleObject.id, index++))
+            .catch((e: Error) => onError(speckleObject, e))
             .finally(() => {
-              if (!this.loadedObjectsCache.has(url)) this.loadedObjectsCache.add(url)
+              if (!this.loadedObjectsCache.has(speckleObject.id))
+                this.loadedObjectsCache.add(speckleObject.id)
             })
+
           promises.push(promise)
           if (promises.length == this.config.batchSize) {
             //this.promises.push(Promise.resolve(this.later(1000)))
@@ -145,7 +151,7 @@ export default class ViewerHandler {
             promises = []
           }
         } else {
-          console.log('Object was already in cache')
+          console.log('Object was already in cache/already loaded')
         }
       }
       await Promise.all(promises)

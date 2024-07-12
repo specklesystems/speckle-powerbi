@@ -21,6 +21,11 @@
       "name": "objectColorBy"
     },
     {
+      "displayName": "JSON Data",
+      "kind": "Measure",
+      "name": "json"
+    },
+    {
       "displayName": "Tooltip Data",
       "kind": "Measure",
       "name": "objectData"
@@ -38,16 +43,6 @@
           "select": [
             {
               "bind": {
-                "to": "stream"
-              }
-            },
-            {
-              "bind": {
-                "to": "parentObject"
-              }
-            },
-            {
-              "bind": {
                 "to": "objectColorBy"
               }
             },
@@ -60,6 +55,11 @@
         },
         "values": {
           "select": [
+            {
+              "bind": {
+                "to": "json"
+              }
+            },
             {
               "bind": {
                 "to": "objectData"
@@ -206,6 +206,7 @@
       "essential": true,
       "name": "WebAccess",
       "parameters": [
+        "https://*.speckle.systems",
         "https://speckle.xyz",
         "https://*.speckle.xyz",
         "https://latest.speckle.dev",

@@ -44,15 +44,13 @@ in
             addSpeckleTypeCol = Table.AddColumn(
                 addObjectIdCol, "speckle_type", each try[data][speckle_type] otherwise null
             ),
+            // TODO: JSON Column must be added here so that any detached objects can be re-attached before doing the json thing. If we just pick the raw result from the API, it will only work in the simplest of objects.
+            addJsonCol = Table.AddColumn(
+                addSpeckleTypeCol, "json", each try Text.FromBinary(Json.FromValue([data])) otherwise null
+            ),
             final = Table.ReorderColumns(
-                addSpeckleTypeCol, {
-                    "Model URL",
-                    "URL Type",
-                    "Version Object ID",
-                    "Object ID",
-                    "speckle_type",
-                    "data"
-                }
+                addJsonCol,
+                {"Model URL", "URL Type", "Version Object ID", "Object ID", "speckle_type", "data", "json"}
             )
         in
             final
