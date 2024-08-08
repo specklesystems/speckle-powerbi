@@ -1,14 +1,71 @@
 <h1 align="center">
   <img src="https://user-images.githubusercontent.com/2679513/131189167-18ea5fe1-c578-47f6-9785-3748178e4312.png" width="150px"/><br/>
-  Speckle | PowerBI
+  Speckle | Power BI
 </h1>
 <h3 align="center">
-    Data Connector and 3D Viewer Visual for PowerBI platform
+    Data Connector and 3D Viewer Visual for Power BI platform
 </h3>
 <p align="center"><b>Speckle</b> is the data infrastructure for the AEC industry.</p><br/>
 
 <p align="center"><a href="https://twitter.com/SpeckleSystems"><img src="https://img.shields.io/twitter/follow/SpeckleSystems?style=social" alt="Twitter Follow"></a> <a href="https://speckle.community"><img src="https://img.shields.io/discourse/users?server=https%3A%2F%2Fspeckle.community&amp;style=flat-square&amp;logo=discourse&amp;logoColor=white" alt="Community forum users"></a> <a href="https://speckle.systems"><img src="https://img.shields.io/badge/https://-speckle.systems-royalblue?style=flat-square" alt="website"></a> <a href="https://speckle.guide/dev/"><img src="https://img.shields.io/badge/docs-speckle.guide-orange?style=flat-square&amp;logo=read-the-docs&amp;logoColor=white" alt="docs"></a></p>
 <p align="center"></p>
+
+Speckle Power BI Data Connector lets you easily get data from Speckle into Power BI reports and visualizations. You can access and analyze data from various AEC apps (like Revit, Archicad, Grasshopper, and more) and open-source files (IFC, STL, OBJ, etc.) into Power BI with ease. 
+
+Speckle’s connection to Power BI consists of two parts:
+
+- **Data Connector** fetches the data you uploaded from AEC apps to Speckle.
+- **3D Visual** allows you to see those models in 3D within Power BI.
+
+![Desktop - 1 (1)](https://github.com/specklesystems/speckle-powerbi/assets/51519350/6d2c5224-965f-4eae-b869-be26cb48c6b2)
+
+# Repo Structure
+
+This repo is home to our Power BI connector. The Speckle Server provides all the web-facing functionality and can be found [here](https://github.com/specklesystems/Server).
+
+`src/powerbi-data-connector` contains all the code for the Data connector.
+
+`src/powerbi-visual` contains all the code for 3D Visual.
+
+# Installation
+
+Speckle connector can be installed directly from [Manager for Speckle](https://speckle.systems/download/). Full instructions for [installation](https://speckle.guide/user/powerbi/installation.html) and [configuration](https://speckle.guide/user/powerbi/configuration.html) can be found on our docs.
+
+# Using 3D Visual
+
+3D Visual can be imported as any other Power BI custom visual.
+
+1. Navigate to the Visualization Pane.
+2. Click the three dots (…) and select “Import a visual from a file”.
+3. Go to `Documents/Power BI Desktop/Custom Visuals` and import `Speckle 3D Visual.pbiviz` file.
+4. Speckle cube will appear in the Visualization pane.
+
+For more on how to use the visual, [check our docs](https://speckle.guide/user/powerbi-visual/introduction.html).
+
+# Usage
+
+To get started with Power BI connectors, please take a look at the [documentation](https://speckle.guide/user/powerbi/introduction.html) and extensive [tutorials](https://www.youtube.com/playlist?list=PLlI5Dyt2HaEsZHG2WJ75WIM0Brx6VHT2S) published. 
+
+# **Developing & Debugging**
+
+We encourage everyone interested to debug/hack/contribute/give feedback to this project.
+
+## **Setup**
+
+### **Install PowerQuery SDK**
+
+Follow the instructions from the [official docs](https://docs.microsoft.com/en-us/power-query/installingsdk)
+
+### **Build with Visual Studio**
+
+Every time you build the connector, VisualStudio will copy the latest `.mez` connector file to the appropriate location. Just restart PowerBI to see the latest changes.
+
+### **Debug**
+
+You can start the PowerQuery connector in VisualStudio, this will open a standalone connector you can use for testing purposes.
+
+We don't know of a way to debug the connector live in PowerBI, but we'd be happy to hear about it.
+
 
 # About Speckle
 
@@ -41,56 +98,3 @@ Give Speckle a try in no time by:
 - [![docs](https://img.shields.io/badge/docs-speckle.guide-orange?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://speckle.guide/dev/) reference on almost any end-user and developer functionality
 
 ![Untitled](https://user-images.githubusercontent.com/2679513/132021739-15140299-624d-4410-98dc-b6ae6d9027ab.png)
-
-# Repo structure
-
-This repo is the home to our Speckle 2.0 PowerBI project. The [Speckle Server](https://github.com/specklesystems/Server) is providing all the web-facing functionality and can be found [here](https://github.com/specklesystems/Server).
-
-## Install
-
-Go to the [Releases](https://github.com/specklesystems/speckle-powerbi/releases) page, downlad the `.mez` file of the latest release and copy it into the following folder in your computer:
-
-```
-YOUR_USER_FOLDER\Documents\Power BI Desktop\Custom Connectors\
-```
-If the folder doesn't exist, create it.
-
-### Allow custom extensions to run
-
-Go to `Settings -> Security -> Data Extensions` and activate the following option:
-
-![Allow extensions to run](https://user-images.githubusercontent.com/2316535/130931149-074cf6a8-1910-41f1-99c7-b8b08168f473.png)
-
-### Checking the connector is loaded
-
-Now open PowerBI and you should see `Speckle (beta)` appear in the data source.
-
-![PowerBI](https://user-images.githubusercontent.com/2316535/129580913-02e5e662-f344-419c-9894-e97055930c58.png)
-
-## Usage
-
-> More detailed instructions on how to use the connector will be added shortly!
-
-### Current limitations
-
-Chunked data currently is not automatically de-chunked when received, we are aware of this limitation and are working to resolve it!
-
-## Developing & Debugging
-
-We encourage everyone interested to debug / hack / contribute / give feedback to this project.
-
-### Setup
-
-#### Install PowerQuery SDK
-
-Follow the instructions from the [official docs](https://docs.microsoft.com/en-us/power-query/installingsdk)
-
-#### Build with Visual Studio
-
-Every time you build the connector, VisualStudio will copy the latest `.mez` connector file to the appropriate location. Just restart PowerBI to see the latest changes.
-
-#### Debug
-
-You can start the PowerQuery connector in VisualStudio, this will open a standalone connector you can use for testing purposes.
-
-We don't know of a way to debug the connector live in PowerBI, but we'd be happy to hear about it.
