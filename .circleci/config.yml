@@ -27,6 +27,36 @@ commands:
             & $env:SSM\smksp_cert_sync.exe
 
 jobs:
+  build-visual:
+    docker:
+      - image: cimg/node:18.20.3
+    steps:
+      - checkout
+      - run: node --version
+      - run:
+          name: "npm install"
+          command: "npm i"
+          working_directory: src/powerbi-visual
+      - run:
+          name: Set version
+          command: |
+            npm version ${CIRCLE_TAG:-2.0.0} --allow-same-version
+          working_directory: src/powerbi-visual
+      - run:
+          name: "npm run build"
+          command: "npm run build"
+          working_directory: src/powerbi-visual
+      - run:
+          name: "npm run pack"
+          command: "npm run pack"
+          working_directory: src/powerbi-visual
+      - store_artifacts:
+          path: dist/*.pbiviz
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - src/powerbi-visual/dist/*.pbiviz
+
   build-connector:
     executor:
       name: win/default
@@ -38,14 +68,31 @@ jobs:
       - run:
           name: "Set connector internal version"
           command: |
-            $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0.$($env:WORKFLOW_NUM)" } else { $env:CIRCLE_TAG }
-            (Get-Content ./src/powerbi-data-connector/Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./src/powerbi-data-connector/Speckle.pq
+            $env:VERSION = if([string]::IsNullOrEmpty($env:CIRCLE_TAG)) { "2.0.0" } else { $env:CIRCLE_TAG }
+            (Get-Content ./Speckle.pq).replace('[Version = "2.0.0"]', '[Version = "'+$($env:VERSION)+'"]') | Set-Content ./Speckle.pq
+          working_directory: src/powerbi-data-connector
       - run:
           name: "Build Data Connector"
-          command: "msbuild ./src/powerbi-data-connector/Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+          command: "msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true"
+          working_directory: src/powerbi-data-connector
       - run:
           name: Create PQX file
           command: .\tools\MakePQX\MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - src/powerbi-data-connector/bin/Speckle.pqx
+
+  build-installer:
+    executor:
+      name: win/default
+      shell: powershell.exe
+    environment:
+      SSM: 'C:\Program Files\DigiCert\DigiCert One Signing Manager Tools'
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ./
       - unless: # Build installers unsigned on non-tagged builds
           condition: << pipeline.git.tag >>
           steps:
@@ -54,7 +101,7 @@ jobs:
                 shell: cmd.exe #does not work in powershell
                 environment:
                   WORKFLOW_NUM: << pipeline.number >>
-                  CIRCLE_TAG: 2.0.999-beta/all
+                  CIRCLE_TAG: 2.0.0
                 command: .circleci\build-installer.bat
       - when: # Setup certificates and build installers signed for tagged builds
           condition: << pipeline.git.tag >>
@@ -85,29 +132,44 @@ jobs:
       - run:
           name: Upload new version
           command: |
-            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.999"; fi;)
+            TAG=$(if [ "${CIRCLE_TAG}" ]; then echo $CIRCLE_TAG; else echo "2.0.0"; fi;)
             SEMVER=$(echo "$TAG" | sed -e 's/\/[a-zA-Z-]*//')
             VER=$(echo "$SEMVER" | sed -e 's/-.*//')
             VERSION=$(echo $VER.$WORKFLOW_NUM)
             /root/.dotnet/tools/Speckle.Manager.Feed deploy -s powerbi -v ${SEMVER} -u https://releases.speckle.dev/installers/powerbi/powerbi-${SEMVER}.exe -o Win -a Any -f ./installer/powerbi-${SEMVER}.exe
           environment:
             WORKFLOW_NUM: << pipeline.number >>
+
 workflows:
   build:
     jobs:
       - build-connector:
           context: digicert-keylocker
+      - build-visual
+      - build-installer:
+          context: digicert-keylocker
+          requires:
+            - build-connector
+            - build-visual
   deploy:
     jobs:
       - build-connector:
           filters: &deploy_filter
             branches:
-              ignore: /.*/ # For testing only: /ci\/.*/
+              ignore: /.*/
             tags:
               only: /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-\w{1,10})?$/
           context: digicert-keylocker
+      - build-visual:
+          filters: *deploy_filter
+      - build-installer:
+          filters: *deploy_filter
+          context: digicert-keylocker
+          requires:
+            - build-connector
+            - build-visual
       - deploy-connector-to-feed:
           filters: *deploy_filter
           requires:
-            - build-connector
+            - build-installer
           context: do-spaces-speckle-releases

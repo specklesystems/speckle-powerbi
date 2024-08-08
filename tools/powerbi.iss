@@ -5,13 +5,14 @@
 
 #define BasePath "..\"
 #define Bin BasePath + "src\powerbi-data-connector\bin\"
-#define VisualDistPath BasePath + "src\powerbi-data-connector\dist\"
+#define VisualDistPath BasePath + "src\powerbi-visual\dist\"
+
 #ifndef Version
-    #define Version "2.0.999"
+    #define Version "2.0.0"
 #endif
 
 #ifndef InfoVersion
-    #define InfoVersion "2.0.999.9999"
+    #define InfoVersion "2.0.0.0"
 #endif
 
 #define AppPublisher "Speckle"
@@ -56,7 +57,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
-; Source: "{#VisualDistPath}/specklePowerBiVisual.*.pbiviz"; DestDir: "{#CustomVisualFolder}";
+Source: "{#VisualDistPath}specklePowerBiVisual.{#Version}.pbiviz"; DestDir: "{#CustomVisualFolder}"; DestName: "Speckle Power BI 3D Visual.pbiviz";
 
 ; TODO: Including the thumbprint in the registry will enable this running in higher security environments.
 ; Currently blocked because of MakePQX.exe not being ready to work with online CSP's like Digicert Keylocker.
@@ -64,5 +65,4 @@ Source: "{#Bin}Speckle.pqx"; DestDir: "{#CustomConnectorFolder}";
 
 [InstallDelete]
 ; Remove old .mez file connector to prevent conflicts with prior versions.
-Type: filesandordirs; Name: "{#CustomConnectorFolder}\Speckle.mez"
 Type: filesandordirs; Name: "{#CustomConnectorFolder}\Speckle.mez"

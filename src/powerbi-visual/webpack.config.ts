@@ -20,6 +20,9 @@ const powerbiApi: any = powerbi // Types for PowerBI seem to be off, so I'm inst
 const pbivizPath = './pbiviz.json'
 const pbivizFile = require(path.join(__dirname, pbivizPath))
 
+const packageJsonFile = require(path.join(__dirname, 'package.json'))
+pbivizFile.visual.version = packageJsonFile.version
+
 // the visual capabilities content
 const capabilitiesPath = './capabilities.json'
 const capabilitiesFile = require(path.join(__dirname, capabilitiesPath))
