@@ -16,7 +16,7 @@
   "settings": {
     "powerquery.general.mode": "SDK",
     "powerquery.sdk.defaultQueryFile": "${workspaceFolder}\\src\\powerbi-data-connector\\Speckle.query.pq",
-    "powerquery.sdk.defaultExtension": "${workspaceFolder}\\bin\\${workspaceFolderBasename}.mez",
+    "powerquery.sdk.defaultExtension": "${workspaceFolder}\\src\\powerbi-data-connector\\bin\\Speckle.mez",
     "files.eol": "\n",
     "files.watcherExclude": {
       "**/.git/objects/**": true,
