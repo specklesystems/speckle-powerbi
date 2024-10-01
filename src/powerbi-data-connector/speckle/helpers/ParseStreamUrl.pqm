@@ -63,7 +63,7 @@ let
                     urlType = urlType,
                     server = server,
                     id = streamId,
-                    branch = model[name],
+                    branch = modelId,
                     commit = versionId,
                     object = null
                 ]
