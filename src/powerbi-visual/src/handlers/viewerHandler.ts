@@ -6,7 +6,8 @@ import {
   DefaultViewerParams,
   Box3,
   SpeckleView,
-  CameraController
+  CameraController,
+  CameraEvent
 } from '@speckle/viewer'
 import { pickViewableHit, projectToScreen } from '../utils/viewerUtils'
 import _ from 'lodash'
@@ -38,10 +39,9 @@ export default class ViewerHandler {
         break
     }
 
-    this.viewer.getExtension(CameraController).controls.maxPolarAngle = settings.camera
-      .allowCameraUnder.value
-      ? Math.PI
-      : Math.PI / 2
+    var camController = this.viewer.getExtension(CameraController)
+    var angle = settings.camera.allowCameraUnder.value ? Math.PI : Math.PI / 2
+    camController.options = { maximumPolarAngle: angle }
 
     // Lighting settings
     const newConfig = settings.lighting.getViewerConfiguration()
@@ -72,7 +72,7 @@ export default class ViewerHandler {
   }
 
   public addCameraUpdateEventListener(listener: (ev) => void) {
-    this.viewer.getExtension(CameraController).controls.addEventListener('update', listener)
+    this.viewer.getExtension(CameraController).on(CameraEvent.LateFrameUpdate, listener)
   }
 
   public constructor(parent: HTMLElement) {
@@ -213,13 +213,13 @@ export default class ViewerHandler {
 
   public getScreenPosition(worldPosition): { x: number; y: number } {
     return projectToScreen(
-      this.viewer.getExtension(CameraController).controls.camera,
+      this.viewer.getExtension(CameraController).renderingCamera,
       worldPosition
     )
   }
 
   public dispose() {
-    this.viewer.getExtension(CameraController).controls.removeAllEventListeners()
+    this.viewer.getExtension(CameraController).dispose()
     this.viewer.dispose()
     this.viewer = null
   }

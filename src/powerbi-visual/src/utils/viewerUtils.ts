@@ -1,6 +1,7 @@
 import { FilteringState } from '@speckle/viewer'
+import { OrthographicCamera, PerspectiveCamera } from 'three'
 
-export function projectToScreen(cam, loc) {
+export function projectToScreen(cam: OrthographicCamera | PerspectiveCamera, loc) {
   cam.updateProjectionMatrix()
   const copy = loc.clone()
   copy.project(cam)
