@@ -19,7 +19,7 @@
     "@heroicons/vue": "^2.0.12",
     "@speckle/tailwind-theme": "2.14.7",
     "@speckle/ui-components": "2.14.7",
-    "@speckle/viewer": "^2.18.14",
+    "@speckle/viewer": "^2.21.0",
     "color-interpolate": "^1.0.5",
     "core-js": "^3.30.2",
     "lodash": "^4.17.21",
