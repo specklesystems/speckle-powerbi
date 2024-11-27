@@ -40,12 +40,14 @@ in
                 addStreamUrl, "Version Object ID", each Value.Metadata(commitObjectsTable)[objectId]
             ),
             addUrlType = Table.AddColumn(addParentObjectId, "URL Type", each stream[urlType]),
-            addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
+            addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try [data][id] otherwise null),
             addSpeckleTypeCol = Table.AddColumn(
-                addObjectIdCol, "speckle_type", each try[data][speckle_type] otherwise null
+                addObjectIdCol, "speckle_type", each try [data][speckle_type] otherwise null
             ),
+            // removes rows where Object ID is null
+            removeNullRows = Table.SelectRows(addSpeckleTypeCol, each [Object ID] <> null),
             final = Table.ReorderColumns(
-                addSpeckleTypeCol, {
+                removeNullRows, {
                     "Model URL",
                     "URL Type",
                     "Version Object ID",
