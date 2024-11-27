@@ -1,3 +1,25 @@
+<template>
+  <div class="flex flex-col justify-center items-center">
+    <div
+      ref="container"
+      class="fixed h-full w-full z-0"
+      @click="onCanvasClick"
+      @auxclick="onCanvasAuxClick"
+    />
+    <div class="z-30 w-1/2 px-10">
+      <common-loading-bar :loading="isLoading" />
+    </div>
+    <viewer-controls
+      v-if="!isLoading"
+      v-model:section-box="bboxActive"
+      :views="views"
+      class="fixed bottom-6"
+      @view-clicked="(view) => viewerHandler.setView(view)"
+      @clearPalette="onClearPalette"
+    />
+  </div>
+</template>
+
 <script async setup lang="ts">
 import {
   computed,
@@ -160,25 +182,5 @@ function onClearPalette() {
 }
 </script>
 
-<template>
-  <div class="flex flex-col justify-center items-center">
-    <div
-      ref="container"
-      class="fixed h-full w-full z-0"
-      @click="onCanvasClick"
-      @auxclick="onCanvasAuxClick"
-    />
-    <div class="z-30 w-1/2 px-10">
-      <common-loading-bar :loading="isLoading" />
-    </div>
-    <viewer-controls
-      v-if="!isLoading"
-      v-model:section-box="bboxActive"
-      :views="views"
-      class="fixed bottom-6"
-      @view-clicked="(view) => viewerHandler.setView(view)"
-      @clearPalette="onClearPalette"
-    />
-  </div>
-</template>
+
 <style scoped></style>

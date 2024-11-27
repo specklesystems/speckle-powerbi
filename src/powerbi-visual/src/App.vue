@@ -1,3 +1,8 @@
+<template>
+  <ViewerView v-if="status == 'valid'" />
+  <HomeView v-else />
+</template>
+
 <script setup lang="ts">
 import HomeView from './views/HomeView.vue'
 import ViewerView from './views/ViewerView.vue'
@@ -10,10 +15,3 @@ let status = computed(() => {
   return store.state.status
 })
 </script>
-
-<template>
-  <ViewerView v-if="status == 'valid'" />
-  <HomeView v-else />
-</template>
-
-<style scoped></style>
