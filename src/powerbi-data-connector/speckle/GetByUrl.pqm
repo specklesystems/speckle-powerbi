@@ -35,6 +35,26 @@ in
                     GetObjectFromBranch(server, id, stream[branch])
                 else
                     GetObjectFromBranch(server, id, "main"),
+
+            // Get root object ID from metadata
+            rootObjectId = Value.Metadata(commitObjectsTable)[objectId],
+
+            // Fetch raw data once for root object
+            rawData = if rootObjectId <> null then
+                let
+                    query = "query($streamId: String!, $objectId: String!) { 
+                        stream( id: $streamId ) { 
+                            object (id: $objectId) { 
+                                data
+                            }
+                        }
+                    }",
+                    result = Fetch(server, query, [streamId = id, objectId = rootObjectId])
+                in
+                    result[stream][object][data]
+            else 
+                null,
+
             addStreamUrl = Table.AddColumn(commitObjectsTable, "Model URL", each server & "/streams/" & id),
             addParentObjectId = Table.AddColumn(
                 addStreamUrl, "Version Object ID", each Value.Metadata(commitObjectsTable)[objectId]
@@ -44,8 +64,15 @@ in
             addSpeckleTypeCol = Table.AddColumn(
                 addObjectIdCol, "speckle_type", each try [data][speckle_type] otherwise null
             ),
+            // Add raw data only for root object
+            addRawDataCol = Table.AddColumn(
+                addSpeckleTypeCol,
+                "rawData",
+                each if [Object ID] = rootObjectId then rawData else null,
+                type record
+            ),
             // removes rows where Object ID is null
-            removeNullRows = Table.SelectRows(addSpeckleTypeCol, each [Object ID] <> null),
+            removeNullRows = Table.SelectRows(addRawDataCol, each [Object ID] <> null),
             final = Table.ReorderColumns(
                 removeNullRows, {
                     "Model URL",
@@ -53,7 +80,8 @@ in
                     "Version Object ID",
                     "Object ID",
                     "speckle_type",
-                    "data"
+                    "data",
+                    "rawData"
                 }
             )
         in
