@@ -1,0 +1,27 @@
+// Function for getting structured data by URL
+(url as text) as table =>
+    let
+        // Import the GetStructuredData function
+        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
+        
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        // Use GetStructuredData to get the table
+        result = GetStructuredData(url)
+    in
+        result

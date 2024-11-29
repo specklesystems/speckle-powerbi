@@ -1,6 +1,6 @@
 ﻿// Use this file to write queries to test your data connector
 let
-    result = Speckle.GetStructuredData(
+    result = Speckle.GetByUrl(
         "https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"
     )
 in
