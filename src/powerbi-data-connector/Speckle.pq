@@ -112,6 +112,13 @@ Speckle = [
     Label = "Speckle"
 ];
 
+// here we register the functions to expose them globally
+[DataSource.Kind = "Speckle"]
+shared Speckle.Parser = Value.ReplaceType(
+    Speckle.LoadFunction("Parser.pqm"), 
+    type function (url as Uri.Type) as record
+);
+
 
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetUser = Value.ReplaceType(
@@ -121,6 +128,18 @@ shared Speckle.GetUser = Value.ReplaceType(
 
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetModel = Value.ReplaceType(
-    Speckle.LoadFunction("GetModel.pqm"), 
+    Speckle.LoadFunction("GetModel.pqm"),
     type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetRawData = Value.ReplaceType(
+    Speckle.LoadFunction("GetRawData.pqm"),
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetStructuredData = Value.ReplaceType(
+    Speckle.LoadFunction("GetStructuredData.pqm"),
+    type function (url as Uri.Type) as table
 );
