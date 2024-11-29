@@ -1,0 +1,7 @@
+// function for getting the base url from the given url
+(url as text) as text =>
+    let
+        urlParts = Uri.Parts(url),
+        baseUrl = Text.Combine({urlParts[Scheme], "://", urlParts[Host]})
+    in
+        baseUrl
