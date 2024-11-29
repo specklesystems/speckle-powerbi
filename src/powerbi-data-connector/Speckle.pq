@@ -21,6 +21,56 @@ shared Speckle.LoadFunction = (fileName as text) =>
                     Detail = [File = fileName, Error = e]
                 ];
 
+// here we register the functions to expose them globally
+[DataSource.Kind = "Speckle"]
+shared Speckle.Parser = Value.ReplaceType(
+    Speckle.LoadFunction("Parser.pqm"), 
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetUser = Value.ReplaceType(
+    Speckle.LoadFunction("GetUser.pqm"), 
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetModel = Value.ReplaceType(
+    Speckle.LoadFunction("GetModel.pqm"),
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetRawData = Value.ReplaceType(
+    Speckle.LoadFunction("GetRawData.pqm"),
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetStructuredData = Value.ReplaceType(
+    Speckle.LoadFunction("GetStructuredData.pqm"),
+    type function (url as Uri.Type) as table
+);
+
+[DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
+shared Speckle.GetByUrl = Value.ReplaceType(
+    Speckle.LoadFunction("GetByUrl.pqm"),
+    type function (url as Uri.Type) as table
+);
+
+GetByUrl.Publish = [
+    Beta = true,
+    ButtonText = { Extension.LoadString("FormulaTitle"), Extension.LoadString("FormulaHelp") },
+    SourceImage = GetByUrl.Icons,
+    SourceTypeImage = GetByUrl.Icons
+];
+
+GetByUrl.Icons = [
+    Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
+    Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
+];
+
+
 // The data source definition
 Speckle = [
     // This is used when running the connector on an on-premises data gateway
@@ -111,41 +161,3 @@ Speckle = [
     ],
     Label = "Speckle"
 ];
-
-// here we register the functions to expose them globally
-[DataSource.Kind = "Speckle"]
-shared Speckle.Parser = Value.ReplaceType(
-    Speckle.LoadFunction("Parser.pqm"), 
-    type function (url as Uri.Type) as record
-);
-
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetUser = Value.ReplaceType(
-    Speckle.LoadFunction("GetUser.pqm"), 
-    type function (url as Uri.Type) as record
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetModel = Value.ReplaceType(
-    Speckle.LoadFunction("GetModel.pqm"),
-    type function (url as Uri.Type) as record
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetRawData = Value.ReplaceType(
-    Speckle.LoadFunction("GetRawData.pqm"),
-    type function (url as Uri.Type) as record
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetStructuredData = Value.ReplaceType(
-    Speckle.LoadFunction("GetStructuredData.pqm"),
-    type function (url as Uri.Type) as table
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetByUrl = Value.ReplaceType(
-    Speckle.LoadFunction("GetByUrl.pqm"),
-    type function (url as Uri.Type) as table
-);
