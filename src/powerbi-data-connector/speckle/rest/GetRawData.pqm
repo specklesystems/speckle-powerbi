@@ -1,5 +1,5 @@
 // function for getting object data
-(url as text) as table =>
+(url as text) as list =>
     let
         // Import the parser function and getModel
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -20,7 +20,7 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-        
+    
         // Get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
@@ -40,13 +40,7 @@
             ]
         ),
         
-        // Parse the response
-        JsonResponse = Json.Document(Source),
-        
-        // Convert to table if it's a list
-        ConvertedToTable = if Value.Is(JsonResponse, type list) then
-            Table.FromRecords(JsonResponse)
-        else 
-            Table.FromRecords({JsonResponse})
+        // Parse the response and return the raw JSON
+        JsonResponse = Json.Document(Source)
     in
-        ConvertedToTable
+        JsonResponse

@@ -143,3 +143,9 @@ shared Speckle.GetStructuredData = Value.ReplaceType(
     Speckle.LoadFunction("GetStructuredData.pqm"),
     type function (url as Uri.Type) as table
 );
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetByUrl = Value.ReplaceType(
+    Speckle.LoadFunction("GetByUrl.pqm"),
+    type function (url as Uri.Type) as table
+);
