@@ -23,7 +23,8 @@ in
     (url as text) as record =>
         let
             // get base server URL using the imported function
-            server = Parser(url),
+            parsedUrl = Parser(url),
+            server = parsedUrl[baseUrl],
             
             apiKey = try Extension.CurrentCredential()[Key] otherwise null,
             

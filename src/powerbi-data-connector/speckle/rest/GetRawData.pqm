@@ -1,0 +1,52 @@
+// function for getting object data
+(url as text) as table =>
+    let
+        // Import the parser function and getModel
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        // Get parsed URL components and model info
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        modelInfo = GetModel(url),
+        
+        // Get API key if available
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        
+        // Make the API request to objects endpoint
+        Source = Web.Contents(
+            Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
+            [
+                Headers = [
+                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                ],
+                ManualStatusHandling = {400, 401, 403}
+            ]
+        ),
+        
+        // Parse the response
+        JsonResponse = Json.Document(Source),
+        
+        // Convert to table if it's a list
+        ConvertedToTable = if Value.Is(JsonResponse, type list) then
+            Table.FromRecords(JsonResponse)
+        else 
+            Table.FromRecords({JsonResponse})
+    in
+        ConvertedToTable
