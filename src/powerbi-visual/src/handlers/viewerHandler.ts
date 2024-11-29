@@ -122,8 +122,23 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
+    /** Old legacy way of loading. */
     await this.viewer
-            .loadObjectAsync('', this.config.authToken, false)
+            .loadObjectAsync("https://latest.speckle.systems/streams/126cd4b7bb/objects/49874f87a2ddd370bd2bf46b68c3660d", this.config.authToken, false)
+    
+    // json: string | ArrayBufer -> viewer -> success
+
+    /** Current recommended way of loading */
+    // const loader = new SpeckleOfflineLoader(
+    //   this.viewer.getWorldTree(),
+    //   json,
+    //   sumId ??
+    //   // authToken,
+    //   // true,
+    //   // undefined
+    // )
+    // await this.viewer.loadObject(loader, true)
+
   }
 
   public async intersect(coords: { x: number; y: number }) {
