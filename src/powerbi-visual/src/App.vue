@@ -16,8 +16,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <ViewerView v-if="status == 'valid'" />
-  <HomeView v-else />
+  <ViewerView />
+  <!-- <HomeView v-else /> -->
 </template>
 
 <style scoped></style>

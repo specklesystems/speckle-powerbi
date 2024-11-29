@@ -4,7 +4,6 @@ import {
   LegacyViewer,
   IntersectionQuery,
   DefaultViewerParams,
-  Box3,
   SpeckleView,
   CameraController,
   CameraEvent
@@ -12,6 +11,7 @@ import {
 import { pickViewableHit, projectToScreen } from '../utils/viewerUtils'
 import _ from 'lodash'
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
+import { PerspectiveCamera, OrthographicCamera, Box3 } from 'three'
 export default class ViewerHandler {
   private viewer: LegacyViewer
   private readonly parent: HTMLElement
@@ -59,10 +59,10 @@ export default class ViewerHandler {
       if (this.currentSectionBox === null) {
         const bbox = this.viewer.getSectionBoxFromObjects(objectIds)
         this.viewer.setSectionBox(bbox)
-        this.currentSectionBox = bbox
+        this.currentSectionBox = bbox as unknown as Box3
       } else {
         const bbox = this.viewer.getCurrentSectionBox()
-        if (bbox) this.currentSectionBox = bbox
+        if (bbox) this.currentSectionBox = bbox as unknown as Box3
       }
       this.viewer.sectionBoxOn()
     } else {
@@ -114,45 +114,16 @@ export default class ViewerHandler {
   ) {
     var objectsToUnload = _.difference([...this.loadedObjectsCache], objectUrls)
     await this.unloadObjects(objectsToUnload, signal)
-    await this.loadObjects(objectUrls, onLoad, onError, signal)
+    await this.loadObjects(objectUrls, onLoad, onError)
   }
 
   public async loadObjects(
     objectUrls: string[],
     onLoad: (url: string, index: number) => void,
-    onError: (url: string, error: Error) => void,
-    signal: AbortSignal
+    onError: (url: string, error: Error) => void
   ) {
-    try {
-      let index = 0
-      let promises = []
-      for (const url of objectUrls) {
-        signal.throwIfAborted()
-        console.log('Attempting to load', url)
-        if (!this.loadedObjectsCache.has(url)) {
-          console.log('Object is not in cache')
-          const promise = this.viewer
-            .loadObjectAsync(url, this.config.authToken, false)
-            .then(() => onLoad(url, index++))
-            .catch((e: Error) => onError(url, e))
-            .finally(() => {
-              if (!this.loadedObjectsCache.has(url)) this.loadedObjectsCache.add(url)
-            })
-          promises.push(promise)
-          if (promises.length == this.config.batchSize) {
-            //this.promises.push(Promise.resolve(this.later(1000)))
-            await Promise.all(promises)
-            promises = []
-          }
-        } else {
-          console.log('Object was already in cache')
-        }
-      }
-      await Promise.all(promises)
-    } catch (error) {
-      if (error.name === 'AbortError') return
-      throw new Error(`Load objects failed: ${error}`)
-    }
+    await this.viewer
+            .loadObjectAsync('', this.config.authToken, false)
   }
 
   public async intersect(coords: { x: number; y: number }) {
@@ -213,7 +184,7 @@ export default class ViewerHandler {
 
   public getScreenPosition(worldPosition): { x: number; y: number } {
     return projectToScreen(
-      this.viewer.getExtension(CameraController).renderingCamera,
+      this.viewer.getExtension(CameraController).renderingCamera as unknown as PerspectiveCamera | OrthographicCamera,
       worldPosition
     )
   }

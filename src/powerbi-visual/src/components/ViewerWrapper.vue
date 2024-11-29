@@ -52,14 +52,17 @@ const onCameraMoved = throttle((_) => {
   tooltipHandler.move(screenPos)
 }, 50)
 
-onMounted(() => {
+onMounted(async () => {
+  console.log('Viewer Wrapper mounted');
+  
   viewerHandler = new ViewerHandler(container.value)
+  console.log('Viewer Handler created', viewerHandler);
   provide<ViewerHandler>(viewerHandlerKey, viewerHandler)
   setupTask = viewerHandler
     .init()
     .then(() => viewerHandler.addCameraUpdateEventListener(onCameraMoved))
     .finally(async () => {
-      if (input.value) await cancelAndHandleDataUpdate()
+      await viewerHandler.loadObjects(['https://latest.speckle.dev/streams/92b620fb17/objects/ee20a013a674a99ac3ffd0180375e4e6'], console.log, console.error)
       viewerHandler.updateSettings(settings.value)
     })
 })
