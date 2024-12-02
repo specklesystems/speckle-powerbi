@@ -43,7 +43,7 @@ shared Speckle.GetModel = Value.ReplaceType(
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetRawData = Value.ReplaceType(
     Speckle.LoadFunction("GetRawData.pqm"),
-    type function (url as Uri.Type) as record
+    type function (url as Uri.Type) as table
 );
 
 [DataSource.Kind = "Speckle"]
@@ -77,10 +77,8 @@ shared Speckle.GetByUrl = Value.ReplaceType(
 
 GetByUrl.Publish = [
     Beta = true,
-    ButtonText = {
-        Extension.LoadString("Connect to Speckle"),
-        Extension.LoadString("Import data from your Speckle models!")
-    },
+    Cateogry = "Other",
+    ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
     SourceImage = GetByUrl.Icons,
     SourceTypeImage = GetByUrl.Icons
