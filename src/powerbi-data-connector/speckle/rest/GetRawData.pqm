@@ -1,5 +1,5 @@
 // function for getting object data
-(url as text) as list =>
+(url as text) as table =>
     let
         // Import the parser function and getModel
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -41,6 +41,21 @@
         ),
         
         // Parse the response and return the raw JSON
-        JsonResponse = Json.Document(Source)
+        JsonResponse = Json.Document(Source),
+
+        ConvertedToTable = Table.FromList(
+            JsonResponse, 
+            Splitter.SplitByNothing(),
+            {"viewer_data"},
+            null,
+            ExtraValues.Error
+        ),
+
+        ExpandedTable = Table.AddColumn(
+            ConvertedToTable, 
+            "speckle_id", 
+            each Record.Field([viewer_data], "id"), 
+            type text
+        )
     in
-        JsonResponse
+        ExpandedTable
