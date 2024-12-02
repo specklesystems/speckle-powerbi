@@ -1,4 +1,4 @@
-[Version = "2.0.0"]
+[Version = "3.0.0"]
 section Speckle;
 
 AuthAppId = "spklpwerbi";
@@ -55,12 +55,33 @@ shared Speckle.GetStructuredData = Value.ReplaceType(
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
-    type function (url as Uri.Type) as table
+    type function (
+        url as (
+            Uri.Type meta [
+                Documentation.FieldCaption = "Speckle Model URL",
+                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
+            ]
+        )
+    ) as table meta [
+        Documentation.Name = "Speckle - Get Data by URL",
+        Documentation.DisplayName = "Speckle - Get Data by URL",
+        Documentation.LongDescription = "Returns structured data from a Speckle model URL.#(lf)
+            Supports the following URL formats:#(lf)
+            - Model URL: Gets the latest version of the specified model#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
+            - Version URL: Gets a specific version from the project#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')"
+    ]
 );
 
 GetByUrl.Publish = [
     Beta = true,
-    ButtonText = { Extension.LoadString("FormulaTitle"), Extension.LoadString("FormulaHelp") },
+    ButtonText = {
+        Extension.LoadString("Connect to Speckle"),
+        Extension.LoadString("Import data from your Speckle models!")
+    },
+    LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
     SourceImage = GetByUrl.Icons,
     SourceTypeImage = GetByUrl.Icons
 ];
