@@ -35,7 +35,8 @@
         tableType = Value.Type(source),
         newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
             NavigationTable.NameColumn = "Name",
-            NavigationTable.DataColumn = "Data"
+            NavigationTable.DataColumn = "Data",
+            Documentation.Name = "Speckle Model"
         ],
         
         // Convert to navigation table
