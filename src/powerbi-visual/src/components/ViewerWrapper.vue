@@ -26,6 +26,7 @@ import {
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
+import { obj } from '@src/handlers/obj'
 
 const selectionHandler = inject(selectionHandlerKey)
 const tooltipHandler = inject(tooltipHandlerKey)
@@ -62,7 +63,7 @@ onMounted(async () => {
     .init()
     .then(() => viewerHandler.addCameraUpdateEventListener(onCameraMoved))
     .finally(async () => {
-      await viewerHandler.loadObjects(['https://latest.speckle.dev/streams/92b620fb17/objects/ee20a013a674a99ac3ffd0180375e4e6'], console.log, console.error)
+      await viewerHandler.loadObjects(obj, console.log, console.error)
       viewerHandler.updateSettings(settings.value)
     })
 })

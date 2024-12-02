@@ -6,12 +6,14 @@ import {
   DefaultViewerParams,
   SpeckleView,
   CameraController,
-  CameraEvent
+  CameraEvent,
+  SpeckleOfflineLoader
 } from '@speckle/viewer'
 import { pickViewableHit, projectToScreen } from '../utils/viewerUtils'
 import _ from 'lodash'
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { PerspectiveCamera, OrthographicCamera, Box3 } from 'three'
+import { obj } from './obj'
 export default class ViewerHandler {
   private viewer: LegacyViewer
   private readonly parent: HTMLElement
@@ -114,31 +116,16 @@ export default class ViewerHandler {
   ) {
     var objectsToUnload = _.difference([...this.loadedObjectsCache], objectUrls)
     await this.unloadObjects(objectsToUnload, signal)
-    await this.loadObjects(objectUrls, onLoad, onError)
+    await this.loadObjects(obj, onLoad, onError)
   }
 
   public async loadObjects(
-    objectUrls: string[],
+    obj: string,
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    /** Old legacy way of loading. */
-    await this.viewer
-            .loadObjectAsync("https://latest.speckle.systems/streams/126cd4b7bb/objects/49874f87a2ddd370bd2bf46b68c3660d", this.config.authToken, false)
-    
-    // json: string | ArrayBufer -> viewer -> success
-
-    /** Current recommended way of loading */
-    // const loader = new SpeckleOfflineLoader(
-    //   this.viewer.getWorldTree(),
-    //   json,
-    //   sumId ??
-    //   // authToken,
-    //   // true,
-    //   // undefined
-    // )
-    // await this.viewer.loadObject(loader, true)
-
+    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), obj)
+    void this.viewer.loadObject(loader, true)
   }
 
   public async intersect(coords: { x: number; y: number }) {

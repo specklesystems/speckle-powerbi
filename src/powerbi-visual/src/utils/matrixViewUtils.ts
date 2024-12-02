@@ -15,22 +15,20 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   const matrixVew = options.dataViews[0].matrix
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
-  let hasStream = false,
-    hasParentObject = false,
+  let
+    hasRootObject = false,
     hasObject = false,
     hasColorFilter = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasStream) hasStream = source.roles['stream'] != undefined
-      if (!hasParentObject) hasParentObject = source.roles['parentObject'] != undefined
+      if (!hasRootObject) hasRootObject = source.roles['rootObject'] != undefined
       if (!hasObject) hasObject = source.roles['object'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
   })
 
-  if (!hasStream) throw new Error('Missing Stream ID input')
-  if (!hasParentObject) throw new Error('Missing Commit Object ID input')
+  if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
   if (!hasObject) throw new Error('Missing Object Id input')
   return {
     hasColorFilter,

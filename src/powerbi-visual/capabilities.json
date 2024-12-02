@@ -1,14 +1,9 @@
 {
   "dataRoles": [
     {
-      "displayName": "Model URL",
+      "displayName": "Viewer Data",
       "kind": "Grouping",
-      "name": "stream"
-    },
-    {
-      "displayName": "Version Object ID",
-      "kind": "Grouping",
-      "name": "parentObject"
+      "name": "rootObject"
     },
     {
       "displayName": "Object ID",
@@ -38,12 +33,7 @@
           "select": [
             {
               "bind": {
-                "to": "stream"
-              }
-            },
-            {
-              "bind": {
-                "to": "parentObject"
+                "to": "rootObject"
               }
             },
             {
