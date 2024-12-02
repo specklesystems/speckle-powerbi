@@ -1,9 +1,10 @@
-// Function for getting structured data by URL
+// Function for getting data by URL with navigation
 (url as text) as table =>
     let
-        // Import the GetStructuredData function
+        // Import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
-        
+        GetRawData = Extension.LoadFunction("GetRawData.pqm"),
+
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -20,8 +21,24 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-
-        // Use GetStructuredData to get the table
-        result = GetStructuredData(url)
+        
+        // Create navigation table
+        source = #table(
+            {"Name", "Data"},
+            {
+                { "Structured Data", GetStructuredData(url)},
+                { "Viewer Data", GetRawData(url)}
+            }
+        ),
+        
+        // Add navigation table metadata directly
+        tableType = Value.Type(source),
+        newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
+            NavigationTable.NameColumn = "Name",
+            NavigationTable.DataColumn = "Data"
+        ],
+        
+        // Convert to navigation table
+        navTable = Value.ReplaceType(source, newTableType)
     in
-        result
+        navTable
