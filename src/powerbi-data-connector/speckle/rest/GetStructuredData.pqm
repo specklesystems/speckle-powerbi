@@ -85,11 +85,11 @@
             List.Transform(
                 Table.ToRecords(FilteredTable),
                 each [
-                    applicationId = [applicationId],
+                    speckle_id = [id],
                     speckle_type = [speckle_type],
                     data = Record.RemoveFields(
                         _,
-                        {"applicationId", "speckle_type"}
+                        {"id", "speckle_type", "collectionType", "displayValue", "totalChildrenCount", "renderMaterialProxies", "data", "__closure"}
                     )
                 ]
             )
