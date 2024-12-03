@@ -7,10 +7,13 @@
   },
   "license": "MIT",
   "scripts": {
+    "setup-cert": "pbiviz install-cert",
+    "start": "pbiviz start",
     "pbiviz": "pbiviz",
     "pack": "webpack --config webpack.config.ts",
     "build": "webpack --config webpack.config.dev.ts",
-    "serve": "webpack-dev-server --config webpack.config.dev.ts"
+    "serve": "webpack-dev-server --config webpack.config.dev.ts",
+    "dev": "npm run serve"
   },
   "dependencies": {
     "@babel/runtime": "^7.21.5",
@@ -58,8 +61,8 @@
     "mini-css-extract-plugin": "^2.7.5",
     "postcss": "^8.4.23",
     "postcss-import": "^15.1.0",
-    "powerbi-visuals-tools": "^5.4.3",
-    "powerbi-visuals-webpack-plugin": "^4.0.0",
+    "powerbi-visuals-tools": "^5.6.0",
+    "powerbi-visuals-webpack-plugin": "^4.1.0",
     "prettier": "^2.8.8",
     "style-loader": "^3.3.2",
     "tailwindcss": "^3.3.2",

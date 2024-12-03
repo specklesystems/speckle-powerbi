@@ -76,6 +76,15 @@ You'll need to properly set up the certificate in order to be able to use the ho
 
 > Hot Reload will only work on PowerBI Web (**not** on Desktop).
 
+### Local dev guide (for powerbi-visual)
+
+1. Cd into `./src/powerbi-visual`
+1. Run `npm install`
+2. Run `npm run dev`
+3. The app needs to be ran on SSL, but there's no way to get a proper cert, so as a workaround, whenever you start working, you need to open this in the same browser where you've got PowerBI open and mark the broken cert as trusted: https://localhost:8080/assets
+4. PowerBI -> Home > New Report > Paste Or manually enter date > Auto-create > Create
+5. In the report, click on 'Edit' to open edit mode, and add a "Developer Visual" visual
+
 ### Contributing
 
 Please make sure you read the [contribution guidelines](.github/CONTRIBUTING.md) for an overview of the best practices we try to follow.
