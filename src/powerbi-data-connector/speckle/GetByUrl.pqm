@@ -4,6 +4,8 @@
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         GetRawData = Extension.LoadFunction("GetRawData.pqm"),
+        GetRawJSON = Extension.LoadFunction("GetRawJSON.pqm"),
+
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -27,7 +29,8 @@
             {"Name", "Data"},
             {
                 { "Structured Data", GetStructuredData(url)},
-                { "Viewer Data", GetRawData(url)}
+                { "Viewer Data", GetRawData(url)},
+                { "Viewer JSON", GetRawJSON(url)}
             }
         ),
         
