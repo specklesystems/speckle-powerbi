@@ -91,7 +91,7 @@ You'll need to properly set up the certificate in order to be able to use the ho
 
 #### Source map issues
 
-Make sure you're running the dev build (`npm run dev`) and in your browser's dev tools trigger "Clear source maps cache". When everything's working, you should be able to click on the "App mounted" console message's file reference link which will take you to the source-mapped source code in dev tools.
+Make sure you're running the dev build (`npm run dev`) and in your browser's dev tools trigger "Clear source maps cache" and "Enable JavaScript source maps". When everything's working, you should be able to click on the "App mounted" console message's file reference link which will take you to the source-mapped source code in dev tools.
 
 Its still a bit janky in that it maye show multiple files with the same name in the file tree,
 but one of those is gonna be the real fully source mapped one.
