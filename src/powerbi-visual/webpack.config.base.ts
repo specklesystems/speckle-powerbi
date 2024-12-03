@@ -87,7 +87,7 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       concatenateModules: false,
       minimize: isProd // enable minimization for create *.pbiviz file less than 2 Mb, can be disabled for dev mode
     },
-    devtool: isProd ? 'none' : 'inline-source-map',
+    devtool: isProd ? false : 'inline-source-map',
     mode: isProd ? 'production' : 'development',
     module: {
       rules: [
