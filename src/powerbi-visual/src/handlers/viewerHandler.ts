@@ -88,6 +88,7 @@ export default class ViewerHandler {
     viewerSettings.verbose = false
     const viewer = new LegacyViewer(this.parent, viewerSettings)
     await viewer.init()
+    console.log('Viewer initialized', viewer);
     this.viewer = viewer
   }
 
@@ -121,6 +122,8 @@ export default class ViewerHandler {
     // await this.loadObjects(obj, onLoad, onError) // TODO: pass root object
 
 
+    // console.log('loadObjectsWithAutoUnload', objects);
+    
     await this.loadObjects(objects, onLoad, onError)
   }
 
@@ -129,8 +132,8 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    //const stringifiedObject = objects.join()
-    //console.log(stringifiedObject);
+    const stringifiedObject = objects.join()
+    console.log(stringifiedObject);
     
     // let stringifiedObject = "["
     // objects.forEach((obj, index) => {
@@ -141,7 +144,9 @@ export default class ViewerHandler {
     // });
     // stringifiedObject += "]"
 
-    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), ``)
+    console.log(this.viewer);
+    
+    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), obj)
     void this.viewer.loadObject(loader, true)
   }
 

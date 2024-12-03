@@ -11,7 +11,7 @@
     {
       "name": "🏠 root",
       "path": "."
-    },
+    }
   ],
   "settings": {
     "powerquery.general.mode": "SDK",

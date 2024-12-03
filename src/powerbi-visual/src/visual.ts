@@ -88,9 +88,6 @@ export class Visual implements IVisual {
     //   // return
     // }
 
-    console.log(options.type);
-    
-
     switch (options.type) {
       case powerbi.VisualUpdateType.Resize:
       case powerbi.VisualUpdateType.ResizeEnd:
@@ -107,13 +104,12 @@ export class Visual implements IVisual {
             this.formattingSettings,
             (obj, id) => this.selectionHandler.set(obj, id)
           )
+          store.commit('setInput', input) // FIXME: this should be throlled or not, put it outside since throttle was not working as expected somethings. unknown for now and i do not wanna figure it out now
           this.throttleUpdate(input)
         } catch (error) {
           console.error('Data update error', error ?? 'Unknown')
         }
     }
-    console.log("after switch");
-    
   }
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     console.log('Showing Formatting settings', this.formattingSettings)
@@ -123,6 +119,8 @@ export class Visual implements IVisual {
   }
 
   private throttleUpdate = _.throttle((input: SpeckleDataInput) => {
+    console.log('throttle update', input);
+    
     this.tooltipHandler.setup(input.objectTooltipData)
     store.commit('setInput', input)
     store.commit('setStatus', 'valid')

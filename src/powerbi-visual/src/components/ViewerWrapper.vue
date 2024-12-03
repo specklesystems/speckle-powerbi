@@ -59,6 +59,7 @@ onMounted(async () => {
   viewerHandler = new ViewerHandler(container.value)
   console.log('Viewer Handler created', viewerHandler);
   provide<ViewerHandler>(viewerHandlerKey, viewerHandler)
+  await viewerHandler.init()
   // setupTask = viewerHandler
   //   .init()
   //   .then(() => viewerHandler.addCameraUpdateEventListener(onCameraMoved))
