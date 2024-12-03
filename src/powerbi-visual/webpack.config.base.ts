@@ -69,6 +69,9 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       return undefined
     }
 
+    console.log(
+      'Using locally generated localhost certs, make sure the CA cert is installed & trusted!'
+    )
     return {
       key: fs.readFileSync(keyPath),
       cert: fs.readFileSync(certPath)
