@@ -46,10 +46,6 @@ jobs:
           name: "npm run build"
           command: "npm run build"
           working_directory: src/powerbi-visual
-      - run:
-          name: "npm run pack"
-          command: "npm run pack"
-          working_directory: src/powerbi-visual
       - store_artifacts:
           path: dist/*.pbiviz
       - persist_to_workspace:

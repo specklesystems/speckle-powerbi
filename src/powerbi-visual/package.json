@@ -7,10 +7,8 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "pbiviz start",
-    "pbiviz": "pbiviz",
-    "pack": "webpack --config webpack.config.ts",
-    "build": "webpack --config webpack.config.dev.ts",
+    "build": "webpack --config webpack.config.ts",
+    "build:dev": "webpack --config webpack.config.dev.ts",
     "serve": "webpack-dev-server --config webpack.config.dev.ts",
     "dev": "npm run serve"
   },
