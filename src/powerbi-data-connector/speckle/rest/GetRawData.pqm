@@ -1,7 +1,7 @@
 // function for getting object data
 (url as text) as table =>
     let
-        // Import the parser function and getModel
+        // import the Parser and GetModel functions
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         // the logic for importing functions from other files
@@ -21,15 +21,15 @@
                             Detail = [File = fileName, Error = e]
                         ],
     
-        // Get parsed URL components and model info
+        // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
         modelInfo = GetModel(url),
         
-        // Get API key if available
+        // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
-        // Make the API request to objects endpoint
+        // make the API request to objects endpoint
         Source = Web.Contents(
             Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
             [
@@ -40,7 +40,7 @@
             ]
         ),
         
-        // Parse the response and return the raw JSON
+        // parse the response and return the raw JSON
         JsonResponse = Json.Document(Source),
 
         ConvertedToTable = Table.FromList(
@@ -51,6 +51,8 @@
             ExtraValues.Error
         ),
 
+        // expand the table with speckle_id column to set the relationship between raw and structured data
+        // not sure if it is necesarry, will test it once we have the visual up and running
         ExpandedTable = Table.AddColumn(
             ConvertedToTable, 
             "speckle_id", 

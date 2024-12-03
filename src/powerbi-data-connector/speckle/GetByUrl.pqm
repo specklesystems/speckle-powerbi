@@ -1,7 +1,7 @@
-// Function for getting data by URL with navigation
+// function for getting data by URL with navigation
 (url as text) as table =>
     let
-        // Import required functions
+        // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         GetRawData = Extension.LoadFunction("GetRawData.pqm"),
 
@@ -22,7 +22,7 @@
                             Detail = [File = fileName, Error = e]
                         ],
         
-        // Create navigation table
+        // create navigation table from raw and structured data
         source = #table(
             {"Name", "Data"},
             {
@@ -31,7 +31,7 @@
             }
         ),
         
-        // Add navigation table metadata directly
+        // add navigation table metadata directly
         tableType = Value.Type(source),
         newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
             NavigationTable.NameColumn = "Name",
@@ -39,7 +39,7 @@
             Documentation.Name = "Speckle Model"
         ],
         
-        // Convert to navigation table
+        // convert to navigation table
         navTable = Value.ReplaceType(source, newTableType)
     in
         navTable

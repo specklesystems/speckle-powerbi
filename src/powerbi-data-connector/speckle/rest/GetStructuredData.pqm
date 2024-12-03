@@ -1,7 +1,7 @@
-// Function for getting structured object data
+// function for getting structured object data
 (url as text) as table =>
     let
-        // Import the parser function and getModel
+        // import the parser function and getModel
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         // the logic for importing functions from other files
@@ -21,15 +21,15 @@
                             Detail = [File = fileName, Error = e]
                         ],
         
-        // Get parsed URL components and model info
+        // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
         modelInfo = GetModel(url),
         
-        // Get API key if available
+        // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
-        // Make the API request to objects endpoint
+        // make the API request to objects endpoint
         Source = Web.Contents(
             Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
             [
@@ -40,59 +40,42 @@
             ]
         ),
         
-        // Parse the JSON response
+        // parse the JSON response
         JsonResponse = Json.Document(Source),
         
-        // Convert list to table
-        ConvertedToTable = Table.FromList(
+        // convert list to table with all columns expanded
+        TableFromList = Table.FromList(
             JsonResponse, 
             Splitter.SplitByNothing(), 
             null, 
             null, 
             ExtraValues.Error
         ),
-        
-        // Expand initial record
-        ExpandedTable = Table.ExpandRecordColumn(
-            ConvertedToTable, 
-            "Column1", 
-            {
-                "id", 
-                "name", 
-                "type", 
-                "units", 
-                "version", 
-                "elements", 
-                "profile", 
-                "material", 
-                "__closure", 
-                "properties", 
-                "displayValue", 
-                "data", 
-                "speckle_type", 
-                "applicationId", 
-                "collectionType", 
-                "renderMaterialProxies", 
-                "totalChildrenCount"
-            }
-        ),
-        
-        // Remove rows where applicationId is null
-        FilteredTable = Table.SelectRows(ExpandedTable, each [applicationId] <> null),
-        
-        // Create data column by combining all other columns except applicationId and speckle_type
+
+        // fields to remove from data record
+        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
+
+        // create the final table with cleaned data records
         FinalTable = Table.FromRecords(
             List.Transform(
-                Table.ToRecords(FilteredTable),
-                each [
-                    speckle_id = [id],
-                    speckle_type = [speckle_type],
-                    data = Record.RemoveFields(
-                        _,
-                        {"id", "speckle_type", "collectionType", "displayValue", "totalChildrenCount", "renderMaterialProxies", "data", "__closure"}
+                TableFromList[Column1],
+                each let
+                    record = _,
+                    fieldsToRemoveForThisRecord = List.Select(
+                        FieldsToRemove,
+                        each Record.HasFields(record, {_})
                     )
-                ]
+                in
+                    [
+                        speckle_id = record[id],
+                        speckle_type = record[speckle_type],
+                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
+                    ]
             )
-        )
+        ),
+        
+        // filter out rows where applicationId is null
+        // we can discuss this further
+        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
     in
-        FinalTable
+        FilteredTable

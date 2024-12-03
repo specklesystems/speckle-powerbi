@@ -4,7 +4,7 @@ section Speckle;
 AuthAppId = "spklpwerbi";
 AuthAppSecret = "spklpwerbi";
 
-// Function to load `pqm` files - this is essential and must be kept
+// function to load `pqm` files - this is essential and must be kept
 shared Speckle.LoadFunction = (fileName as text) =>
     let
         binary = Extension.Contents(fileName),
@@ -75,6 +75,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
     ]
 );
 
+// here we register the GetByUrl function to power bi ui
 GetByUrl.Publish = [
     Beta = true,
     Cateogry = "Other",
