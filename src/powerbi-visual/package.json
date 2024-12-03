@@ -10,8 +10,7 @@
     "generate-certs": "mkcert localhost",
     "build": "webpack --config webpack.config.ts",
     "build:dev": "webpack --config webpack.config.dev.ts",
-    "serve": "webpack-dev-server --config webpack.config.dev.ts",
-    "dev": "npm run serve"
+    "dev": "webpack-dev-server --config webpack.config.dev.ts"
   },
   "dependencies": {
     "@babel/runtime": "^7.21.5",
