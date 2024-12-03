@@ -59,13 +59,13 @@ onMounted(async () => {
   viewerHandler = new ViewerHandler(container.value)
   console.log('Viewer Handler created', viewerHandler);
   provide<ViewerHandler>(viewerHandlerKey, viewerHandler)
-  setupTask = viewerHandler
-    .init()
-    .then(() => viewerHandler.addCameraUpdateEventListener(onCameraMoved))
-    .finally(async () => {
-      await viewerHandler.loadObjects(obj, console.log, console.error)
-      viewerHandler.updateSettings(settings.value)
-    })
+  // setupTask = viewerHandler
+  //   .init()
+  //   .then(() => viewerHandler.addCameraUpdateEventListener(onCameraMoved))
+  //   .finally(async () => {
+  //     await viewerHandler.loadObjects(obj, console.log, console.error)
+  //     viewerHandler.updateSettings(settings.value)
+  //   })
 })
 
 onBeforeUnmount(async () => {
@@ -82,52 +82,65 @@ watchEffect(() => {
 })
 
 function handleDataUpdate(input: Ref<SpeckleDataInput>, signal: AbortSignal) {
-  updateTask.value = setupTask
-    .then(async () => {
-      signal.throwIfAborted()
-      // Clear previous selection
-      await viewerHandler.selectObjects(null)
+  console.log("in handleDataUpdate");
+  if (input.value.objects){
+    viewerHandler.selectObjects(null)
 
-      // Load
-      await viewerHandler.loadObjectsWithAutoUnload(
-        input.value.objectsToLoad,
-        console.log,
-        console.error,
-        signal
-      )
+    viewerHandler.loadObjectsWithAutoUnload(
+      input.value.objects,
+      console.log,
+      console.error,
+      signal
+    )
+  }
+  
+  // updateTask.value = setupTask
+  //   .then(async () => {
+  //     signal.throwIfAborted()
+  //     // Clear previous selection
+  //     await viewerHandler.selectObjects(null)
 
-      // Color
-      await viewerHandler.colorObjectsByGroup(input.value.colorByIds)
+  //     // Load
+  //     await viewerHandler.loadObjectsWithAutoUnload(
+  //       input.value.rootObject,
+  //       console.log,
+  //       console.error,
+  //       signal
+  //     )
 
-      await viewerHandler.unIsolateObjects()
-      const objectsToIsolate =
-        input.value.selectedIds.length == 0 ? input.value.objectIds : input.value.selectedIds
-      if (settings.value.color.context.value != ContextOption.show)
-        await viewerHandler.isolateObjects(
-          objectsToIsolate,
-          settings.value.color.context.value === ContextOption.ghosted
-        )
-      if (settings.value.camera.zoomOnDataChange.value) viewerHandler.zoom(objectsToIsolate)
+  //     // Color
+  //     await viewerHandler.colorObjectsByGroup(input.value.colorByIds)
 
-      // Update available views
-      views.value = viewerHandler.getViews()
-    })
-    .catch((e: Error) => {
-      console.log('Loading operation was aborted', e)
-    })
-    .finally(() => {
-      updateTask.value = null
-    })
+  //     await viewerHandler.unIsolateObjects()
+  //     const objectsToIsolate =
+  //       input.value.selectedIds.length == 0 ? input.value.objectIds : input.value.selectedIds
+  //     if (settings.value.color.context.value != ContextOption.show)
+  //       await viewerHandler.isolateObjects(
+  //         objectsToIsolate,
+  //         settings.value.color.context.value === ContextOption.ghosted
+  //       )
+  //     if (settings.value.camera.zoomOnDataChange.value) viewerHandler.zoom(objectsToIsolate)
+
+  //     // Update available views
+  //     views.value = viewerHandler.getViews()
+  //   })
+  //   .catch((e: Error) => {
+  //     console.log('Loading operation was aborted', e)
+  //   })
+  //   .finally(() => {
+  //     updateTask.value = null
+  //   })
 }
 
 async function cancelAndHandleDataUpdate() {
   console.log('Input has changed', input.value)
-  if (updateTask.value) {
-    ac.abort('New input is available')
-    console.log('Cancelling previous load job')
-    await updateTask.value
-    ac = new AbortController()
-  }
+  // if (updateTask.value) {
+  //   ac.abort('New input is available')
+  //   console.log('Cancelling previous load job')
+  //   await updateTask.value
+  //   ac = new AbortController()
+  // }
+  const ac = new AbortController()
   const signal = ac.signal
   handleDataUpdate(input, signal)
 }

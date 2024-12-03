@@ -13,6 +13,8 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   view: powerbi.DataViewMatrix
 } {
   const matrixVew = options.dataViews[0].matrix
+  console.log(matrixVew);
+  
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
   let
@@ -28,8 +30,8 @@ export function validateMatrixView(options: VisualUpdateOptions): {
     })
   })
 
-  if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
-  if (!hasObject) throw new Error('Missing Object Id input')
+  //if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
+  //if (!hasObject) throw new Error('Missing Object Id input')
   return {
     hasColorFilter,
     view: matrixVew
@@ -124,94 +126,105 @@ export function processMatrixView(
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
 ): SpeckleDataInput {
-  const objectUrlsToLoad = [],
+  const
     objectIds = [],
     selectedIds = [],
     colorByIds = [],
     objectTooltipData = new Map<string, IViewerTooltip>()
 
-  matrixView.rows.root.children.forEach((streamUrlChild) => {
-    const url = streamUrlChild.value
+  console.log('🪜 Processing Matrix View', matrixView);
+  const rootObject = matrixView.rows.root.children[0].value as unknown as string
+  console.log("rootObject", rootObject);
 
-    streamUrlChild.children?.forEach((parentObjectIdChild) => {
-      const parentId = parentObjectIdChild.value
-      objectUrlsToLoad.push(`${url}/objects/${parentId}`)
-
-      if (!hasColorFilter) {
-        processObjectIdLevel(parentObjectIdChild, host, matrixView).forEach((objRes) => {
-          objectIds.push(objRes.id)
-          onSelectionPair(objRes.id, objRes.selectionId)
-          if (objRes.shouldSelect) selectedIds.push(objRes.id)
-          if (objRes.color) {
-            let group = colorByIds.find((g) => g.color === objRes.color)
-            if (!group) {
-              group = {
-                color: objRes.color,
-                objectIds: []
-              }
-              colorByIds.push(group)
-            }
-            group.objectIds.push(objRes.id)
-          }
-          objectTooltipData.set(objRes.id, {
-            selectionId: objRes.selectionId,
-            data: objRes.data
-          })
-        })
-      } else {
-        if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-        parentObjectIdChild.children?.forEach((colorByChild) => {
-          const colorSelectionId = host
-            .createSelectionIdBuilder()
-            .withMatrixNode(colorByChild, matrixView.rows.levels)
-            .createSelectionId()
-
-          const color = host.colorPalette.getColor(colorByChild.value as string)
-          if (colorByChild.objects) {
-            console.log(
-              '⚠️COLOR NODE HAS objects',
-              colorByChild.objects,
-              colorByChild.objects.color?.fill
-            )
-          }
-
-          const colorSlice = new fs.ColorPicker({
-            name: 'selectorFill',
-            displayName: colorByChild.value.toString(),
-            value: {
-              value: color.value
-            },
-            selector: colorSelectionId.getSelector()
-          })
-
-          const colorGroup = {
-            color: color.value,
-            slice: colorSlice,
-            objectIds: []
-          }
-
-          processObjectIdLevel(colorByChild, host, matrixView).forEach((objRes) => {
-            objectIds.push(objRes.id)
-            onSelectionPair(objRes.id, objRes.selectionId)
-            if (objRes.shouldSelect) selectedIds.push(objRes.id)
-            if (objRes.shouldColor) {
-              colorGroup.objectIds.push(objRes.id)
-            }
-            objectTooltipData.set(objRes.id, {
-              selectionId: objRes.selectionId,
-              data: objRes.data
-            })
-          })
-          if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
-        })
-      }
-    })
+  // // eslint-disable-next-line no-debugger
+  // debugger
+  
+  const objects = []
+  matrixView.rows.root.children.forEach((obj) => {
+    objects.push(obj.value)
   })
+
+  // matrixView.rows.root.children.forEach((streamUrlChild) => {
+  //   const url = streamUrlChild.value
+
+  //   streamUrlChild.children?.forEach((parentObjectIdChild) => {
+  //     const parentId = parentObjectIdChild.value
+
+  //     if (!hasColorFilter) {
+  //       processObjectIdLevel(parentObjectIdChild, host, matrixView).forEach((objRes) => {
+  //         objectIds.push(objRes.id)
+  //         onSelectionPair(objRes.id, objRes.selectionId)
+  //         if (objRes.shouldSelect) selectedIds.push(objRes.id)
+  //         if (objRes.color) {
+  //           let group = colorByIds.find((g) => g.color === objRes.color)
+  //           if (!group) {
+  //             group = {
+  //               color: objRes.color,
+  //               objectIds: []
+  //             }
+  //             colorByIds.push(group)
+  //           }
+  //           group.objectIds.push(objRes.id)
+  //         }
+  //         objectTooltipData.set(objRes.id, {
+  //           selectionId: objRes.selectionId,
+  //           data: objRes.data
+  //         })
+  //       })
+  //     } else {
+  //       if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+  //       parentObjectIdChild.children?.forEach((colorByChild) => {
+  //         const colorSelectionId = host
+  //           .createSelectionIdBuilder()
+  //           .withMatrixNode(colorByChild, matrixView.rows.levels)
+  //           .createSelectionId()
+
+  //         const color = host.colorPalette.getColor(colorByChild.value as string)
+  //         if (colorByChild.objects) {
+  //           console.log(
+  //             '⚠️COLOR NODE HAS objects',
+  //             colorByChild.objects,
+  //             colorByChild.objects.color?.fill
+  //           )
+  //         }
+
+  //         const colorSlice = new fs.ColorPicker({
+  //           name: 'selectorFill',
+  //           displayName: colorByChild.value.toString(),
+  //           value: {
+  //             value: color.value
+  //           },
+  //           selector: colorSelectionId.getSelector()
+  //         })
+
+  //         const colorGroup = {
+  //           color: color.value,
+  //           slice: colorSlice,
+  //           objectIds: []
+  //         }
+
+  //         processObjectIdLevel(colorByChild, host, matrixView).forEach((objRes) => {
+  //           objectIds.push(objRes.id)
+  //           onSelectionPair(objRes.id, objRes.selectionId)
+  //           if (objRes.shouldSelect) selectedIds.push(objRes.id)
+  //           if (objRes.shouldColor) {
+  //             colorGroup.objectIds.push(objRes.id)
+  //           }
+  //           objectTooltipData.set(objRes.id, {
+  //             selectionId: objRes.selectionId,
+  //             data: objRes.data
+  //           })
+  //         })
+  //         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+  //       })
+  //     }
+  //   })
+  // })
 
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objectsToLoad: objectUrlsToLoad,
+    objects,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,

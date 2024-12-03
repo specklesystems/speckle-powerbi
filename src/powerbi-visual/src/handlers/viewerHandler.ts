@@ -109,22 +109,39 @@ export default class ViewerHandler {
   }
 
   public async loadObjectsWithAutoUnload(
-    objectUrls: string[],
+    objects: string[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
   ) {
-    var objectsToUnload = _.difference([...this.loadedObjectsCache], objectUrls)
-    await this.unloadObjects(objectsToUnload, signal)
-    await this.loadObjects(obj, onLoad, onError)
+    // console.log("rootObject in loadObjectsWithAutoUnload", rootObject);
+    
+    // var objectsToUnload = _.difference([...this.loadedObjectsCache], rootObject)
+    // await this.unloadObjects(objectsToUnload, signal)
+    // await this.loadObjects(obj, onLoad, onError) // TODO: pass root object
+
+
+    await this.loadObjects(objects, onLoad, onError)
   }
 
   public async loadObjects(
-    obj: string,
+    objects: string[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), obj)
+    //const stringifiedObject = objects.join()
+    //console.log(stringifiedObject);
+    
+    // let stringifiedObject = "["
+    // objects.forEach((obj, index) => {
+    //   stringifiedObject += `{${obj}}`
+    //   if (index < objects.length - 1){
+    //     stringifiedObject += ","
+    //   }
+    // });
+    // stringifiedObject += "]"
+
+    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), ``)
     void this.viewer.loadObject(loader, true)
   }
 

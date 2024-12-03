@@ -68,22 +68,28 @@ export class Visual implements IVisual {
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
     let validationResult: { hasColorFilter: boolean; view: powerbi.DataViewMatrix } = null
-    try {
-      console.log('🔍 Validating input...', options)
-      validationResult = validateMatrixView(options)
-      console.log('✅Input valid', validationResult)
-    } catch (e) {
-      console.log('❌Input not valid:', (e as Error).message)
-      this.host.displayWarningIcon(
-        `Incomplete data input.`,
-        `"Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
-      )
-      console.warn(
-        `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
-      )
-      store.commit('setStatus', 'incomplete')
-      return
-    }
+    validationResult = validateMatrixView(options)
+    console.log(validationResult);
+    
+    // try {
+    //   console.log('🔍 Validating input...', options)
+    //   validationResult = validateMatrixView(options)
+    //   console.log('✅Input valid', validationResult)
+    // } catch (e) { 
+    //   console.log('❌Input not valid:', (e as Error).message)
+    //   this.host.displayWarningIcon(
+    //     `Incomplete data input.`,
+    //     `"Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
+    //   )
+    //   console.warn(
+    //     `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
+    //   )
+    //   store.commit('setStatus', 'incomplete')
+    //   // return
+    // }
+
+    console.log(options.type);
+    
 
     switch (options.type) {
       case powerbi.VisualUpdateType.Resize:
@@ -106,6 +112,8 @@ export class Visual implements IVisual {
           console.error('Data update error', error ?? 'Unknown')
         }
     }
+    console.log("after switch");
+    
   }
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     console.log('Showing Formatting settings', this.formattingSettings)
