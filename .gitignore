@@ -341,3 +341,6 @@ ASALocalRun/
 **/webpack.statistics.html
 **/Thumbs.db
 installer/
+
+localhost.pem
+localhost-key.pem

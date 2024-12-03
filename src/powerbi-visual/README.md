@@ -76,6 +76,26 @@ You'll need to properly set up the certificate in order to be able to use the ho
 
 > Hot Reload will only work on PowerBI Web (**not** on Desktop).
 
+### Local dev guide (for powerbi-visual)
+
+1. Cd into `./src/powerbi-visual`
+1. Run `npm install`
+1. To ensure proper SSL cert usage
+   1. Ensure [mkcert](https://github.com/FiloSottile/mkcert) is installed
+   1. Run `npm run generate-certs`
+   1. If you're on WSL2, you'll need to copy over the root CA to the Windows side and install it there as a trusted root CA. Typically its in `~/.local/share/mkcert/rootCA.pem` on WSL2. From bash, `cd` to that folder and then do `explorer.exe .` to open it in Windows Explorer and then copy the pem file to someplace better accessible. Then open `crtmgr` and install it into **Trusted Root Certification Authorities**. "Certificates - Current User" > "Trusted Root Certification Authorities" > "Certificates" > Right Click "All Tasks" > "Import" > "Local Machine" > "Place all certificates in the following store" > "Trusted Root Certification Authorities". You may have to set the cert filter to "All Files" to see the `.pem` file.
+   1. After the cert is installed you may have to restart your browser & dev server
+1. Run `npm run dev`
+1. PowerBI -> Home > New Report > Paste Or manually enter date > Auto-create > Create
+1. In the report, click on 'Edit' to open edit mode, and add a "Developer Visual" visual
+
+#### Source map issues
+
+Make sure you're running the dev build (`npm run dev`) and in your browser's dev tools trigger "Clear source maps cache" and "Enable JavaScript source maps". When everything's working, you should be able to click on the "App mounted" console message's file reference link which will take you to the source-mapped source code in dev tools.
+
+Its still a bit janky in that it maye show multiple files with the same name in the file tree,
+but one of those is gonna be the real fully source mapped one.
+
 ### Contributing
 
 Please make sure you read the [contribution guidelines](.github/CONTRIBUTING.md) for an overview of the best practices we try to follow.
