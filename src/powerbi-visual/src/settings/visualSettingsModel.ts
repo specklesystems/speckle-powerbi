@@ -1,5 +1,5 @@
 import { formattingSettings as fs } from 'powerbi-visuals-utils-formattingmodel'
-import { ColorSelectorSettings, ColorSettings } from 'src/settings/colorSettings'
+import { ColorSelectorSettings, ColorSettings } from '@src/settings/colorSettings'
 import { CameraSettings } from 'src/settings/cameraSettings'
 import { LightingSettings } from 'src/settings/lightingSettings'
 

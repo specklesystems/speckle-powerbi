@@ -12,13 +12,12 @@ function goToForum() {
 function goToGuide() {
   host.launchUrl('https://speckle.guide/user/powerbi')
 }
+
 </script>
 
 <template>
-  <div
-    id="speckle-home-view"
-    class="flex flex-col justify-center items-center h-full w-full bg-primary text-center text-foundation"
-  >
+  <div id="speckle-home-view"
+    class="flex flex-col justify-center items-center h-full w-full bg-primary text-center text-foundation">
     <div class="flex justify-center items-center">
       <img src="@assets/logo-white.png" alt="Logo" class="w-1/3" />
     </div>
