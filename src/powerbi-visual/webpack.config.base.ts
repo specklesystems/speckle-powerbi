@@ -61,17 +61,20 @@ const babelOptions = {
 export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
   const isProd = params.mode === 'prod'
 
-  // TODO: Remove, just testing
   const loadCert = () => {
-    return {}
+    const keyPath = path.resolve(__dirname, 'localhost-key.pem')
+    const certPath = path.resolve(__dirname, 'localhost.pem')
+    if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+      console.log('Unable to locate localhost certs, skipping...')
+      return undefined
+    }
 
-    const certPath = '/home/fabis/pbiviz-certs/PowerBICustomVisualTest_public.crt'
-    const keyPath = '/home/fabis/pbiviz-certs/PowerBICustomVisualTest_private.key'
     return {
       key: fs.readFileSync(keyPath),
       cert: fs.readFileSync(certPath)
     }
   }
+  const certInfo = isProd ? undefined : loadCert()
 
   const config: WebpackConfiguration = {
     entry: {
@@ -168,13 +171,18 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             compress: true,
             port: devServerPort, // dev server port
             hot: false,
-            https: {
-              // ...loadCert(),
-              // requestCert: true
-            },
-            // server: {
-            //   type: 'https'
-            // },
+            ...(certInfo
+              ? {
+                  server: {
+                    type: 'https',
+                    options: {
+                      ...certInfo
+                    }
+                  }
+                }
+              : {
+                  https: {}
+                }),
             liveReload: false,
             webSocketServer: false,
             headers: {
