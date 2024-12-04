@@ -29,8 +29,8 @@
             {"Name", "Data"},
             {
                 { "Structured Data", GetStructuredData(url)},
-                { "Viewer Data", GetRawData(url)},
-                { "Viewer JSON", GetRawJSON(url)}
+                { "Viewer Data with ID", GetRawData(url)},
+                { "Viewer Data Flat", GetRawJSON(url)}
             }
         ),
         

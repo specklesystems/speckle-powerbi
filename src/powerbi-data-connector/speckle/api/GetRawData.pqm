@@ -40,24 +40,73 @@
             ]
         ),
         
-        // parse the response and return the raw JSON
+        // parse the response
         JsonResponse = Json.Document(Source),
+        
+        // Function to split object into chunks
+        SplitIntoChunks = (object, startIndex) =>
+            let
+                // Convert object to JSON string
+                JsonString = Text.FromBinary(Json.FromValue(object)),
+                TotalLength = Text.Length(JsonString),
+                
+                // Calculate chunks needed (29900 to be safe under 31000 limit)
+                ChunkSize = 29900,
+                NumChunks = Number.RoundUp(TotalLength/ChunkSize),
+                
+                // Generate chunk indices starting from the provided startIndex
+                ChunkIndices = List.Numbers(startIndex, NumChunks),
 
-        ConvertedToTable = Table.FromList(
-            JsonResponse, 
-            Splitter.SplitByNothing(),
-            {"viewer_data"},
-            null,
-            ExtraValues.Error
-        ),
-
-        // expand the table with speckle_id column to set the relationship between raw and structured data
-        // not sure if it is necesarry, will test it once we have the visual up and running
-        ExpandedTable = Table.AddColumn(
-            ConvertedToTable, 
-            "speckle_id", 
-            each Record.Field([viewer_data], "id"), 
-            type text
-        )
+                FormatRowNumber = (number as number) as text =>
+                    let
+                        digits = Number.RoundUp(Number.Log10(number + 1)),
+                        padLength = if digits < 7 then 7 else digits,
+                        formattedNumber = Text.PadStart(Text.From(number), padLength, "0")
+                    in
+                        formattedNumber,
+                
+                // Create chunks with continuous row numbers
+                CreateChunk = (index) =>
+                    let
+                        Start = (index - startIndex) * ChunkSize,
+                        Length = if Start + ChunkSize > TotalLength 
+                                then TotalLength - Start 
+                                else ChunkSize,
+                        RawChunk = Text.Range(JsonString, Start, Length),
+                        // Format row number with dynamic padding
+                        FormattedIndex = FormatRowNumber(index + 1),
+                        PrefixedChunk = FormattedIndex & RawChunk
+                    in
+                        [
+                            speckle_id = object[id],
+                            viewer_data = "R_" & PrefixedChunk
+                        ]
+            in
+                [
+                    chunks = List.Transform(ChunkIndices, CreateChunk),
+                    nextIndex = startIndex + NumChunks
+                ],
+        
+        // Process all objects with continuous indexing
+        ProcessObjects = (objects) =>
+            let
+                ProcessObject = (accumulator, object) =>
+                    let
+                        result = SplitIntoChunks(object, accumulator[nextIndex]),
+                        newChunks = List.Combine({accumulator[chunks], result[chunks]})
+                    in
+                        [
+                            chunks = newChunks,
+                            nextIndex = result[nextIndex]
+                        ],
+                
+                initialState = [chunks = {}, nextIndex = 0],
+                finalState = List.Accumulate(objects, initialState, ProcessObject)
+            in
+                finalState[chunks],
+        
+        // Generate final table
+        ChunkedData = ProcessObjects(JsonResponse),
+        FinalTable = Table.FromRecords(ChunkedData)
     in
-        ExpandedTable
+        FinalTable

@@ -50,6 +50,15 @@
         // Generate list of chunk indices
         ChunkIndices = List.Numbers(0, NumChunks),
         
+        // Function to format row number with appropriate padding
+        FormatRowNumber = (number as number) as text =>
+            let
+                digits = Number.RoundUp(Number.Log10(number + 1)),
+                padLength = if digits < 7 then 7 else digits,
+                formattedNumber = Text.PadStart(Text.From(number), padLength, "0")
+            in
+                formattedNumber,
+        
         // Create chunks with formatted prefix
         CreateChunk = (index) =>
             let
@@ -58,9 +67,9 @@
                         then TotalLength - Start 
                         else ChunkSize,
                 RawChunk = Text.Range(JsonString, Start, Length),
-                // Format index with leading zeros (3 digits)
-                FormattedIndex = Text.PadStart(Text.From(index + 1), 3, "0"),
-                PrefixedChunk = "ROW_" & FormattedIndex & ":" & RawChunk
+                // Format row number with dynamic padding
+                FormattedIndex = FormatRowNumber(index + 1),
+                PrefixedChunk = "R_" & FormattedIndex & RawChunk
             in
                 [
                     viewer_data = PrefixedChunk
