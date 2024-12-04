@@ -141,7 +141,7 @@ export function processMatrixView(
   
   const objects = []
   matrixView.rows.root.children.forEach((obj) => {
-    objects.push(obj.value)
+    objects.push(obj.children[0]?.value)
   })
 
   // matrixView.rows.root.children.forEach((streamUrlChild) => {

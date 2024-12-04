@@ -115,7 +115,7 @@ export default class ViewerHandler {
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
   ) {
-    // console.log("rootObject in loadObjectsWithAutoUnload", rootObject);
+    console.log("rootObject in loadObjectsWithAutoUnload", objects);
     
     // var objectsToUnload = _.difference([...this.loadedObjectsCache], rootObject)
     // await this.unloadObjects(objectsToUnload, signal)
@@ -132,21 +132,12 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    const stringifiedObject = objects.join()
-    console.log(stringifiedObject);
+    // const stringifiedObject = JSON.stringify(objects.join()).slice(1, -1)
+    const stringifiedObject = objects.join('')
+    // // eslint-disable-next-line no-debugger
+    // debugger
     
-    // let stringifiedObject = "["
-    // objects.forEach((obj, index) => {
-    //   stringifiedObject += `{${obj}}`
-    //   if (index < objects.length - 1){
-    //     stringifiedObject += ","
-    //   }
-    // });
-    // stringifiedObject += "]"
-
-    console.log(this.viewer);
-    
-    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), obj)
+    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     void this.viewer.loadObject(loader, true)
   }
 
