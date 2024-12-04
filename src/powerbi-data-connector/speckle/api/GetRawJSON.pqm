@@ -1,10 +1,9 @@
-// Function for getting complete raw JSON data
+// function for getting JSON data with prefixed chunks
 (url as text) as table =>
     let
-        // Import the parser function and getModel
+        // import the Parser and GetModel functions
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
-        // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName),
@@ -21,15 +20,15 @@
                             Detail = [File = fileName, Error = e]
                         ],
         
-        // Get parsed URL components and model info
+        // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
         modelInfo = GetModel(url),
         
-        // Get API key if available
+        // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
-        // Make the API request to objects endpoint
+        // make the API request to objects endpoint
         Source = Web.Contents(
             Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
             [
@@ -40,13 +39,42 @@
             ]
         ),
         
-        // Get the raw JSON text
-        RawText = Text.FromBinary(Source),
+        // Convert to JSON string
+        JsonString = Text.FromBinary(Json.FromValue(Json.Document(Source))),
+        TotalLength = Text.Length(JsonString),
         
-        // Create single row table with viewer data
-        ResultTable = #table(
-            type table [viewer_data = text],
-            {{RawText}}
+        // Calculate number of chunks needed
+        ChunkSize = 29900,
+        NumChunks = Number.RoundUp(TotalLength/ChunkSize),
+        
+        // Generate list of chunk indices
+        ChunkIndices = List.Numbers(0, NumChunks),
+        
+        // Create chunks with formatted prefix
+        CreateChunk = (index) =>
+            let
+                Start = index * ChunkSize,
+                Length = if Start + ChunkSize > TotalLength 
+                        then TotalLength - Start 
+                        else ChunkSize,
+                RawChunk = Text.Range(JsonString, Start, Length),
+                // Format index with leading zeros (3 digits)
+                FormattedIndex = Text.PadStart(Text.From(index + 1), 3, "0"),
+                PrefixedChunk = "ROW_" & FormattedIndex & ":" & RawChunk
+            in
+                [
+                    viewer_data = PrefixedChunk
+                ],
+        
+        // Convert to table
+        Chunks = Table.FromRecords(List.Transform(ChunkIndices, CreateChunk)),
+        
+        // Set correct data types
+        FinalTable = Table.TransformColumnTypes(
+            Chunks,
+            {
+                {"viewer_data", type text}
+            }
         )
     in
-        ResultTable
+        FinalTable
