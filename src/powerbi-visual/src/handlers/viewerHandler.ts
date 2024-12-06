@@ -14,6 +14,7 @@ import _ from 'lodash'
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { PerspectiveCamera, OrthographicCamera, Box3 } from 'three'
 import { obj } from './obj'
+// import { obj2 } from './obj2'
 export default class ViewerHandler {
   private viewer: LegacyViewer
   private readonly parent: HTMLElement
@@ -115,7 +116,7 @@ export default class ViewerHandler {
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
   ) {
-    console.log("rootObject in loadObjectsWithAutoUnload", objects);
+    // ("rootObject in loadObjectsWithAutoUnload", objects);
     
     // var objectsToUnload = _.difference([...this.loadedObjectsCache], rootObject)
     // await this.unloadObjects(objectsToUnload, signal)
@@ -134,6 +135,7 @@ export default class ViewerHandler {
   ) {
     // const stringifiedObject = JSON.stringify(objects.join()).slice(1, -1)
     const stringifiedObject = objects.join('')
+    
     // // eslint-disable-next-line no-debugger
     // debugger
     
