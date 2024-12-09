@@ -133,15 +133,15 @@ export function processMatrixView(
     objectTooltipData = new Map<string, IViewerTooltip>()
 
   console.log('🪜 Processing Matrix View', matrixView);
-  const rootObject = matrixView.rows.root.children[0].value as unknown as string
-  console.log("rootObject", rootObject);
+  // const rootObject = matrixView.rows.root.children[0].value as unknown as string
+  // console.log("rootObject", rootObject);
 
   // // eslint-disable-next-line no-debugger
   // debugger
   
   const objects = []
   matrixView.rows.root.children.forEach((obj) => {
-    objects.push(obj.children[0]?.value)
+    objects.push((obj.value as unknown as string).slice(9))
   })
 
   // matrixView.rows.root.children.forEach((streamUrlChild) => {

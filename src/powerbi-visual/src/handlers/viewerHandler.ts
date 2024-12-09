@@ -114,15 +114,10 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
-  ) {
-    console.log("rootObject in loadObjectsWithAutoUnload", objects);
-    
+  ) {   
     // var objectsToUnload = _.difference([...this.loadedObjectsCache], rootObject)
     // await this.unloadObjects(objectsToUnload, signal)
     // await this.loadObjects(obj, onLoad, onError) // TODO: pass root object
-
-
-    // console.log('loadObjectsWithAutoUnload', objects);
     
     await this.loadObjects(objects, onLoad, onError)
   }
@@ -132,7 +127,6 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    // const stringifiedObject = JSON.stringify(objects.join()).slice(1, -1)
     const stringifiedObject = objects.join('')
     // // eslint-disable-next-line no-debugger
     // debugger
