@@ -1,4 +1,4 @@
-// function for parsing the url into base url, project id and model id
+// function for parsing the url into base url, project id, model id and version id
 (url as text) as record =>
     let
         urlParts = Uri.Parts(url),
@@ -6,15 +6,34 @@
         
         pathSegments = List.Select(Text.Split(urlParts[Path], "/"), each _ <> ""),
         
-        // extract project and model IDs if they exist
+        // extract project ID if it exists
         projectId = if List.Count(pathSegments) >= 2 and pathSegments{0} = "projects" 
             then pathSegments{1} else null,
             
-        modelId = if List.Count(pathSegments) >= 4 and pathSegments{2} = "models"
-            then pathSegments{3} else null
+        // extract model ID and version ID if they exist
+        modelAndVersion = if List.Count(pathSegments) >= 4 and pathSegments{2} = "models"
+            then Text.Split(pathSegments{3}, "@") else {},
+            
+        // separate model ID from version ID
+        modelId = if List.Count(modelAndVersion) > 0
+            then modelAndVersion{0} else null,
+            
+        // get version ID if it exists
+        versionId = if List.Count(modelAndVersion) > 1
+            then modelAndVersion{1} else null,
+            
+        // validate URL structure
+        isValid = projectId <> null and modelId <> null
     in
-        [
-            baseUrl = baseUrl,
-            projectId = projectId,
-            modelId = modelId
-        ]
+        if not isValid then
+            error [
+                Reason = "Invalid URL",
+                Message = "The URL must be in the format 'https://server/projects/PROJECT_ID/models/MODEL_ID' or 'https://server/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID'"
+            ]
+        else
+            [
+                baseUrl = baseUrl,
+                projectId = projectId,
+                modelId = modelId,
+                versionId = versionId
+            ]
