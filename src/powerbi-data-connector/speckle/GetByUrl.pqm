@@ -3,9 +3,8 @@
     let
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
-        GetRawData = Extension.LoadFunction("GetRawData.pqm"),
         GetRawJSON = Extension.LoadFunction("GetRawJSON.pqm"),
-
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -23,14 +22,17 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
+
+        // get model info to access the model name
+        modelInfo = GetModel(url),
+        modelName = modelInfo[modelName],
         
         // create navigation table from raw and structured data
         source = #table(
             {"Name", "Data"},
             {
-                { "Structured Data", GetStructuredData(url)},
-                { "Viewer Data with ID", GetRawData(url)},
-                { "Viewer Data Flat", GetRawJSON(url)}
+                { "Structured Data - " & modelName, GetStructuredData(url)},
+                { "Viewer Data - " & modelName, GetRawJSON(url)}
             }
         ),
         
