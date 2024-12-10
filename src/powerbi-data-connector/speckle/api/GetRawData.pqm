@@ -54,8 +54,8 @@
                 ChunkSize = 29900,
                 NumChunks = Number.RoundUp(TotalLength/ChunkSize),
                 
-                // Generate chunk indices starting from the provided startIndex
-                ChunkIndices = List.Numbers(startIndex, NumChunks),
+                // Generate chunk indices
+                ChunkIndices = List.Numbers(0, NumChunks),
 
                 FormatRowNumber = (number as number) as text =>
                     let
@@ -65,20 +65,23 @@
                     in
                         formattedNumber,
                 
-                // Create chunks with continuous row numbers
+                // Create chunks with continuous row numbers and incrementing suffixes
                 CreateChunk = (index) =>
                     let
-                        Start = (index - startIndex) * ChunkSize,
+                        Start = index * ChunkSize,
                         Length = if Start + ChunkSize > TotalLength 
                                 then TotalLength - Start 
                                 else ChunkSize,
                         RawChunk = Text.Range(JsonString, Start, Length),
-                        // Format row number with dynamic padding
-                        FormattedIndex = FormatRowNumber(index + 1),
+                        FormattedIndex = FormatRowNumber(index + startIndex + 1),
+                        // Add incrementing suffix starting from 1 for additional chunks
+                        ModifiedId = if index = 0 
+                                   then object[id]
+                                   else object[id] & "_" & Text.From(index),
                         PrefixedChunk = FormattedIndex & RawChunk
                     in
                         [
-                            speckle_id = object[id],
+                            speckle_id = ModifiedId,
                             viewer_data = "R_" & PrefixedChunk
                         ]
             in
@@ -100,7 +103,10 @@
                             nextIndex = result[nextIndex]
                         ],
                 
-                initialState = [chunks = {}, nextIndex = 0],
+                initialState = [
+                    chunks = {}, 
+                    nextIndex = 0
+                ],
                 finalState = List.Accumulate(objects, initialState, ProcessObject)
             in
                 finalState[chunks],
