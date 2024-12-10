@@ -52,7 +52,7 @@
           "select": [
             {
               "bind": {
-                "to": "objectIds"
+                "to": "objectData"
               }
             }
           ]

@@ -12,9 +12,7 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   hasColorFilter: boolean
   view: powerbi.DataViewMatrix
 } {
-  const matrixVew = options.dataViews[0].matrix
-  console.log(matrixVew);
-  
+  const matrixVew = options.dataViews[0].matrix  
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
   let
@@ -90,7 +88,7 @@ function processObjectNode(
     .createSelectionId()
   // Create value records for the tooltips
   const objectValues = processObjectValues(objectIdChild, matrixView)
-  const res = { id: objId, selectionId: nodeSelection, color: undefined, ...objectValues }
+  const res = { id: objId, selectionId: nodeSelection, color: undefined, ...objectValues } 
   // Process node objects, if any.
   if (objectIdChild.objects) {
     //@ts-ignore
@@ -134,37 +132,38 @@ export function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView);
 
-  const objects = new Map<string, string[]>();
+  const objects : Record<string, string[]> = {}
 
   matrixView.rows.root.children.forEach((obj) => {
       const id = obj.children[0].value as unknown as string
       const value = (obj.value as unknown as string).slice(9)
 
-      if (!objects.has(id)) {
-        objects.set(id, [])
+      const existingObjectId = Object.keys(objects).find(k => id.includes(k))
+      if (!existingObjectId) {
+        objects[id] = [value]
+      } else {
+        objects[existingObjectId].push(value)
       }
 
-      objects.get(id).push(value)
+      const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
-      // eslint-disable-next-line no-debugger
-      debugger
-      processObjectIdLevel(obj, host, matrixView).forEach((objRes) => {
+      processedObjectIdLevels.forEach((objRes) => {
         objectIds.push(objRes.id)
         onSelectionPair(objRes.id, objRes.selectionId)
-        if (objRes.shouldSelect) selectedIds.push(objRes.id)
-          objectTooltipData.set(objRes.id, {
-                      selectionId: objRes.selectionId,
-                      data: objRes.data
-                    })
+        if (objRes.shouldSelect){
+          // eslint-disable-next-line no-debugger
+          debugger
+          selectedIds.push(objRes.id)
+        }
+        objectTooltipData.set(objRes.id, {
+                    selectionId: objRes.selectionId,
+                    data: objRes.data
+                  })
     })
-
-      // obj.children?.forEach((parentObjectIdChild) => {
-        
-      // })
   })
 
   const jsonObjects : object[] = []
-  for (const objs of objects.values()) {
+  for (const objs of Object.values(objects)) {
     jsonObjects.push(JSON.parse(objs.join('')))
   }
 

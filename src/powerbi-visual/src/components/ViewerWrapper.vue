@@ -82,17 +82,34 @@ watchEffect(() => {
   if (!isLoading.value) viewerHandler?.setSectionBox(bboxActive.value, input.value.objectIds)
 })
 
-function handleDataUpdate(input: Ref<SpeckleDataInput>, signal: AbortSignal) {
+let maxObjectCount = 0
+
+async function handleDataUpdate(input: Ref<SpeckleDataInput>, signal: AbortSignal) {
   console.log("in handleDataUpdate");
   if (input.value.objects){
-    viewerHandler.selectObjects(null)
+    // await viewerHandler.unIsolateObjects()
+    await viewerHandler.selectObjects(null)
 
-    viewerHandler.loadObjectsWithAutoUnload(
-      input.value.objects,
-      console.log,
-      console.error,
-      signal
-    )
+    if (input.value.objects.length > maxObjectCount){
+      maxObjectCount = input.value.objects.length
+
+      console.log("loadObjectsWithAutoUnload called to re-render viewer!");
+      
+      viewerHandler.loadObjectsWithAutoUnload(
+        input.value.objects,
+        console.log,
+        console.error,
+        signal
+      )
+    }
+    else {
+      console.log("DO NOT RELOAD OBJECTS IN VIEWER!");
+      const objectsToIsolate = input.value.selectedIds.length == 0 ? input.value.objectIds : input.value.selectedIds
+      if (input.value.selectedIds.length !== 0){
+        await viewerHandler.unIsolateObjects()
+        await viewerHandler.isolateObjects(objectsToIsolate, true)
+      }
+    }
   }
   
   // updateTask.value = setupTask

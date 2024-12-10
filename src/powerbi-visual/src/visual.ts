@@ -103,7 +103,7 @@ export class Visual implements IVisual {
             this.formattingSettings,
             (obj, id) => this.selectionHandler.set(obj, id)
           )
-          store.commit('setInput', input) // FIXME: this should be throlled or not, put it outside since throttle was not working as expected somethings. unknown for now and i do not wanna figure it out now
+          // store.commit('setInput', input) // FIXME: this should be throlled or not, put it outside since throttle was not working as expected somethings. unknown for now and i do not wanna figure it out now
           this.throttleUpdate(input)
         } catch (error) {
           console.error('Data update error', error ?? 'Unknown')

@@ -13,8 +13,7 @@ import { pickViewableHit, projectToScreen } from '../utils/viewerUtils'
 import _ from 'lodash'
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { PerspectiveCamera, OrthographicCamera, Box3 } from 'three'
-import { obj } from './obj'
-// import { obj2 } from './obj2'
+
 export default class ViewerHandler {
   private viewer: LegacyViewer
   private readonly parent: HTMLElement
