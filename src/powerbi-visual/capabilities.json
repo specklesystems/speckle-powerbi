@@ -6,9 +6,9 @@
       "name": "rootObject"
     },
     {
-      "displayName": "Object ID",
+      "displayName": "Object IDs",
       "kind": "Grouping",
-      "name": "object"
+      "name": "objectIds"
     },
     {
       "displayName": "Color By",
@@ -43,7 +43,7 @@
             },
             {
               "for": {
-                "in": "object"
+                "in": "objectIds"
               }
             }
           ]
@@ -52,12 +52,18 @@
           "select": [
             {
               "bind": {
-                "to": "objectData"
+                "to": "objectIds"
               }
             }
           ]
         }
-      }
+      },
+      "conditions": [
+        {
+          "rootObject": { "max": 1 },
+          "objectIds": { "max": 1 }
+        }
+      ]
     }
   ],
   "objects": {

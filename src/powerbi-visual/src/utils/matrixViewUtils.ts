@@ -25,7 +25,7 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
       if (!hasRootObject) hasRootObject = source.roles['rootObject'] != undefined
-      if (!hasObject) hasObject = source.roles['object'] != undefined
+      if (!hasObject) hasObject = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
   })
@@ -133,16 +133,40 @@ export function processMatrixView(
     objectTooltipData = new Map<string, IViewerTooltip>()
 
   console.log('🪜 Processing Matrix View', matrixView);
-  // const rootObject = matrixView.rows.root.children[0].value as unknown as string
-  // console.log("rootObject", rootObject);
 
-  // // eslint-disable-next-line no-debugger
-  // debugger
-  
-  const objects = []
+  const objects = new Map<string, string[]>();
+
   matrixView.rows.root.children.forEach((obj) => {
-    objects.push((obj.value as unknown as string).slice(9))
+      const id = obj.children[0].value as unknown as string
+      const value = (obj.value as unknown as string).slice(9)
+
+      if (!objects.has(id)) {
+        objects.set(id, [])
+      }
+
+      objects.get(id).push(value)
+
+      // eslint-disable-next-line no-debugger
+      debugger
+      processObjectIdLevel(obj, host, matrixView).forEach((objRes) => {
+        objectIds.push(objRes.id)
+        onSelectionPair(objRes.id, objRes.selectionId)
+        if (objRes.shouldSelect) selectedIds.push(objRes.id)
+          objectTooltipData.set(objRes.id, {
+                      selectionId: objRes.selectionId,
+                      data: objRes.data
+                    })
+    })
+
+      // obj.children?.forEach((parentObjectIdChild) => {
+        
+      // })
   })
+
+  const jsonObjects : object[] = []
+  for (const objs of objects.values()) {
+    jsonObjects.push(JSON.parse(objs.join('')))
+  }
 
   // matrixView.rows.root.children.forEach((streamUrlChild) => {
   //   const url = streamUrlChild.value
@@ -224,7 +248,7 @@ export function processMatrixView(
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objects,
+    objects: jsonObjects,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,

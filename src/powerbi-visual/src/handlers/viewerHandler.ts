@@ -111,7 +111,7 @@ export default class ViewerHandler {
   }
 
   public async loadObjectsWithAutoUnload(
-    objects: string[],
+    objects: object[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
@@ -124,11 +124,11 @@ export default class ViewerHandler {
   }
 
   public async loadObjects(
-    objects: string[],
+    objects: object[],
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    const stringifiedObject = objects.join('')
+    const stringifiedObject = JSON.stringify(objects)
     
     // // eslint-disable-next-line no-debugger
     // debugger
