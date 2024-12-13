@@ -28,8 +28,8 @@ export function validateMatrixView(options: VisualUpdateOptions): {
     })
   })
 
-  //if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
-  //if (!hasObject) throw new Error('Missing Object Id input')
+  if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
+  if (!hasObject) throw new Error('Missing Object Ids input')
   return {
     hasColorFilter,
     view: matrixVew
@@ -151,8 +151,6 @@ export function processMatrixView(
         objectIds.push(objRes.id)
         onSelectionPair(objRes.id, objRes.selectionId)
         if (objRes.shouldSelect){
-          // eslint-disable-next-line no-debugger
-          debugger
           selectedIds.push(objRes.id)
         }
         objectTooltipData.set(objRes.id, {

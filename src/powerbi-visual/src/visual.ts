@@ -26,6 +26,8 @@ import {
 } from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
+import { pinia } from './plugins/pinia';
+
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
@@ -47,6 +49,7 @@ export class Visual implements IVisual {
 
     console.log('🚀 Init Vue App')
     createApp(App)
+      .use(pinia)
       .use(store, storeKey)
       .provide(selectionHandlerKey, this.selectionHandler)
       .provide(tooltipHandlerKey, this.tooltipHandler)
@@ -70,22 +73,22 @@ export class Visual implements IVisual {
     let validationResult: { hasColorFilter: boolean; view: powerbi.DataViewMatrix } = null
     validationResult = validateMatrixView(options)
     
-    // try {
-    //   console.log('🔍 Validating input...', options)
-    //   validationResult = validateMatrixView(options)
-    //   console.log('✅Input valid', validationResult)
-    // } catch (e) { 
-    //   console.log('❌Input not valid:', (e as Error).message)
-    //   this.host.displayWarningIcon(
-    //     `Incomplete data input.`,
-    //     `"Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
-    //   )
-    //   console.warn(
-    //     `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
-    //   )
-    //   store.commit('setStatus', 'incomplete')
-    //   // return
-    // }
+    try {
+      console.log('🔍 Validating input...', options)
+      validationResult = validateMatrixView(options)
+      console.log('✅Input valid', validationResult)
+    } catch (e) { 
+      console.log('❌Input not valid:', (e as Error).message)
+      this.host.displayWarningIcon(
+        `Incomplete data input.`,
+        `"Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
+      )
+      console.warn(
+        `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
+      )
+      store.commit('setStatus', 'incomplete')
+      return
+    }
 
     switch (options.type) {
       case powerbi.VisualUpdateType.Resize:

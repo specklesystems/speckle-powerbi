@@ -26,7 +26,6 @@ import {
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
-import { obj } from '@src/handlers/obj'
 
 const selectionHandler = inject(selectionHandlerKey)
 const tooltipHandler = inject(tooltipHandlerKey)

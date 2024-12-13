@@ -1,41 +1,71 @@
-import { createStore } from 'vuex'
-import { SpeckleDataInput } from 'src/types'
-import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
+// import { createStore } from 'vuex'
+// import { SpeckleDataInput } from 'src/types'
+// import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
+
+// export interface SpeckleVisualState {
+//   input?: SpeckleDataInput
+//   status: InputState
+//   settings: SpeckleVisualSettingsModel
+// }
+
+// // Create a new store instance.
+// export const store = createStore<SpeckleVisualState>({
+//   state() {
+//     return {
+//       input: null,
+//       status: 'incomplete',
+//       settings: null
+//     }
+//   },
+//   mutations: {
+//     setInput(state, input?: SpeckleDataInput) {
+//       state.input = input
+//     },
+//     setStatus(state, status: InputState) {
+//       state.status = status ?? 'invalid'
+//     },
+//     setSettings(state, settings: SpeckleVisualSettingsModel) {
+//       state.settings = settings
+//     },
+//     clearInput(state) {
+//       state.input = null
+//     }
+//   },
+//   actions: {
+//     update(context, status: InputState, input?: SpeckleDataInput) {
+//       context.commit('setInput', input)
+//       context.commit('setStatus', status)
+//     }
+//   }
+// })
+
+import { SpeckleDataInput } from '@src/types'
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
-export interface SpeckleVisualState {
-  input?: SpeckleDataInput
-  status: InputState
-  settings: SpeckleVisualSettingsModel
-}
+export const useVisualStore = defineStore('visualStore', () => { 
+  const dataInput = ref<SpeckleDataInput | null>(null)
+  const dataInputStatus = ref<InputState>('incomplete')
 
-// Create a new store instance.
-export const store = createStore<SpeckleVisualState>({
-  state() {
-    return {
-      input: null,
-      status: 'incomplete',
-      settings: null
-    }
-  },
-  mutations: {
-    setInput(state, input?: SpeckleDataInput) {
-      state.input = input
-    },
-    setStatus(state, status: InputState) {
-      state.status = status ?? 'invalid'
-    },
-    setSettings(state, settings: SpeckleVisualSettingsModel) {
-      state.settings = settings
-    },
-    clearInput(state) {
-      state.input = null
-    }
-  },
-  actions: {
-    update(context, status: InputState, input?: SpeckleDataInput) {
-      context.commit('setInput', input)
-      context.commit('setStatus', status)
-    }
+  const setDataInput = (newValue: SpeckleDataInput) => {
+    dataInput.value = newValue
+  }
+
+  const setInputStatus = (newValue: InputState) => {
+    dataInputStatus.value = newValue
+  }
+
+  const clearDataInput = () => {
+    dataInput.value = null
+  }
+
+  return {
+    dataInput,
+    dataInputStatus,
+    setDataInput,
+    setInputStatus,
+    clearDataInput
   }
 })

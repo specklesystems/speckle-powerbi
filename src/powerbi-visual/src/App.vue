@@ -1,3 +1,8 @@
+<template>
+  <ViewerView />
+  <!-- <HomeView v-else /> -->
+</template>
+
 <script setup lang="ts">
 import HomeView from './views/HomeView.vue'
 import ViewerView from './views/ViewerView.vue'
@@ -14,10 +19,3 @@ onMounted(() => {
   console.log("App mounted")
 })
 </script>
-
-<template>
-  <ViewerView />
-  <!-- <HomeView v-else /> -->
-</template>
-
-<style scoped></style>
