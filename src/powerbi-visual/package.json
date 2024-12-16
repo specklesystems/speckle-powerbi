@@ -32,8 +32,7 @@
     "powerbi-visuals-utils-formattingmodel": "^5.0.0",
     "powerbi-visuals-utils-interactivityutils": "^6.0.2",
     "powerbi-visuals-utils-tooltiputils": "^6.0.1",
-    "regenerator-runtime": "^0.13.11",
-    "vuex": "^4.1.0"
+    "regenerator-runtime": "^0.13.11"
   },
   "devDependencies": {
     "@babel/core": "^7.21.8",
