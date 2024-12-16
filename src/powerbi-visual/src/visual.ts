@@ -5,8 +5,8 @@ import * as _ from 'lodash'
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel'
 import { createApp } from 'vue'
 import App from './App.vue'
-import { store } from 'src/store'
-import { hostKey, selectionHandlerKey, tooltipHandlerKey, storeKey } from 'src/injectionKeys'
+// import { store } from 'src/store'
+import { hostKey, selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
@@ -27,6 +27,7 @@ import {
 import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 import { pinia } from './plugins/pinia';
+import { useVisualStore } from './store'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -50,7 +51,7 @@ export class Visual implements IVisual {
     console.log('🚀 Init Vue App')
     createApp(App)
       .use(pinia)
-      .use(store, storeKey)
+      // .use(store, storeKey)
       .provide(selectionHandlerKey, this.selectionHandler)
       .provide(tooltipHandlerKey, this.tooltipHandler)
       .provide(hostKey, options.host)
@@ -86,7 +87,8 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      store.commit('setStatus', 'incomplete')
+      const visualStore = useVisualStore()
+      visualStore.setInputStatus('incomplete')
       return
     }
 
@@ -121,12 +123,13 @@ export class Visual implements IVisual {
   }
 
   private throttleUpdate = _.throttle((input: SpeckleDataInput) => {
+    const visualStore = useVisualStore()
     console.log('throttle update', input);
     
     this.tooltipHandler.setup(input.objectTooltipData)
-    store.commit('setInput', input)
-    store.commit('setStatus', 'valid')
-    store.commit('setSettings', this.formattingSettings)
+    visualStore.setDataInput(input)
+    visualStore.setInputStatus('valid')
+    // TODO: store.commit('setSettings', this.formattingSettings)
   }, 500)
 
   public async destroy() {

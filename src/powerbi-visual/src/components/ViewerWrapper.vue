@@ -13,23 +13,23 @@ import {
 import { useStore } from 'vuex'
 import ViewerControls from 'src/components/ViewerControls.vue'
 import { CanonicalView, SpeckleView } from '@speckle/viewer'
-import { CommonLoadingBar } from '@speckle/ui-components'
+import { CommonLoadingBar, FormButton } from '@speckle/ui-components'
 import ViewerHandler from 'src/handlers/viewerHandler'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { isMultiSelect } from 'src/utils/isMultiSelect'
 import {
   selectionHandlerKey,
-  storeKey,
   tooltipHandlerKey,
   viewerHandlerKey
 } from 'src/injectionKeys'
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
+import { useVisualStore } from '@src/store'
 
 const selectionHandler = inject(selectionHandlerKey)
 const tooltipHandler = inject(tooltipHandlerKey)
-const store = useStore(storeKey)
+const visualStore = useVisualStore()
 const { dragged } = useClickDragged()
 
 let viewerHandler: ViewerHandler = null
@@ -42,8 +42,8 @@ let updateTask: Ref<Promise<void>> = ref(null)
 let setupTask: Promise<void> = null
 
 const isLoading = computed(() => updateTask.value != null)
-const input = computed(() => store.state.input)
-const settings = computed(() => store.state.settings)
+const input = computed(() => visualStore.dataInput)
+// const settings = computed(() => store.state.settings)
 
 const onCameraMoved = throttle((_) => {
   const pos = tooltipHandler.currentTooltip?.worldPos
@@ -73,9 +73,9 @@ onBeforeUnmount(async () => {
 })
 
 const debounceUpdate = throttle(cancelAndHandleDataUpdate, 500)
-const debounceSettingsUpdate = throttle(() => viewerHandler.updateSettings(settings.value), 500)
+//const debounceSettingsUpdate = throttle(() => viewerHandler.updateSettings(settings.value), 500)
 watch(input, debounceUpdate)
-watch(settings, debounceSettingsUpdate)
+//watch(settings, debounceSettingsUpdate)
 
 watchEffect(() => {
   if (!isLoading.value) viewerHandler?.setSectionBox(bboxActive.value, input.value.objectIds)
@@ -202,9 +202,10 @@ function onClearPalette() {
       @click="onCanvasClick"
       @auxclick="onCanvasAuxClick"
     />
-    <div class="z-30 w-1/2 px-10">
+    <!-- <div class="z-30 w-1/2 px-10">
       <common-loading-bar :loading="isLoading" />
-    </div>
+    </div> -->
+    <!-- <CommonLoadingBar :isLoading="true" ></CommonLoadingBar> -->
     <viewer-controls
       v-if="!isLoading"
       v-model:section-box="bboxActive"
