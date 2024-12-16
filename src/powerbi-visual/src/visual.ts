@@ -27,7 +27,7 @@ import {
 import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 import { pinia } from './plugins/pinia';
-import { useVisualStore } from './store'
+import { useVisualStore } from './store/visualStore'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -56,6 +56,10 @@ export class Visual implements IVisual {
       .provide(tooltipHandlerKey, this.tooltipHandler)
       .provide(hostKey, options.host)
       .mount(options.element)
+
+    // set `host` to visual store to be able use later in other components if needed
+    const visualStore = useVisualStore()
+    visualStore.setHost(this.host)
   }
 
   private async clear() {

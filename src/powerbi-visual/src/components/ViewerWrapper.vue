@@ -1,3 +1,25 @@
+<template>
+  <div class="flex flex-col justify-center items-center">
+    <div
+      ref="container"
+      class="fixed h-full w-full z-0"
+      @click="onCanvasClick"
+      @auxclick="onCanvasAuxClick"
+    />
+    <!-- <div class="z-30 w-1/2 px-10">
+      <common-loading-bar :loading="isLoading" />
+    </div> -->
+    <viewer-controls
+      v-if="!isLoading"
+      v-model:section-box="bboxActive"
+      :views="views"
+      class="fixed bottom-6"
+      @view-clicked="(view) => viewerHandler.setView(view)"
+      @clear-palette="onClearPalette"
+    />
+  </div>
+</template>
+
 <script async setup lang="ts">
 import {
   computed,
@@ -10,10 +32,9 @@ import {
   watch,
   watchEffect
 } from 'vue'
-import { useStore } from 'vuex'
 import ViewerControls from 'src/components/ViewerControls.vue'
 import { CanonicalView, SpeckleView } from '@speckle/viewer'
-import { CommonLoadingBar, FormButton } from '@speckle/ui-components'
+import { FormButton } from '@speckle/ui-components'
 import ViewerHandler from 'src/handlers/viewerHandler'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { isMultiSelect } from 'src/utils/isMultiSelect'
@@ -25,7 +46,7 @@ import {
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
-import { useVisualStore } from '@src/store'
+import { useVisualStore } from '@src/store/visualStore'
 
 const selectionHandler = inject(selectionHandlerKey)
 const tooltipHandler = inject(tooltipHandlerKey)
@@ -194,26 +215,4 @@ function onClearPalette() {
 }
 </script>
 
-<template>
-  <div class="flex flex-col justify-center items-center">
-    <div
-      ref="container"
-      class="fixed h-full w-full z-0"
-      @click="onCanvasClick"
-      @auxclick="onCanvasAuxClick"
-    />
-    <!-- <div class="z-30 w-1/2 px-10">
-      <common-loading-bar :loading="isLoading" />
-    </div> -->
-    <!-- <CommonLoadingBar :isLoading="true" ></CommonLoadingBar> -->
-    <viewer-controls
-      v-if="!isLoading"
-      v-model:section-box="bboxActive"
-      :views="views"
-      class="fixed bottom-6"
-      @view-clicked="(view) => viewerHandler.setView(view)"
-      @clearPalette="onClearPalette"
-    />
-  </div>
-</template>
-<style scoped></style>
+

@@ -1,35 +1,15 @@
-<script setup lang="ts">
-import ViewerWrapper from 'src/components/ViewerWrapper.vue'
-import { inject } from 'vue'
-import { hostKey } from 'src/injectionKeys'
-
-const host = inject(hostKey)
-
-const goToSpeckleWebsite = () => host.launchUrl('https://speckle.systems')
-</script>
-
 <template>
-  <div id="overlay">
-    <img class="watermark" src="@assets/powered-by-speckle.png" @click="goToSpeckleWebsite" />
+  <div class="absolute top-0 left-0 z-10" @click="goToSpeckleWebsite">
+    <img class="w-16 h-auto mt-1 mr-1 cursor-pointer" src="@assets/powered-by-speckle.png"/>
   </div>
   <viewer-wrapper id="speckle-3d-view" class="h-full w-full"></viewer-wrapper>
 </template>
 
-<style scoped>
-.watermark {
-  height: auto;
-  width: 60pt;
-  margin-top: 3pt;
-  margin-right: 3pt;
-}
+<script setup lang="ts">
+import ViewerWrapper from 'src/components/ViewerWrapper.vue'
+import { useVisualStore } from '../store/visualStore'
 
-.watermark:hover {
-  cursor: pointer;
-}
+const visualStore = useVisualStore()
 
-#overlay {
-  position: absolute;
-  width: 100%;
-  z-index: 100;
-}
-</style>
+const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
+</script>

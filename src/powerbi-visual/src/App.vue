@@ -7,7 +7,7 @@
 import HomeView from './views/HomeView.vue'
 import ViewerView from './views/ViewerView.vue'
 import { computed, onMounted } from 'vue'
-import { useVisualStore } from './store'
+import { useVisualStore } from './store/visualStore'
 
 const visualStore = useVisualStore()
 let status = computed(() => {

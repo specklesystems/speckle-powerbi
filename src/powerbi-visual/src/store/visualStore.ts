@@ -1,4 +1,4 @@
-// import { createStore } from 'vuex'
+
 // import { SpeckleDataInput } from 'src/types'
 // import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 
@@ -46,8 +46,14 @@ import { ref } from 'vue'
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
 export const useVisualStore = defineStore('visualStore', () => { 
+  const host = ref<powerbi.extensibility.visual.IVisualHost>(null)
+  
   const dataInput = ref<SpeckleDataInput | null>(null)
   const dataInputStatus = ref<InputState>('incomplete')
+
+  const setHost = (hostToSet: powerbi.extensibility.visual.IVisualHost) => {
+    host.value = hostToSet
+  }
 
   const setDataInput = (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
@@ -62,8 +68,10 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   return {
+    host,
     dataInput,
     dataInputStatus,
+    setHost,
     setDataInput,
     setInputStatus,
     clearDataInput
