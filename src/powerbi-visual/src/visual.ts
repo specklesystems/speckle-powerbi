@@ -132,7 +132,7 @@ export class Visual implements IVisual {
     this.tooltipHandler.setup(input.objectTooltipData)
     visualStore.setInputStatus('valid')
 
-    if (visualStore.isViewerInitialized){
+    if (visualStore.isViewerInitialized && !visualStore.reloadNeeded){
       visualStore.setDataInput(input)
     } else {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10

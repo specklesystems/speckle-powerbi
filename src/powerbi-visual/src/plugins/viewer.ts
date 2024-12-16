@@ -79,10 +79,16 @@ export class ViewerHandler {
     return {hit: {}, objects: []}
   }
 
+  
+
   public loadObjects = (objects: object[]) => {
+    type SpeckleObject = {
+      id: string
+    }
     const stringifiedObject = JSON.stringify(objects)
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     void this.viewer.loadObject(loader, true)
+    this.viewer.zoom([(objects[0] as SpeckleObject).id]) // TODO: not sure about this but sometimes it shows object at the moon, need to check with Alex
   }
 
   private handlePing = (message: string) => {

@@ -8,6 +8,7 @@ export type InputState = 'valid' | 'incomplete' | 'invalid'
 export const useVisualStore = defineStore('visualStore', () => { 
   const host = ref<powerbi.extensibility.visual.IVisualHost>()
   const isViewerInitialized = ref<boolean>(false)
+  const reloadNeeded = ref<boolean>(false)
   
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -43,9 +44,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     dataInput.value = newValue
     
     // here we have to check upcoming data is require viewer to force update! like a new model etc.
-    if (!lastLoadedRootObjectId.value || lastLoadedRootObjectId.value !== (dataInput.value.objects[0] as SpeckleObject).id) {
+    if (reloadNeeded.value || !lastLoadedRootObjectId.value || lastLoadedRootObjectId.value !== (dataInput.value.objects[0] as SpeckleObject).id) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
       console.log(`🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`)
+      reloadNeeded.value = false
       viewerEmit.value('loadObjects', dataInput.value.objects)
     } else {
       if (dataInput.value.selectedIds.length > 0){
@@ -64,6 +66,9 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setInputStatus = (newValue: InputState) => {
     dataInputStatus.value = newValue
+    if (dataInputStatus.value !== 'valid'){
+      reloadNeeded.value = true
+    }
   }
 
   const clearDataInput = () => {
@@ -73,6 +78,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   return {
     host,
     isViewerInitialized,
+    reloadNeeded,
     dataInput,
     dataInputStatus,
     setHost,
