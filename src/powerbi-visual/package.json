@@ -23,6 +23,7 @@
     "color-interpolate": "^1.0.5",
     "core-js": "^3.30.2",
     "lodash": "^4.17.21",
+    "nanoevents": "^9.1.0",
     "pinia": "^2.3.0",
     "postcss-loader": "^7.3.0",
     "postcss-preset-env": "^8.4.1",

@@ -67,6 +67,7 @@ export class Visual implements IVisual {
   }
 
   public update(options: VisualUpdateOptions) {
+    const visualStore = useVisualStore()
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
@@ -76,7 +77,6 @@ export class Visual implements IVisual {
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
     let validationResult: { hasColorFilter: boolean; view: powerbi.DataViewMatrix } = null
-    validationResult = validateMatrixView(options)
     
     try {
       console.log('🔍 Validating input...', options)
@@ -91,7 +91,7 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      const visualStore = useVisualStore()
+      
       visualStore.setInputStatus('incomplete')
       return
     }
@@ -112,7 +112,6 @@ export class Visual implements IVisual {
             this.formattingSettings,
             (obj, id) => this.selectionHandler.set(obj, id)
           )
-          // store.commit('setInput', input) // FIXME: this should be throlled or not, put it outside since throttle was not working as expected somethings. unknown for now and i do not wanna figure it out now
           this.throttleUpdate(input)
         } catch (error) {
           console.error('Data update error', error ?? 'Unknown')
@@ -131,9 +130,17 @@ export class Visual implements IVisual {
     console.log('throttle update', input);
     
     this.tooltipHandler.setup(input.objectTooltipData)
-    visualStore.setDataInput(input)
     visualStore.setInputStatus('valid')
-    // TODO: store.commit('setSettings', this.formattingSettings)
+
+    if (visualStore.isViewerInitialized){
+      visualStore.setDataInput(input)
+    } else {
+      // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
+      setTimeout(() => {
+        visualStore.setDataInput(input)
+      }, 250); // having timeout in throttle? smells
+    }
+    
   }, 500)
 
   public async destroy() {

@@ -127,6 +127,8 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
+    console.log(objects);
+    
     const stringifiedObject = JSON.stringify(objects)
     
     // // eslint-disable-next-line no-debugger
