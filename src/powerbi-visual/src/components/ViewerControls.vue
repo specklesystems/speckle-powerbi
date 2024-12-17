@@ -81,13 +81,16 @@ import ButtonSimple from 'src/components/controls/ButtonSimple.vue'
 import { inject, watch } from 'vue'
 import { hostKey, viewerHandlerKey } from 'src/injectionKeys'
 import { resetPalette } from 'src/utils/matrixViewUtils'
+import { useVisualStore } from '@src/store/visualStore'
+
+const visualStore = useVisualStore()
 
 const emits = defineEmits(['update:sectionBox', 'view-clicked', 'clear-palette'])
 const props = withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
   sectionBox: false,
   views: () => []
 })
-const viewerHandler = inject(viewerHandlerKey)
+
 const canonicalViews = [
   { name: 'Top' },
   { name: 'Front' },
@@ -97,10 +100,9 @@ const canonicalViews = [
 ]
 
 const onZoomExtentsClicked = (ev: MouseEvent) => {
-  console.log('Zoom extents clicked', viewerHandler)
-  viewerHandler.zoomExtents()
+  visualStore.viewerEmit('zoomExtends')
 }
-const host = inject(hostKey)
+
 const onClearPalletteClicked = (ev: MouseEvent) => {
   console.log('Clear pallette clicked')
   resetPalette()

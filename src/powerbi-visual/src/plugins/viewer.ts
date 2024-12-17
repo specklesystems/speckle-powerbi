@@ -19,6 +19,7 @@ export interface IViewerEvents {
   isolateObjects: (objectIds: string[]) => void
   forceViewerUpdate: () => void
   unIsolateObjects: () => void
+  zoomExtends: () => void
   loadObjects: (objects: object[]) => void
 }
 
@@ -34,6 +35,8 @@ export class ViewerHandler {
     this.emitter.on('setSelection', this.selectObjects)
     this.emitter.on('isolateObjects', this.isolateObjects)
     this.emitter.on('unIsolateObjects', this.unIsolateObjects)
+    this.emitter.on('zoomExtends', this.zoomExtends)
+    this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
   }
 
@@ -43,6 +46,14 @@ export class ViewerHandler {
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
     this.emitter.emit(event, ...payload)
+  }
+
+  public zoomObjects = (objectIds: string[]) => {
+    this.viewer.zoom(objectIds)
+  }
+
+  public zoomExtends = () => {
+    this.viewer.zoom()
   }
 
   public setView = (view: any) => {
@@ -81,13 +92,10 @@ export class ViewerHandler {
   }
 
   public loadObjects = (objects: object[]) => {
-    type SpeckleObject = {
-      id: string
-    }
     const stringifiedObject = JSON.stringify(objects)
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     void this.viewer.loadObject(loader, true)
-    this.viewer.zoom([(objects[0] as SpeckleObject).id]) // TODO: not sure about this but sometimes it shows object at the moon, need to check with Alex
+    this.viewer.zoom() // zoom extends
   }
 
   private handlePing = (message: string) => {

@@ -103,6 +103,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
+    viewerEmit,
     setHost,
     setViewerEmitter,
     setDataInput,
