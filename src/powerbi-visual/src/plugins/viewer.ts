@@ -14,12 +14,12 @@ export interface IViewer {
 }
 
 export interface IViewerEvents {
-  ping: (message: string) => void,
-  setSelection: (objectIds: string[]) => void,
-  isolateObjects: (objectIds: string[]) => void,
-  forceViewerUpdate: () => void,
-  unIsolateObjects: () => void,
-  loadObjects: (objects: object[]) => void,
+  ping: (message: string) => void
+  setSelection: (objectIds: string[]) => void
+  isolateObjects: (objectIds: string[]) => void
+  forceViewerUpdate: () => void
+  unIsolateObjects: () => void
+  loadObjects: (objects: object[]) => void
 }
 
 export class ViewerHandler {
@@ -41,10 +41,7 @@ export class ViewerHandler {
     this.viewer = await createViewer(parent)
   }
 
-  emit<E extends keyof IViewerEvents>(
-    event: E,
-    ...payload: Parameters<IViewerEvents[E]>
-  ): void {
+  emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
     this.emitter.emit(event, ...payload)
   }
 
@@ -58,28 +55,30 @@ export class ViewerHandler {
     return
   }
 
-  public selectObjects = async(objectIds: string[]) => {
+  public selectObjects = async (objectIds: string[]) => {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
     await this.viewer.selectObjects(objectIds)
   }
 
-  public isolateObjects = async(objectIds: string[], ghost: boolean) => {
+  public isolateObjects = async (objectIds: string[], ghost: boolean) => {
     await this.unIsolateObjects()
     this.filteringState = await this.viewer.isolateObjects(objectIds, 'powerbi', true, ghost)
   }
 
-  public unIsolateObjects = async() => {
-    if (this.filteringState && this.filteringState.isolatedObjects){
-      this.filteringState = await this.viewer.unIsolateObjects(this.filteringState.isolatedObjects, 'powerbi', true)
+  public unIsolateObjects = async () => {
+    if (this.filteringState && this.filteringState.isolatedObjects) {
+      this.filteringState = await this.viewer.unIsolateObjects(
+        this.filteringState.isolatedObjects,
+        'powerbi',
+        true
+      )
     }
   }
 
-  public intersect = (args: {x: number, y: number}) => {
+  public intersect = (args: { x: number; y: number }) => {
     // TODO
-    return {hit: {}, objects: []}
+    return { hit: {}, objects: [] }
   }
-
-  
 
   public loadObjects = (objects: object[]) => {
     type SpeckleObject = {
@@ -92,7 +91,7 @@ export class ViewerHandler {
   }
 
   private handlePing = (message: string) => {
-    console.log(message);
+    console.log(message)
   }
 }
 

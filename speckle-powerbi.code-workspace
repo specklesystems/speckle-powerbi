@@ -23,6 +23,14 @@
       "**/node_modules/**": true,
       ".tmp": true
     },
+    "editor.formatOnPaste": true,
+    "editor.multiCursorModifier": "ctrlCmd",
+    "editor.snippetSuggestions": "top",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    },
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "search.exclude": {
       ".tmp": true,
       "typings": true,
@@ -53,6 +61,7 @@
   },
   "extensions": {
     "recommendations": [
+      "esbenp.prettier-vscode",
       "ms-dotnettools.csharp",
       "powerquery.vscode-powerquery-sdk"
     ]

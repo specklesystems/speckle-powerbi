@@ -14,6 +14,9 @@ import _ from 'lodash'
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { PerspectiveCamera, OrthographicCamera, Box3 } from 'three'
 
+/**
+ * @deprecated
+ */
 export default class ViewerHandler {
   private viewer: LegacyViewer
   private readonly parent: HTMLElement

@@ -1,4 +1,3 @@
-
 <template>
   <ButtonGroup>
     <ButtonSimple flat secondary @click="onZoomExtentsClicked">

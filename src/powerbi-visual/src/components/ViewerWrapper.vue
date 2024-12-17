@@ -37,11 +37,7 @@ import { CanonicalView, SpeckleView } from '@speckle/viewer'
 import { FormButton } from '@speckle/ui-components'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { isMultiSelect } from 'src/utils/isMultiSelect'
-import {
-  selectionHandlerKey,
-  tooltipHandlerKey,
-  viewerHandlerKey
-} from 'src/injectionKeys'
+import { selectionHandlerKey, tooltipHandlerKey, viewerHandlerKey } from 'src/injectionKeys'
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
@@ -74,7 +70,7 @@ const onCameraMoved = throttle((_) => {
 }, 50)
 
 onMounted(async () => {
-  console.log('Viewer Wrapper mounted');
+  console.log('Viewer Wrapper mounted')
   // viewerHandler = new ViewerHandler(container.value)
   // console.log('Viewer Handler created', viewerHandler);
   // provide<ViewerHandler>(viewerHandlerKey, viewerHandler)
@@ -105,14 +101,14 @@ watchEffect(() => {
 })
 
 async function handleDataUpdate(input: Ref<SpeckleDataInput>, signal: AbortSignal) {
-  console.log("in handleDataUpdate");
+  console.log('in handleDataUpdate')
   // if (input.value.objects){
   //   // await viewerHandler.unIsolateObjects()
   //   if (input.value.objects.length > maxObjectCount){
   //     maxObjectCount = input.value.objects.length
 
   //     console.log("loadObjectsWithAutoUnload called to re-render viewer!");
-      
+
   //     viewerHandler.loadObjects(
   //       input.value.objects,
   //     )
@@ -126,7 +122,7 @@ async function handleDataUpdate(input: Ref<SpeckleDataInput>, signal: AbortSigna
   //     }
   //   }
   // }
-  
+
   // updateTask.value = setupTask
   //   .then(async () => {
   //     signal.throwIfAborted()
@@ -209,5 +205,3 @@ function onClearPalette() {
   cancelAndHandleDataUpdate()
 }
 </script>
-
-
