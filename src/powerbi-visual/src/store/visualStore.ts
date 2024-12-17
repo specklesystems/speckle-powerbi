@@ -8,7 +8,7 @@ export type InputState = 'valid' | 'incomplete' | 'invalid'
 export const useVisualStore = defineStore('visualStore', () => {
   const host = ref<powerbi.extensibility.visual.IVisualHost>()
   const isViewerInitialized = ref<boolean>(false)
-  const reloadNeeded = ref<boolean>(false)
+  const viewerReloadNeeded = ref<boolean>(false)
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -25,10 +25,18 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const lastLoadedRootObjectId = ref<string>()
 
+  /**
+   * Ideally one time setup on initialization.
+   * @param hostToSet interaction layer with powerbi host. it is useful when you wanna trigger `launchUrl` kind functions. TODO: need more understanding.
+   */
   const setHost = (hostToSet: powerbi.extensibility.visual.IVisualHost) => {
     host.value = hostToSet
   }
 
+  /**
+   * Ideally one time set when onMounted of `ViewerWrapper.vue` component
+   * @param emit picky emit function to trigger events under `IViewerEvents` interface
+   */
   const setViewerEmitter = (
     emit: <E extends keyof IViewerEvents>(
       event: E,
@@ -47,12 +55,16 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
+  /**
+   * Sets upcoming data input into store to be able to pass it through viewer by evaluating the data.
+   * @param newValue new data input that user dragged and dropped to the fields in visual
+   */
   const setDataInput = (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
 
     // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
     if (
-      reloadNeeded.value ||
+      viewerReloadNeeded.value ||
       !lastLoadedRootObjectId.value ||
       lastLoadedRootObjectId.value !== (dataInput.value.objects[0] as SpeckleObject).id
     ) {
@@ -60,7 +72,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       console.log(
         `🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`
       )
-      reloadNeeded.value = false
+      viewerReloadNeeded.value = false
       viewerEmit.value('loadObjects', dataInput.value.objects)
     } else {
       if (dataInput.value.selectedIds.length > 0) {
@@ -71,15 +83,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
-  const shouldForceUpdate = (newDataInput: SpeckleDataInput): boolean => {
-    // TODO
-    return false
-  }
-
+  /**
+   * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
+   */
   const setInputStatus = (newValue: InputState) => {
     dataInputStatus.value = newValue
     if (dataInputStatus.value !== 'valid') {
-      reloadNeeded.value = true
+      viewerReloadNeeded.value = true
     }
   }
 
@@ -90,7 +100,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   return {
     host,
     isViewerInitialized,
-    reloadNeeded,
+    viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     setHost,

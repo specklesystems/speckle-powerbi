@@ -26,7 +26,7 @@ import {
 } from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
-import { pinia } from './plugins/pinia';
+import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
 
 // noinspection JSUnusedGlobalSymbols
@@ -77,12 +77,12 @@ export class Visual implements IVisual {
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
     let validationResult: { hasColorFilter: boolean; view: powerbi.DataViewMatrix } = null
-    
+
     try {
       console.log('🔍 Validating input...', options)
       validationResult = validateMatrixView(options)
       console.log('✅Input valid', validationResult)
-    } catch (e) { 
+    } catch (e) {
       console.log('❌Input not valid:', (e as Error).message)
       this.host.displayWarningIcon(
         `Incomplete data input.`,
@@ -91,7 +91,7 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Model URL", "Version Object ID" and "Object ID" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      
+
       visualStore.setInputStatus('incomplete')
       return
     }
@@ -127,20 +127,19 @@ export class Visual implements IVisual {
 
   private throttleUpdate = _.throttle((input: SpeckleDataInput) => {
     const visualStore = useVisualStore()
-    console.log('throttle update', input);
-    
+    console.log('throttle update', input)
+
     this.tooltipHandler.setup(input.objectTooltipData)
     visualStore.setInputStatus('valid')
 
-    if (visualStore.isViewerInitialized && !visualStore.reloadNeeded){
+    if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
       visualStore.setDataInput(input)
     } else {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
         visualStore.setDataInput(input)
-      }, 250); // having timeout in throttle? smells
+      }, 250) // having timeout in throttle? smells
     }
-    
   }, 500)
 
   public async destroy() {
