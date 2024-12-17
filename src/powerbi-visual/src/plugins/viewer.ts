@@ -2,15 +2,23 @@ import {
   LegacyViewer,
   DefaultViewerParams,
   SpeckleOfflineLoader,
-  FilteringState
+  FilteringState,
+  IntersectionQuery
 } from '@speckle/viewer'
 import { createNanoEvents, Emitter } from 'nanoevents'
+import { toRaw } from 'vue'
 
 export interface IViewer {
   /**
    * Events sent over from the host application.
    */
   on: <E extends keyof IViewerEvents>(event: E, callback: IViewerEvents[E]) => void
+}
+
+export interface Hit {
+  guid: string
+  object?: Record<string, unknown>
+  point: { x: number; y: number; z: number }
 }
 
 export interface IViewerEvents {
@@ -26,6 +34,7 @@ export interface IViewerEvents {
 export class ViewerHandler {
   public emitter: Emitter
   public viewer: LegacyViewer
+  private parent: HTMLElement
   private filteringState: FilteringState
 
   constructor() {
@@ -42,6 +51,7 @@ export class ViewerHandler {
 
   async init(parent: HTMLElement) {
     this.viewer = await createViewer(parent)
+    this.parent = parent
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
@@ -86,9 +96,26 @@ export class ViewerHandler {
     }
   }
 
-  public intersect = (args: { x: number; y: number }) => {
-    // TODO
-    return { hit: {}, objects: [] }
+  public intersect = (coords: { x: number; y: number }) => {
+    const point = this.viewer.Utils.screenToNDC(
+      coords.x,
+      coords.y,
+      this.parent.clientWidth,
+      this.parent.clientHeight
+    )
+    const intQuery: IntersectionQuery = {
+      operation: 'Pick',
+      point
+    }
+
+    const res = this.viewer.query(intQuery)
+    console.log(res, 'pick objects')
+
+    if (!res) return null
+    return toRaw({
+      hit: this.pickViewableHit(res.objects),
+      objects: res.objects
+    })
   }
 
   public loadObjects = (objects: object[]) => {
@@ -100,6 +127,18 @@ export class ViewerHandler {
 
   private handlePing = (message: string) => {
     console.log(message)
+  }
+
+  private pickViewableHit(hits: Hit[]): Hit | null {
+    // let hit = null
+    // if (this.filteringState.isolatedObjects) {
+    //   // Find the first hit contained in the isolated objects
+    //   hit = hits.find((hit) => {
+    //     const hitId = hit.object.id as string
+    //     return this.filteringState.isolatedObjects.includes(hitId)
+    //   })
+    // }
+    return hits[0]
   }
 }
 

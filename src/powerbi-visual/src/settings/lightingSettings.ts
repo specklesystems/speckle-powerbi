@@ -2,15 +2,14 @@ import { formattingSettings as fs } from 'powerbi-visuals-utils-formattingmodel'
 import ValidatorType = powerbi.visuals.ValidatorType
 import { SunLightConfiguration } from '@speckle/viewer'
 
-export class LightingSettings extends fs.Card {
+export class LightingSettings extends fs.SimpleCard {
   name = 'lighting'
   displayName = 'Lighting'
 
   public enabled = new fs.ToggleSwitch({
     name: 'enabled',
     displayName: 'Enabled',
-    value: true,
-    topLevelToggle: true
+    value: true
   })
 
   public intensity = new fs.Slider({

@@ -1,3 +1,5 @@
+import { toRaw } from 'vue'
+
 export default class SelectionHandler {
   private selectionIdMap: Map<string, powerbi.extensibility.ISelectionId>
   private currentSelection: Set<string>
@@ -23,13 +25,19 @@ export default class SelectionHandler {
   public set(url: string, data: powerbi.extensibility.ISelectionId) {
     this.selectionIdMap.set(url, data)
   }
+
   public async select(url: string, multi = false) {
+    const rawId = toRaw(url)
+    const selectionId = toRaw(this.selectionIdMap.get(rawId))
     if (multi) {
-      await this.selectionManager.select(this.selectionIdMap.get(url), true)
-      if (this.currentSelection.has(url)) this.currentSelection.delete(url)
-      else this.currentSelection.add(url)
+      await this.selectionManager.select(selectionId, true)
+      if (this.currentSelection.has(url)) {
+        this.currentSelection.delete(url)
+      } else {
+        this.currentSelection.add(url)
+      }
     } else {
-      await this.selectionManager.select(this.selectionIdMap.get(url), false)
+      await this.selectionManager.select([], false)
       this.currentSelection.clear()
       this.currentSelection.add(url)
     }

@@ -32,39 +32,34 @@ import {
   watch,
   watchEffect
 } from 'vue'
+import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
 import { CanonicalView, SpeckleView } from '@speckle/viewer'
 import { FormButton } from '@speckle/ui-components'
 import { useClickDragged } from 'src/composables/useClickDragged'
-import { isMultiSelect } from 'src/utils/isMultiSelect'
-import { selectionHandlerKey, tooltipHandlerKey, viewerHandlerKey } from 'src/injectionKeys'
 import { SpeckleDataInput } from 'src/types'
 import { debounce, throttle } from 'lodash'
 import { ContextOption } from 'src/settings/colorSettings'
 import { useVisualStore } from '@src/store/visualStore'
 import { ViewerHandler } from '@src/plugins/viewer'
 
-const selectionHandler = inject(selectionHandlerKey)
-const tooltipHandler = inject(tooltipHandlerKey)
 const visualStore = useVisualStore()
 const { dragged } = useClickDragged()
 
 let viewerHandler: ViewerHandler = null
-let ac = new AbortController()
 
 const container = ref<HTMLElement>()
 let bboxActive = ref(false)
 let views: Ref<SpeckleView[]> = ref([])
 let updateTask: Ref<Promise<void>> = ref(null)
-let setupTask: Promise<void> = null
 
 const isLoading = computed(() => updateTask.value != null)
 const input = computed(() => visualStore.dataInput)
 // const settings = computed(() => store.state.settings)
 
 const onCameraMoved = throttle((_) => {
-  const pos = tooltipHandler.currentTooltip?.worldPos
-  if (!pos) return
+  // const pos = tooltipHandler.currentTooltip?.worldPos
+  // if (!pos) return
   // const screenPos = viewerHandler.getScreenPosition(pos)
   // tooltipHandler.move(screenPos)
 }, 50)
@@ -82,7 +77,7 @@ onMounted(async () => {
   //     await viewerHandler.loadObjects(obj, console.log, console.error)
   //     viewerHandler.updateSettings(settings.value)
   //   })
-  const viewerHandler = new ViewerHandler()
+  viewerHandler = new ViewerHandler()
   await viewerHandler.init(container.value)
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
@@ -174,28 +169,47 @@ async function cancelAndHandleDataUpdate() {
   handleDataUpdate(input, signal)
 }
 
+function isMultiSelect(e: MouseEvent) {
+  if (!e) return false
+  if (currentOS === OS.MacOS) return e.metaKey || e.shiftKey
+  else return e.ctrlKey || e.shiftKey
+}
+
 async function onCanvasClick(ev: MouseEvent) {
-  // if (dragged.value) return
-  // const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
-  // const multi = isMultiSelect(ev)
-  // const hit = intersectResult?.hit
-  // if (hit) {
-  //   const id = hit.object.id as string
-  //   if (multi || !selectionHandler.isSelected(id)) await selectionHandler.select(id, multi)
-  //   tooltipHandler.show(hit, { x: ev.clientX, y: ev.clientY })
-  //   const selection = selectionHandler.getCurrentSelection()
-  //   const ids = selection.map((s) => s.id)
-  //   await viewerHandler.selectObjects(ids)
-  // } else {
-  //   tooltipHandler.hide()
-  //   if (!multi) {
-  //     selectionHandler.clear()
-  //     await viewerHandler.selectObjects(null)
-  //   }
-  // }
+  if (dragged.value) return
+
+  const tooltipHandler = visualStore.tooltipHandler
+  const selectionHandler = visualStore.selectionHandler
+
+  const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
+  console.log(intersectResult, 'intersectResult')
+
+  const multi = isMultiSelect(ev)
+  const hit = intersectResult?.hit
+  if (hit) {
+    const id = hit.object.id as string
+    if (multi || !selectionHandler.isSelected(id)) {
+      console.log('in if block')
+
+      await selectionHandler.select(id, multi)
+    }
+    tooltipHandler.show(hit, { x: ev.clientX, y: ev.clientY })
+    const selection = selectionHandler.getCurrentSelection()
+    console.log(selection, 'selection')
+
+    const ids = selection.map((s) => s.id)
+    await viewerHandler.selectObjects(ids)
+  } else {
+    tooltipHandler.hide()
+    if (!multi) {
+      selectionHandler.clear()
+      await viewerHandler.selectObjects(null)
+    }
+  }
 }
 
 async function onCanvasAuxClick(ev: MouseEvent) {
+  const selectionHandler = visualStore.selectionHandler
   if (ev.button != 2 || dragged.value) return
   const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
   await selectionHandler.showContextMenu(ev, intersectResult?.hit)

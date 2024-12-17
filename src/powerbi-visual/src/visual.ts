@@ -60,6 +60,8 @@ export class Visual implements IVisual {
     // set `host` to visual store to be able use later in other components if needed
     const visualStore = useVisualStore()
     visualStore.setHost(this.host)
+    visualStore.setSelectionHandler(this.selectionHandler)
+    visualStore.setTooltipHandler(this.tooltipHandler)
   }
 
   private async clear() {
@@ -72,7 +74,7 @@ export class Visual implements IVisual {
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
       SpeckleVisualSettingsModel,
-      options.dataViews
+      options.dataViews[0]
     )
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
