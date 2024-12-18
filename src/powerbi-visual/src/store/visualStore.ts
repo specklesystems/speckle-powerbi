@@ -1,5 +1,3 @@
-import SelectionHandler from '@src/handlers/selectionHandler'
-import TooltipHandler from '@src/handlers/tooltipHandler'
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
 import { defineStore } from 'pinia'
@@ -8,9 +6,7 @@ import { ref, shallowRef } from 'vue'
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
 export const useVisualStore = defineStore('visualStore', () => {
-  const host = ref<powerbi.extensibility.visual.IVisualHost>()
-  const selectionHandler = ref<SelectionHandler>()
-  const tooltipHandler = ref<TooltipHandler>()
+  const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const isViewerInitialized = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
 
@@ -35,14 +31,6 @@ export const useVisualStore = defineStore('visualStore', () => {
    */
   const setHost = (hostToSet: powerbi.extensibility.visual.IVisualHost) => {
     host.value = hostToSet
-  }
-
-  const setSelectionHandler = (selectionHandlerToSet: SelectionHandler) => {
-    selectionHandler.value = selectionHandlerToSet
-  }
-
-  const setTooltipHandler = (tooltipHandlerToSet: TooltipHandler) => {
-    tooltipHandler.value = tooltipHandlerToSet
   }
 
   /**
@@ -111,16 +99,12 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
-    selectionHandler,
-    tooltipHandler,
     isViewerInitialized,
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     viewerEmit,
     setHost,
-    setSelectionHandler,
-    setTooltipHandler,
     setViewerEmitter,
     setDataInput,
     setInputStatus,

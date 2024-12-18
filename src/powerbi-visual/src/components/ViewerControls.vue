@@ -79,7 +79,6 @@ import ButtonToggle from 'src/components/controls/ButtonToggle.vue'
 import ButtonGroup from 'src/components/controls/ButtonGroup.vue'
 import ButtonSimple from 'src/components/controls/ButtonSimple.vue'
 import { inject, watch } from 'vue'
-import { hostKey, viewerHandlerKey } from 'src/injectionKeys'
 import { resetPalette } from 'src/utils/matrixViewUtils'
 import { useVisualStore } from '@src/store/visualStore'
 

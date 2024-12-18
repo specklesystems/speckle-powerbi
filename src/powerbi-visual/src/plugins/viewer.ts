@@ -3,7 +3,8 @@ import {
   DefaultViewerParams,
   SpeckleOfflineLoader,
   FilteringState,
-  IntersectionQuery
+  IntersectionQuery,
+  CameraController
 } from '@speckle/viewer'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { toRaw } from 'vue'
@@ -139,6 +140,12 @@ export class ViewerHandler {
     //   })
     // }
     return hits[0]
+  }
+
+  public dispose() {
+    this.viewer.getExtension(CameraController).dispose()
+    this.viewer.dispose()
+    this.viewer = null
   }
 }
 

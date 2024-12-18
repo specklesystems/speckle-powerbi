@@ -6,7 +6,7 @@ import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel
 import { createApp } from 'vue'
 import App from './App.vue'
 // import { store } from 'src/store'
-import { hostKey, selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
+import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
@@ -54,14 +54,11 @@ export class Visual implements IVisual {
       // .use(store, storeKey)
       .provide(selectionHandlerKey, this.selectionHandler)
       .provide(tooltipHandlerKey, this.tooltipHandler)
-      .provide(hostKey, options.host)
       .mount(options.element)
 
     // set `host` to visual store to be able use later in other components if needed
     const visualStore = useVisualStore()
     visualStore.setHost(this.host)
-    visualStore.setSelectionHandler(this.selectionHandler)
-    visualStore.setTooltipHandler(this.tooltipHandler)
   }
 
   private async clear() {
