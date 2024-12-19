@@ -1,6 +1,6 @@
 import { formattingSettings as fs } from 'powerbi-visuals-utils-formattingmodel'
 
-export class CameraSettings extends fs.Card {
+export class CameraSettings extends fs.SimpleCard {
   public defaultView: fs.SimpleSlice = new fs.AutoDropdown({
     name: 'defaultView',
     displayName: 'Default View',

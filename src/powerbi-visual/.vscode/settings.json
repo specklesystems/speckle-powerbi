@@ -1,5 +1,5 @@
 {
-  "editor.tabSize": 4,
+  "editor.tabSize": 2,
   "editor.insertSpaces": true,
   "files.eol": "\n",
   "files.watcherExclude": {
@@ -7,12 +7,10 @@
     "**/node_modules/**": true,
     ".tmp": true
   },
-  "files.exclude": {
-    ".tmp": true
-  },
   "files.associations": {
     "*.resjson": "json"
   },
+  "editor.formatOnSave": true,
   "search.exclude": {
     ".tmp": true,
     "typings": true

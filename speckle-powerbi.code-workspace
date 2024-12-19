@@ -1,16 +1,16 @@
 {
   "folders": [
     {
-      "name": "root",
-      "path": "."
+      "name": "👀 powerbi-visual",
+      "path": "src/powerbi-visual"
     },
     {
-      "name": "DataConnector",
+      "name": "➡️ powerbi-data-connector",
       "path": "src/powerbi-data-connector"
     },
     {
-      "name": "Visual",
-      "path": "src/powerbi-visual"
+      "name": "🏠 root",
+      "path": "."
     }
   ],
   "settings": {
@@ -23,30 +23,45 @@
       "**/node_modules/**": true,
       ".tmp": true
     },
-    "files.exclude": {
-      ".tmp": true
+    "editor.formatOnPaste": true,
+    "editor.multiCursorModifier": "ctrlCmd",
+    "editor.snippetSuggestions": "top",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
     },
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "search.exclude": {
       ".tmp": true,
-      "typings": true
+      "typings": true,
+      "dist": true,
+      "wepbpack.statistics.dev.html": true,
+      "wepbpack.statistics.html": true,
     },
     "json.schemas": [
       {
-        "fileMatch": ["/pbiviz.json"],
+        "fileMatch": [
+          "/pbiviz.json"
+        ],
         "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.pbiviz.json"
       },
       {
-        "fileMatch": ["/capabilities.json"],
+        "fileMatch": [
+          "/capabilities.json"
+        ],
         "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.capabilities.json"
       },
       {
-        "fileMatch": ["/dependencies.json"],
+        "fileMatch": [
+          "/dependencies.json"
+        ],
         "url": "./src/powerbi-visual/node_modules/powerbi-visuals-api/schema.dependencies.json"
       }
     ]
   },
   "extensions": {
     "recommendations": [
+      "esbenp.prettier-vscode",
       "ms-dotnettools.csharp",
       "powerquery.vscode-powerquery-sdk"
     ]

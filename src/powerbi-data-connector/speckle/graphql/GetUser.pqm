@@ -1,0 +1,65 @@
+// function for getting the user info with graphql query
+let
+    // import the parser function from Parser.pqm file 
+    Parser = Extension.LoadFunction("Parser.pqm"),
+    
+    // the logic for importing functions from other files
+    Extension.LoadFunction = (fileName as text) =>
+        let
+            binary = Extension.Contents(fileName),
+            asText = Text.FromBinary(binary)
+        in
+            try
+                Expression.Evaluate(asText, #shared)
+            catch (e) =>
+                error
+                    [
+                        Reason = "Extension.LoadFunction Failure",
+                        Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                        Message.Parameters = {fileName, e[Reason], e[Message]},
+                        Detail = [File = fileName, Error = e]
+                    ]
+in
+    (url as text) as record =>
+        let
+            // get base server URL using the imported function
+            parsedUrl = Parser(url),
+            server = parsedUrl[baseUrl],
+            
+            apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+            
+            query = "query {
+                    activeUser {
+                        email 
+                        name
+                    }
+                    serverInfo {
+                        name 
+                        company 
+                        version
+                    }
+                }",
+            Source = Web.Contents(
+                Text.Combine({server, "graphql"}, "/"),
+                [
+                    Headers = [
+                        #"Method" = "POST",
+                        #"Content-Type" = "application/json",
+                        #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                    ],
+                    ManualStatusHandling = {400},
+                    Content = Json.FromValue([query = query])
+                ]
+            ),
+            JsonResponse = Json.Document(Source)
+        in
+            if Record.HasFields(JsonResponse, {"errors"}) then
+                error JsonResponse[errors]{0}[message]
+            else
+                [
+                    UserEmail = JsonResponse[data][activeUser][email],
+                    UserName = JsonResponse[data][activeUser][name],
+                    ServerName = JsonResponse[data][serverInfo][name],
+                    ServerCompany = JsonResponse[data][serverInfo][company],
+                    ServerVersion = JsonResponse[data][serverInfo][version]
+                ]
