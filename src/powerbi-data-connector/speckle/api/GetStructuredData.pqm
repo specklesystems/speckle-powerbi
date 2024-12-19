@@ -1,0 +1,81 @@
+// function for getting structured object data
+(url as text) as table =>
+    let
+        // import the parser function and getModel
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        // get parsed URL components and model info
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        modelInfo = GetModel(url),
+        
+        // get API key if available
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        
+        // make the API request to objects endpoint
+        Source = Web.Contents(
+            Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
+            [
+                Headers = [
+                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                ],
+                ManualStatusHandling = {400, 401, 403}
+            ]
+        ),
+        
+        // parse the JSON response
+        JsonResponse = Json.Document(Source),
+        
+        // convert list to table with all columns expanded
+        TableFromList = Table.FromList(
+            JsonResponse, 
+            Splitter.SplitByNothing(), 
+            null, 
+            null, 
+            ExtraValues.Error
+        ),
+
+        // fields to remove from data record
+        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
+
+        // create the final table with cleaned data records
+        FinalTable = Table.FromRecords(
+            List.Transform(
+                TableFromList[Column1],
+                each let
+                    record = _,
+                    fieldsToRemoveForThisRecord = List.Select(
+                        FieldsToRemove,
+                        each Record.HasFields(record, {_})
+                    )
+                in
+                    [
+                        speckle_id = record[id],
+                        speckle_type = record[speckle_type],
+                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
+                    ]
+            )
+        ),
+        
+        // filter out rows where applicationId is null
+        // we can discuss this further
+        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
+    in
+        FilteredTable

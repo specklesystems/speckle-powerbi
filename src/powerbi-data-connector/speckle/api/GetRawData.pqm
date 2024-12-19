@@ -1,0 +1,118 @@
+// function for getting object data
+(url as text) as table =>
+    let
+        // import the Parser and GetModel functions
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+    
+        // get parsed URL components and model info
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        modelInfo = GetModel(url),
+        
+        // get API key if available
+        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        
+        // make the API request to objects endpoint
+        Source = Web.Contents(
+            Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
+            [
+                Headers = [
+                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                ],
+                ManualStatusHandling = {400, 401, 403}
+            ]
+        ),
+        
+        // parse the response
+        JsonResponse = Json.Document(Source),
+        
+        // Function to split object into chunks
+        SplitIntoChunks = (object, startIndex) =>
+            let
+                // Convert object to JSON string
+                JsonString = Text.FromBinary(Json.FromValue(object)),
+                TotalLength = Text.Length(JsonString),
+                
+                // Calculate chunks needed (29900 to be safe under 31000 limit)
+                ChunkSize = 29900,
+                NumChunks = Number.RoundUp(TotalLength/ChunkSize),
+                
+                // Generate chunk indices
+                ChunkIndices = List.Numbers(0, NumChunks),
+
+                FormatRowNumber = (number as number) as text =>
+                    let
+                        digits = Number.RoundUp(Number.Log10(number + 1)),
+                        padLength = if digits < 7 then 7 else digits,
+                        formattedNumber = Text.PadStart(Text.From(number), padLength, "0")
+                    in
+                        formattedNumber,
+                
+                // Create chunks with continuous row numbers and incrementing suffixes
+                CreateChunk = (index) =>
+                    let
+                        Start = index * ChunkSize,
+                        Length = if Start + ChunkSize > TotalLength 
+                                then TotalLength - Start 
+                                else ChunkSize,
+                        RawChunk = Text.Range(JsonString, Start, Length),
+                        FormattedIndex = FormatRowNumber(index + startIndex + 1),
+                        // Add incrementing suffix starting from 1 for additional chunks
+                        ModifiedId = if index = 0 
+                                   then object[id]
+                                   else object[id] & "_" & Text.From(index),
+                        PrefixedChunk = FormattedIndex & RawChunk
+                    in
+                        [
+                            speckle_id = ModifiedId,
+                            viewer_data = "R_" & PrefixedChunk
+                        ]
+            in
+                [
+                    chunks = List.Transform(ChunkIndices, CreateChunk),
+                    nextIndex = startIndex + NumChunks
+                ],
+        
+        // Process all objects with continuous indexing
+        ProcessObjects = (objects) =>
+            let
+                ProcessObject = (accumulator, object) =>
+                    let
+                        result = SplitIntoChunks(object, accumulator[nextIndex]),
+                        newChunks = List.Combine({accumulator[chunks], result[chunks]})
+                    in
+                        [
+                            chunks = newChunks,
+                            nextIndex = result[nextIndex]
+                        ],
+                
+                initialState = [
+                    chunks = {}, 
+                    nextIndex = 0
+                ],
+                finalState = List.Accumulate(objects, initialState, ProcessObject)
+            in
+                finalState[chunks],
+        
+        // Generate final table
+        ChunkedData = ProcessObjects(JsonResponse),
+        FinalTable = Table.FromRecords(ChunkedData)
+    in
+        FinalTable

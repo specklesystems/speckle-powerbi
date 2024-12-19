@@ -4,7 +4,7 @@ section Speckle;
 AuthAppId = "spklpwerbi";
 AuthAppSecret = "spklpwerbi";
 
-// Function to load `pqm` files - this is essential and must be kept
+// function to load `pqm` files - this is essential and must be kept
 shared Speckle.LoadFunction = (fileName as text) =>
     let
         binary = Extension.Contents(fileName),
@@ -47,6 +47,12 @@ shared Speckle.GetRawData = Value.ReplaceType(
 );
 
 [DataSource.Kind = "Speckle"]
+shared Speckle.GetRawJSON = Value.ReplaceType(
+    Speckle.LoadFunction("GetRawJSON.pqm"),
+    type function (url as Uri.Type) as table
+);
+
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetStructuredData = Value.ReplaceType(
     Speckle.LoadFunction("GetStructuredData.pqm"),
     type function (url as Uri.Type) as table
@@ -75,6 +81,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
     ]
 );
 
+// here we register the GetByUrl function to power bi ui
 GetByUrl.Publish = [
     Beta = true,
     Cateogry = "Other",
