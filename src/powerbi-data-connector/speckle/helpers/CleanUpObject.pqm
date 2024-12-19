@@ -1,7 +1,0 @@
-(object as record) as record =>
-    let
-        hiddenFields = {"__closure", "totalChildrenCount"},
-        // remove closures from records
-        clean = Record.RemoveFields(object, hiddenFields, MissingField.Ignore)
-    in
-        clean

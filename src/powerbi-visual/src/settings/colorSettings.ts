@@ -10,12 +10,11 @@ export enum ContextOption {
   ghosted = 'ghosted',
   show = 'show'
 }
-export class ColorSettings extends fs.Card {
+export class ColorSettings extends fs.SimpleCard {
   public enabled = new fs.ToggleSwitch({
     name: 'enabled',
     displayName: 'Enabled',
-    value: true,
-    topLevelToggle: true
+    value: true
   })
 
   public fill = new fs.ColorPicker({
@@ -44,7 +43,7 @@ export class ColorSettings extends fs.Card {
   slices: fs.Slice[] = [this.context, this.fill]
 }
 
-export class ColorSelectorSettings extends fs.Card {
+export class ColorSelectorSettings extends fs.SimpleCard {
   name = 'colorSelector'
   displayName = 'Color Selector'
   slices = []

@@ -1,0 +1,20 @@
+// function for parsing the url into base url, project id and model id
+(url as text) as record =>
+    let
+        urlParts = Uri.Parts(url),
+        baseUrl = Text.Combine({urlParts[Scheme], "://", urlParts[Host]}),
+        
+        pathSegments = List.Select(Text.Split(urlParts[Path], "/"), each _ <> ""),
+        
+        // extract project and model IDs if they exist
+        projectId = if List.Count(pathSegments) >= 2 and pathSegments{0} = "projects" 
+            then pathSegments{1} else null,
+            
+        modelId = if List.Count(pathSegments) >= 4 and pathSegments{2} = "models"
+            then pathSegments{3} else null
+    in
+        [
+            baseUrl = baseUrl,
+            projectId = projectId,
+            modelId = modelId
+        ]

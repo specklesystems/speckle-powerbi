@@ -17,22 +17,23 @@
     "@babel/runtime-corejs3": "^7.21.5",
     "@headlessui/vue": "^1.7.13",
     "@heroicons/vue": "^2.0.12",
-    "@speckle/tailwind-theme": "2.14.7",
-    "@speckle/ui-components": "2.14.7",
-    "@speckle/viewer": "^2.21.0",
+    "@speckle/tailwind-theme": "2.23.2",
+    "@speckle/ui-components": "2.23.2",
+    "@speckle/viewer": "2.23.4",
     "color-interpolate": "^1.0.5",
     "core-js": "^3.30.2",
     "lodash": "^4.17.21",
+    "nanoevents": "^9.1.0",
+    "pinia": "^2.3.0",
     "postcss-loader": "^7.3.0",
     "postcss-preset-env": "^8.4.1",
-    "powerbi-visuals-api": "~5.4.0",
-    "powerbi-visuals-utils-colorutils": "^6.0.1",
-    "powerbi-visuals-utils-dataviewutils": "^6.0.1",
-    "powerbi-visuals-utils-formattingmodel": "^5.0.0",
-    "powerbi-visuals-utils-interactivityutils": "^6.0.2",
-    "powerbi-visuals-utils-tooltiputils": "^6.0.1",
-    "regenerator-runtime": "^0.13.11",
-    "vuex": "^4.1.0"
+    "powerbi-visuals-api": "^5.11.0",
+    "powerbi-visuals-utils-colorutils": "^6.0.5",
+    "powerbi-visuals-utils-dataviewutils": "^6.1.0",
+    "powerbi-visuals-utils-formattingmodel": "^6.0.4",
+    "powerbi-visuals-utils-interactivityutils": "^6.0.4",
+    "powerbi-visuals-utils-tooltiputils": "^6.0.4",
+    "regenerator-runtime": "^0.13.11"
   },
   "devDependencies": {
     "@babel/core": "^7.21.8",
@@ -42,7 +43,7 @@
     "@types/lodash": "^4.14.194",
     "@types/node": "^20.1.7",
     "@types/regenerator-runtime": "^0.13.1",
-    "@types/three": "^0.152.0",
+    "@types/three": "^0.140.0",
     "@types/webpack": "^5.28.1",
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
@@ -68,13 +69,16 @@
     "tsconfig-paths-webpack-plugin": "^4.0.1",
     "typescript": "^5.0.4",
     "user-agent-data-types": "^0.3.1",
-    "vue": "^3.3.4",
-    "vue-loader": "^17.1.1",
-    "vue-template-compiler": "^2.7.14",
-    "webpack": "^5.83.0",
-    "webpack-bundle-analyzer": "^4.8.0",
-    "webpack-cli": "^5.1.1",
-    "webpack-dev-server": "^4.15.0"
+    "vue": "^3.5.13",
+    "vue-loader": "^17.4.2",
+    "vue-template-compiler": "^2.7.16",
+    "webpack": "^5.97.1",
+    "webpack-bundle-analyzer": "^4.10.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.2"
   },
-  "version": "2.0.0"
+  "version": "3.0.0",
+  "engines": {
+    "node": "^20.17.0"
+  }
 }

@@ -1,19 +1,14 @@
 {
   "dataRoles": [
     {
-      "displayName": "Model URL",
+      "displayName": "Viewer Data",
       "kind": "Grouping",
-      "name": "stream"
+      "name": "rootObject"
     },
     {
-      "displayName": "Version Object ID",
+      "displayName": "Object IDs",
       "kind": "Grouping",
-      "name": "parentObject"
-    },
-    {
-      "displayName": "Object ID",
-      "kind": "Grouping",
-      "name": "object"
+      "name": "objectIds"
     },
     {
       "displayName": "Color By",
@@ -38,12 +33,7 @@
           "select": [
             {
               "bind": {
-                "to": "stream"
-              }
-            },
-            {
-              "bind": {
-                "to": "parentObject"
+                "to": "rootObject"
               }
             },
             {
@@ -53,7 +43,7 @@
             },
             {
               "for": {
-                "in": "object"
+                "in": "objectIds"
               }
             }
           ]
@@ -67,7 +57,13 @@
             }
           ]
         }
-      }
+      },
+      "conditions": [
+        {
+          "rootObject": { "max": 1 },
+          "objectIds": { "max": 1 }
+        }
+      ]
     }
   ],
   "objects": {

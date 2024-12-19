@@ -1,23 +1,20 @@
+<template>
+  <ViewerView v-if="status === 'valid'" />
+  <HomeView v-else />
+</template>
+
 <script setup lang="ts">
 import HomeView from './views/HomeView.vue'
 import ViewerView from './views/ViewerView.vue'
 import { computed, onMounted } from 'vue'
-import { useStore } from 'vuex'
-import { storeKey } from 'src/injectionKeys'
+import { useVisualStore } from './store/visualStore'
 
-let store = useStore(storeKey)
+const visualStore = useVisualStore()
 let status = computed(() => {
-  return store.state.status
+  return visualStore.dataInputStatus
 })
 
 onMounted(() => {
   console.log("App mounted")
 })
 </script>
-
-<template>
-  <ViewerView v-if="status == 'valid'" />
-  <HomeView v-else />
-</template>
-
-<style scoped></style>
