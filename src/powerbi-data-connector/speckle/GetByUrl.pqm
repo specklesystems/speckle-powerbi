@@ -5,6 +5,7 @@
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         GetRawData = Extension.LoadFunction("GetRawData.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
+
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -36,7 +37,6 @@
         ),
         
         // add navigation table metadata directly
-
         tableType = Value.Type(source),
         newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
             NavigationTable.NameColumn = "Name",
@@ -44,7 +44,6 @@
             Documentation.Name = "Speckle Model"
         ],
         
-
         // convert to navigation table
         navTable = Value.ReplaceType(source, newTableType)
     in
