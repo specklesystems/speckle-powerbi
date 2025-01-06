@@ -14,6 +14,7 @@ export interface SpeckleDataInput {
   objectIds: string[]
   selectedIds: string[]
   colorByIds: { objectIds: string[]; slice: fs.ColorPicker; color: string }[]
+  tooltips: string[]
   objectTooltipData: Map<string, IViewerTooltip>
   view: powerbi.DataViewMatrix
 }

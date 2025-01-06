@@ -7,27 +7,31 @@ import {
 } from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
+import { useVisualStore } from '../store/visualStore'
 
 export function validateMatrixView(options: VisualUpdateOptions): {
   hasColorFilter: boolean
   view: powerbi.DataViewMatrix
 } {
+  const visualStore = useVisualStore()
   const matrixVew = options.dataViews[0].matrix
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
-  let hasRootObject = false,
+  let hasViewerData = false,
     hasObject = false,
     hasColorFilter = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasRootObject) hasRootObject = source.roles['rootObject'] != undefined
+      console.log(source.roles)
+
+      if (!hasViewerData) hasViewerData = source.roles['viewerData'] != undefined
       if (!hasObject) hasObject = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
   })
 
-  if (!hasRootObject) throw new Error('Missing Root Object for Viewer')
+  if (!hasViewerData) throw new Error('Missing Root Object for Viewer')
   if (!hasObject) throw new Error('Missing Object Ids input')
   return {
     hasColorFilter,
@@ -163,6 +167,18 @@ export function processMatrixView(
     jsonObjects.push(JSON.parse(objs.join('')))
   }
 
+  const tooltips = []
+
+  matrixView.columns.levels.forEach((level) => {
+    level.sources.forEach((source) => {
+      console.log(source.roles)
+      if (source.roles['objectData'] != undefined) {
+        tooltips.push(source.displayName)
+      }
+    })
+  })
+  console.log(tooltips)
+
   // matrixView.rows.root.children.forEach((streamUrlChild) => {
   //   const url = streamUrlChild.value
 
@@ -247,6 +263,7 @@ export function processMatrixView(
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
+    tooltips,
     objectTooltipData,
     view: matrixView
   }
