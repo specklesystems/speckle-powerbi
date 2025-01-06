@@ -3,7 +3,7 @@
     {
       "displayName": "Viewer Data",
       "kind": "Grouping",
-      "name": "rootObject"
+      "name": "viewerData"
     },
     {
       "displayName": "Object IDs",
@@ -33,7 +33,7 @@
           "select": [
             {
               "bind": {
-                "to": "rootObject"
+                "to": "viewerData"
               }
             },
             {
@@ -60,7 +60,7 @@
       },
       "conditions": [
         {
-          "rootObject": { "max": 1 },
+          "viewerData": { "max": 1 },
           "objectIds": { "max": 1 }
         }
       ]

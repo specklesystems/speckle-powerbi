@@ -75,7 +75,10 @@ export class Visual implements IVisual {
     )
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
-    let validationResult: { hasColorFilter: boolean; view: powerbi.DataViewMatrix } = null
+    let validationResult: {
+      hasColorFilter: boolean
+      view: powerbi.DataViewMatrix
+    } = null
 
     try {
       console.log('🔍 Validating input...', options)
