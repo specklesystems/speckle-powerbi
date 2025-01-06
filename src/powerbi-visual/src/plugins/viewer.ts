@@ -112,11 +112,14 @@ export class ViewerHandler {
     const res = this.viewer.query(intQuery)
     console.log(res, 'pick objects')
 
-    if (!res) return null
-    return toRaw({
+    if (!res) {
+      this.viewer.selectObjects([])
+      return
+    }
+    return {
       hit: this.pickViewableHit(res.objects),
       objects: res.objects
-    })
+    }
   }
 
   public loadObjects = (objects: object[]) => {

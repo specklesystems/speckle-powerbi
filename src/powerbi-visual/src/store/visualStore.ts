@@ -60,13 +60,23 @@ export const useVisualStore = defineStore('visualStore', () => {
    * @param newValue new data input that user dragged and dropped to the fields in visual
    */
   const setDataInput = (newValue: SpeckleDataInput) => {
+    let differentObjectIds = []
+    // only skip below if it first time
+    // whenever we change anything on fields of visual, it might send filtered version of the objects before and we do not want to re-render viewer
+    // we should re-render only if new speckle ids are detected on upcoming data
+    if (dataInput.value) {
+      differentObjectIds = newValue.objectIds.filter(
+        (newId) => !dataInput.value.objectIds.includes(newId)
+      )
+    }
+
     dataInput.value = newValue
 
     // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
     if (
       viewerReloadNeeded.value ||
       !lastLoadedRootObjectId.value ||
-      lastLoadedRootObjectId.value !== (dataInput.value.objects[0] as SpeckleObject).id
+      differentObjectIds.length > 0
     ) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
       console.log(
