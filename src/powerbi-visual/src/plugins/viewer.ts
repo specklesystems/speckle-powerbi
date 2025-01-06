@@ -121,6 +121,7 @@ export class ViewerHandler {
 
   public loadObjects = (objects: object[]) => {
     const stringifiedObject = JSON.stringify(objects)
+    void this.viewer.unloadAll()
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     void this.viewer.loadObject(loader, true)
     this.viewer.zoom() // zoom extends

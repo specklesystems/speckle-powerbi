@@ -91,7 +91,7 @@ export default class ViewerHandler {
     viewerSettings.verbose = false
     const viewer = new LegacyViewer(this.parent, viewerSettings)
     await viewer.init()
-    console.log('Viewer initialized', viewer);
+    console.log('Viewer initialized', viewer)
     this.viewer = viewer
   }
 
@@ -117,11 +117,11 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void,
     signal: AbortSignal
-  ) {   
+  ) {
     // var objectsToUnload = _.difference([...this.loadedObjectsCache], rootObject)
     // await this.unloadObjects(objectsToUnload, signal)
     // await this.loadObjects(obj, onLoad, onError) // TODO: pass root object
-    
+
     await this.loadObjects(objects, onLoad, onError)
   }
 
@@ -130,14 +130,9 @@ export default class ViewerHandler {
     onLoad: (url: string, index: number) => void,
     onError: (url: string, error: Error) => void
   ) {
-    console.log(objects);
-    
     const stringifiedObject = JSON.stringify(objects)
-    
-    // // eslint-disable-next-line no-debugger
-    // debugger
-    
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
+    void this.viewer.unloadAll()
     void this.viewer.loadObject(loader, true)
   }
 
@@ -199,7 +194,9 @@ export default class ViewerHandler {
 
   public getScreenPosition(worldPosition): { x: number; y: number } {
     return projectToScreen(
-      this.viewer.getExtension(CameraController).renderingCamera as unknown as PerspectiveCamera | OrthographicCamera,
+      this.viewer.getExtension(CameraController).renderingCamera as unknown as
+        | PerspectiveCamera
+        | OrthographicCamera,
       worldPosition
     )
   }
