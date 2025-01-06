@@ -7,13 +7,11 @@ import {
 } from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
-import { useVisualStore } from '../store/visualStore'
 
 export function validateMatrixView(options: VisualUpdateOptions): {
   hasColorFilter: boolean
   view: powerbi.DataViewMatrix
 } {
-  const visualStore = useVisualStore()
   const matrixVew = options.dataViews[0].matrix
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 

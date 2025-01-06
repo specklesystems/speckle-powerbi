@@ -9,7 +9,6 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const isViewerInitialized = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
-  const tooltips = ref<string[]>([])
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -49,10 +48,6 @@ export const useVisualStore = defineStore('visualStore', () => {
       viewerEmit.value('ping', '✅ Emitter successfully attached to the store.')
       isViewerInitialized.value = true // this is needed to be delay first load at the visual.ts file
     }
-  }
-
-  const setTooltips = (newTooltips: string[]) => {
-    tooltips.value = newTooltips
   }
 
   // MAKE TS HAPPY
@@ -100,14 +95,12 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
-    tooltips,
     isViewerInitialized,
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     viewerEmit,
     setHost,
-    setTooltips,
     setViewerEmitter,
     setDataInput,
     setInputStatus,
