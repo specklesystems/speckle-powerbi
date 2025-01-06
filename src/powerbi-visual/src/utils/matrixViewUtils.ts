@@ -177,7 +177,6 @@ export function processMatrixView(
       }
     })
   })
-  console.log(tooltips)
 
   // matrixView.rows.root.children.forEach((streamUrlChild) => {
   //   const url = streamUrlChild.value
