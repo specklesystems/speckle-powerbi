@@ -110,7 +110,7 @@ export class ViewerHandler {
     }
 
     const res = this.viewer.query(intQuery)
-    console.log(res, 'pick objects')
+    // console.log(res, 'pick objects')
 
     if (!res) {
       this.viewer.selectObjects([])
