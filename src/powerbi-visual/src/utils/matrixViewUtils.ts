@@ -12,11 +12,10 @@ export function validateMatrixView(options: VisualUpdateOptions): {
   hasColorFilter: boolean
   view: powerbi.DataViewMatrix
 } {
-  const matrixVew = options.dataViews[0].matrix  
+  const matrixVew = options.dataViews[0].matrix
   if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
-  let
-    hasRootObject = false,
+  let hasRootObject = false,
     hasObject = false,
     hasColorFilter = false
 
@@ -88,7 +87,7 @@ function processObjectNode(
     .createSelectionId()
   // Create value records for the tooltips
   const objectValues = processObjectValues(objectIdChild, matrixView)
-  const res = { id: objId, selectionId: nodeSelection, color: undefined, ...objectValues } 
+  const res = { id: objId, selectionId: nodeSelection, color: undefined, ...objectValues }
   // Process node objects, if any.
   if (objectIdChild.objects) {
     //@ts-ignore
@@ -124,43 +123,42 @@ export function processMatrixView(
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
 ): SpeckleDataInput {
-  const
-    objectIds = [],
+  const objectIds = [],
     selectedIds = [],
     colorByIds = [],
     objectTooltipData = new Map<string, IViewerTooltip>()
 
-  console.log('🪜 Processing Matrix View', matrixView);
+  console.log('🪜 Processing Matrix View', matrixView)
 
-  const objects : Record<string, string[]> = {}
+  const objects: Record<string, string[]> = {}
 
   matrixView.rows.root.children.forEach((obj) => {
-      const id = obj.children[0].value as unknown as string
-      const value = (obj.value as unknown as string).slice(9)
+    const id = obj.children[0].value as unknown as string
+    const value = (obj.value as unknown as string).slice(9)
 
-      const existingObjectId = Object.keys(objects).find(k => id.includes(k))
-      if (!existingObjectId) {
-        objects[id] = [value]
-      } else {
-        objects[existingObjectId].push(value)
+    const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
+    if (!existingObjectId) {
+      objects[id] = [value]
+    } else {
+      objects[existingObjectId].push(value)
+    }
+
+    const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+    processedObjectIdLevels.forEach((objRes) => {
+      objectIds.push(objRes.id)
+      onSelectionPair(objRes.id, objRes.selectionId)
+      if (objRes.shouldSelect) {
+        selectedIds.push(objRes.id)
       }
-
-      const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
-
-      processedObjectIdLevels.forEach((objRes) => {
-        objectIds.push(objRes.id)
-        onSelectionPair(objRes.id, objRes.selectionId)
-        if (objRes.shouldSelect){
-          selectedIds.push(objRes.id)
-        }
-        objectTooltipData.set(objRes.id, {
-                    selectionId: objRes.selectionId,
-                    data: objRes.data
-                  })
+      objectTooltipData.set(objRes.id, {
+        selectionId: objRes.selectionId,
+        data: objRes.data
+      })
     })
   })
 
-  const jsonObjects : object[] = []
+  const jsonObjects: object[] = []
   for (const objs of Object.values(objects)) {
     jsonObjects.push(JSON.parse(objs.join('')))
   }
