@@ -120,6 +120,7 @@ export class Visual implements IVisual {
         }
     }
   }
+
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     console.log('Showing Formatting settings', this.formattingSettings)
     const model = this.formattingSettingsService.buildFormattingModel(this.formattingSettings)

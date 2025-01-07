@@ -134,6 +134,7 @@ export function processMatrixView(
 
   const objects: Record<string, string[]> = {}
 
+  // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
   matrixView.rows.root.children.forEach((obj) => {
     const id = obj.children[0].value as unknown as string
     const value = (obj.value as unknown as string).slice(9)
@@ -158,6 +159,48 @@ export function processMatrixView(
         data: objRes.data
       })
     })
+
+    if (hasColorFilter) {
+      obj.children.forEach((child) => {
+        const colorSelectionId = host
+          .createSelectionIdBuilder()
+          .withMatrixNode(child, matrixView.rows.levels)
+          .createSelectionId()
+
+        const color = host.colorPalette.getColor(child.value as string)
+        console.log(colorSelectionId, 'colorSelectionId')
+        console.log(color, 'color')
+
+        const colorSlice = new fs.ColorPicker({
+          name: 'selectorFill',
+          displayName: child.value.toString(),
+          value: {
+            value: color.value
+          },
+          selector: colorSelectionId.getSelector()
+        })
+
+        const colorGroup = {
+          color: color.value,
+          slice: colorSlice,
+          objectIds: []
+        }
+
+        processObjectIdLevel(child, host, matrixView).forEach((objRes) => {
+          objectIds.push(objRes.id)
+          onSelectionPair(objRes.id, objRes.selectionId)
+          if (objRes.shouldSelect) selectedIds.push(objRes.id)
+          if (objRes.shouldColor) {
+            colorGroup.objectIds.push(objRes.id)
+          }
+          objectTooltipData.set(objRes.id, {
+            selectionId: objRes.selectionId,
+            data: objRes.data
+          })
+        })
+        if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+      })
+    }
   })
 
   const jsonObjects: object[] = []
