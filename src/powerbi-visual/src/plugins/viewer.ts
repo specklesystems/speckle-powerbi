@@ -7,6 +7,7 @@ import {
   CameraController
 } from '@speckle/viewer'
 import { createNanoEvents, Emitter } from 'nanoevents'
+import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
 import { toRaw } from 'vue'
 
 export interface IViewer {
@@ -25,6 +26,13 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
+  colorObjectsByGroup: (
+    colorById: {
+      objectIds: string[]
+      slice: ColorPicker
+      color: string
+    }[]
+  ) => void
   isolateObjects: (objectIds: string[]) => void
   forceViewerUpdate: () => void
   unIsolateObjects: () => void
@@ -43,6 +51,7 @@ export class ViewerHandler {
     this.emit = this.emit.bind(this)
     this.emitter.on('ping', this.handlePing)
     this.emitter.on('setSelection', this.selectObjects)
+    this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
     this.emitter.on('isolateObjects', this.isolateObjects)
     this.emitter.on('unIsolateObjects', this.unIsolateObjects)
     this.emitter.on('zoomExtends', this.zoomExtends)
@@ -80,6 +89,15 @@ export class ViewerHandler {
   public selectObjects = async (objectIds: string[]) => {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
     await this.viewer.selectObjects(objectIds)
+  }
+
+  public colorObjectsByGroup = async (
+    colorByIds: {
+      objectIds: string[]
+      color: string
+    }[]
+  ) => {
+    this.filteringState = await this.viewer.setUserObjectColors(colorByIds ?? [])
   }
 
   public isolateObjects = async (objectIds: string[], ghost: boolean) => {

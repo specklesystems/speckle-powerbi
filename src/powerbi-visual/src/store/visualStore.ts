@@ -76,6 +76,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       } else {
         viewerEmit.value('unIsolateObjects')
       }
+      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
     }
   }
 

@@ -168,8 +168,6 @@ export function processMatrixView(
           .createSelectionId()
 
         const color = host.colorPalette.getColor(child.value as string)
-        console.log(colorSelectionId, 'colorSelectionId')
-        console.log(color, 'color')
 
         const colorSlice = new fs.ColorPicker({
           name: 'selectorFill',
