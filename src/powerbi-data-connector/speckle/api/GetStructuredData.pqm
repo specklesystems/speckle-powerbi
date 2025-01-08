@@ -67,15 +67,15 @@
                     )
                 in
                     [
-                        speckle_id = record[id],
-                        speckle_type = record[speckle_type],
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
+                        #"Object IDs" = record[id], // Object IDs
+                        #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Data" = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
                     ]
             )
         ),
         
         // filter out rows where applicationId is null
         // we can discuss this further
-        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
+        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([Data]), "applicationId", null) <> null)
     in
         FilteredTable

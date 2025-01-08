@@ -39,18 +39,18 @@
             ]
         ),
         
-        // Convert to JSON string
+        // convert to JSON string
         JsonString = Text.FromBinary(Json.FromValue(Json.Document(Source))),
         TotalLength = Text.Length(JsonString),
         
-        // Calculate number of chunks needed
+        // calculate number of chunks needed
         ChunkSize = 29900,
         NumChunks = Number.RoundUp(TotalLength/ChunkSize),
         
-        // Generate list of chunk indices
+        // generate list of chunk indices
         ChunkIndices = List.Numbers(0, NumChunks),
         
-        // Function to format row number with appropriate padding
+        // function to format row number with appropriate padding
         FormatRowNumber = (number as number) as text =>
             let
                 digits = Number.RoundUp(Number.Log10(number + 1)),
@@ -59,7 +59,7 @@
             in
                 formattedNumber,
         
-        // Create chunks with formatted prefix
+        // create chunks with formatted prefix
         CreateChunk = (index) =>
             let
                 Start = index * ChunkSize,
@@ -67,7 +67,7 @@
                         then TotalLength - Start 
                         else ChunkSize,
                 RawChunk = Text.Range(JsonString, Start, Length),
-                // Format row number with dynamic padding
+                // format row number with dynamic padding
                 FormattedIndex = FormatRowNumber(index + 1),
                 PrefixedChunk = "R_" & FormattedIndex & RawChunk
             in
@@ -75,10 +75,10 @@
                     viewer_data = PrefixedChunk
                 ],
         
-        // Convert to table
+        // convert to table
         Chunks = Table.FromRecords(List.Transform(ChunkIndices, CreateChunk)),
         
-        // Set correct data types
+        // set correct data types
         FinalTable = Table.TransformColumnTypes(
             Chunks,
             {
