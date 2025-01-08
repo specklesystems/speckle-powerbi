@@ -7,33 +7,30 @@ import {
 } from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
+import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 
-export function validateMatrixView(options: VisualUpdateOptions): {
-  hasColorFilter: boolean
-  view: powerbi.DataViewMatrix
-} {
+export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
   const matrixVew = options.dataViews[0].matrix
-  if (!matrixVew) throw new Error('Data does not contain a matrix data view')
 
   let hasViewerData = false,
-    hasObject = false,
-    hasColorFilter = false
+    hasObjectIds = false,
+    hasColorFilter = false,
+    hasTooltipData = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      console.log(source.roles)
-
       if (!hasViewerData) hasViewerData = source.roles['viewerData'] != undefined
-      if (!hasObject) hasObject = source.roles['objectIds'] != undefined
+      if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
+      if (!hasTooltipData) hasTooltipData = source.roles['tooltipData'] != undefined
     })
   })
 
-  if (!hasViewerData) throw new Error('Missing Root Object for Viewer')
-  if (!hasObject) throw new Error('Missing Object Ids input')
   return {
-    hasColorFilter,
-    view: matrixVew
+    viewerData: hasViewerData,
+    objectIds: hasObjectIds,
+    colorBy: hasColorFilter,
+    tooltipData: hasTooltipData
   }
 }
 
@@ -118,6 +115,7 @@ export let previousPalette = null
 export function resetPalette() {
   previousPalette = null
 }
+
 export function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
@@ -125,6 +123,7 @@ export function processMatrixView(
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
 ): SpeckleDataInput {
+  const visualStore = useVisualStore()
   const objectIds = [],
     selectedIds = [],
     colorByIds = [],
@@ -136,14 +135,17 @@ export function processMatrixView(
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
   matrixView.rows.root.children.forEach((obj) => {
-    const id = obj.children[0].value as unknown as string
-    const value = (obj.value as unknown as string).slice(9)
+    // otherwise there is no point to collect objects
+    if (visualStore.viewerReloadNeeded) {
+      const id = obj.children[0].value as unknown as string
+      const value = (obj.value as unknown as string).slice(9)
 
-    const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
-    if (!existingObjectId) {
-      objects[id] = [value]
-    } else {
-      objects[existingObjectId].push(value)
+      const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
+      if (!existingObjectId) {
+        objects[id] = [value]
+      } else {
+        objects[existingObjectId].push(value)
+      }
     }
 
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
@@ -171,7 +173,7 @@ export function processMatrixView(
 
         const colorSlice = new fs.ColorPicker({
           name: 'selectorFill',
-          displayName: child.value.toString(),
+          displayName: child.value?.toString(),
           value: {
             value: color.value
           },
@@ -202,20 +204,12 @@ export function processMatrixView(
   })
 
   const jsonObjects: object[] = []
-  for (const objs of Object.values(objects)) {
-    jsonObjects.push(JSON.parse(objs.join('')))
+  // otherwise there is no point to join collected objects
+  if (visualStore.viewerReloadNeeded) {
+    for (const objs of Object.values(objects)) {
+      jsonObjects.push(JSON.parse(objs.join('')))
+    }
   }
-
-  const tooltips = []
-
-  matrixView.columns.levels.forEach((level) => {
-    level.sources.forEach((source) => {
-      console.log(source.roles)
-      if (source.roles['objectData'] != undefined) {
-        tooltips.push(source.displayName)
-      }
-    })
-  })
 
   // matrixView.rows.root.children.forEach((streamUrlChild) => {
   //   const url = streamUrlChild.value
@@ -301,7 +295,6 @@ export function processMatrixView(
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
-    tooltips,
     objectTooltipData,
     view: matrixView
   }

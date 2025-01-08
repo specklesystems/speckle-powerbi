@@ -5,10 +5,24 @@ import { ref, shallowRef } from 'vue'
 
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
+export type FieldInputState = {
+  viewerData: boolean
+  objectIds: boolean
+  colorBy: boolean
+  tooltipData: boolean
+}
+
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const isViewerInitialized = ref<boolean>(false)
+  const isViewerReadyToInitialize = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
+  const fieldInputState = ref<FieldInputState>({
+    viewerData: false,
+    objectIds: false,
+    colorBy: false,
+    tooltipData: false
+  })
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -80,6 +94,25 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
+  const setFieldInputState = (newFieldInputState: FieldInputState) => {
+    fieldInputState.value = newFieldInputState
+    console.log(fieldInputState.value, 'fieldInputState.value')
+
+    if (!fieldInputState.value.viewerData && !fieldInputState.value.objectIds) {
+      setInputStatus('incomplete')
+    }
+    if (!isViewerInitialized.value) {
+      if (
+        fieldInputState.value.viewerData &&
+        fieldInputState.value.objectIds &&
+        !fieldInputState.value.tooltipData &&
+        !fieldInputState.value.colorBy
+      ) {
+        viewerReloadNeeded.value = true
+      }
+    }
+  }
+
   /**
    * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
    */
@@ -104,6 +137,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setHost,
     setViewerEmitter,
     setDataInput,
+    setFieldInputState,
     setInputStatus,
     clearDataInput
   }
