@@ -161,7 +161,8 @@ export class ViewerHandler {
     //     return this.filteringState.isolatedObjects.includes(hitId)
     //   })
     // }
-    return hits[0]
+    const hit = hits.find((h) => this.filteringState.isolatedObjects.includes(h.guid))
+    return hit
   }
 
   public dispose() {
