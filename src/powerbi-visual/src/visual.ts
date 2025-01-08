@@ -27,7 +27,7 @@ import {
 import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 import { pinia } from './plugins/pinia'
-import { useVisualStore } from './store/visualStore'
+import { FieldInputState, useVisualStore } from './store/visualStore'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -75,15 +75,45 @@ export class Visual implements IVisual {
     )
 
     console.log('Selector colors', this.formattingSettings.colorSelector)
-    let validationResult: {
-      hasColorFilter: boolean
-      view: powerbi.DataViewMatrix
-    } = null
 
     try {
-      console.log('🔍 Validating input...', options)
-      validationResult = validateMatrixView(options)
-      console.log('✅Input valid', validationResult)
+      const matrixVew = options.dataViews[0].matrix
+      if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Should be toast notificiation too!
+
+      // we first need to check which inputs user provided to decide our strategy
+      const validationResult = validateMatrixView(options)
+      visualStore.setFieldInputState(validationResult)
+
+      if (!validationResult.viewerData || !validationResult.objectIds) {
+        visualStore.setInputStatus('incomplete')
+        return
+      } else {
+        this.host.persistProperties({
+          merge: [{ objectName: 'viewerData', properties: {}, selector: 'tooltipData' }]
+        })
+      }
+
+      switch (options.type) {
+        case powerbi.VisualUpdateType.Resize:
+        case powerbi.VisualUpdateType.ResizeEnd:
+        case powerbi.VisualUpdateType.Style:
+        case powerbi.VisualUpdateType.ViewMode:
+        case powerbi.VisualUpdateType.Resize + powerbi.VisualUpdateType.ResizeEnd:
+          return
+        default:
+          try {
+            const input = processMatrixView(
+              matrixVew,
+              this.host,
+              validationResult.colorBy,
+              this.formattingSettings,
+              (obj, id) => this.selectionHandler.set(obj, id)
+            )
+            this.throttleUpdate(input)
+          } catch (error) {
+            console.error('Data update error', error ?? 'Unknown')
+          }
+      }
     } catch (e) {
       console.log('❌Input not valid:', (e as Error).message)
       this.host.displayWarningIcon(
@@ -97,29 +127,8 @@ export class Visual implements IVisual {
       visualStore.setInputStatus('incomplete')
       return
     }
-
-    switch (options.type) {
-      case powerbi.VisualUpdateType.Resize:
-      case powerbi.VisualUpdateType.ResizeEnd:
-      case powerbi.VisualUpdateType.Style:
-      case powerbi.VisualUpdateType.ViewMode:
-      case powerbi.VisualUpdateType.Resize + powerbi.VisualUpdateType.ResizeEnd:
-        return
-      default:
-        try {
-          const input = processMatrixView(
-            validationResult.view,
-            this.host,
-            validationResult.hasColorFilter,
-            this.formattingSettings,
-            (obj, id) => this.selectionHandler.set(obj, id)
-          )
-          this.throttleUpdate(input)
-        } catch (error) {
-          console.error('Data update error', error ?? 'Unknown')
-        }
-    }
   }
+
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     console.log('Showing Formatting settings', this.formattingSettings)
     const model = this.formattingSettingsService.buildFormattingModel(this.formattingSettings)
