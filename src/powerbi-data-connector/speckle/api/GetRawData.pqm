@@ -43,18 +43,18 @@
         // parse the response
         JsonResponse = Json.Document(Source),
         
-        // Function to split object into chunks
+        // function to split object into chunks
         SplitIntoChunks = (object, startIndex) =>
             let
-                // Convert object to JSON string
+                // convert object to JSON string
                 JsonString = Text.FromBinary(Json.FromValue(object)),
                 TotalLength = Text.Length(JsonString),
                 
-                // Calculate chunks needed (29900 to be safe under 31000 limit)
+                // calculate chunks needed (29900 to be safe under 31000 limit)
                 ChunkSize = 29900,
                 NumChunks = Number.RoundUp(TotalLength/ChunkSize),
                 
-                // Generate chunk indices
+                // generate chunk indices
                 ChunkIndices = List.Numbers(0, NumChunks),
 
                 FormatRowNumber = (number as number) as text =>
@@ -65,7 +65,7 @@
                     in
                         formattedNumber,
                 
-                // Create chunks with continuous row numbers and incrementing suffixes
+                // create chunks with continuous row numbers and incrementing suffixes
                 CreateChunk = (index) =>
                     let
                         Start = index * ChunkSize,
@@ -74,15 +74,15 @@
                                 else ChunkSize,
                         RawChunk = Text.Range(JsonString, Start, Length),
                         FormattedIndex = FormatRowNumber(index + startIndex + 1),
-                        // Add incrementing suffix starting from 1 for additional chunks
+                        // add incrementing suffix starting from 1 for additional chunks
                         ModifiedId = if index = 0 
                                    then object[id]
                                    else object[id] & "_" & Text.From(index),
                         PrefixedChunk = FormattedIndex & RawChunk
                     in
                         [
-                            speckle_id = ModifiedId,
-                            viewer_data = "R_" & PrefixedChunk
+                            #"Object IDs" = ModifiedId, //Object IDs
+                            #"Viewer Data" = "R_" & PrefixedChunk //Viewer Data 
                         ]
             in
                 [
@@ -90,7 +90,7 @@
                     nextIndex = startIndex + NumChunks
                 ],
         
-        // Process all objects with continuous indexing
+        // process all objects with continuous indexing
         ProcessObjects = (objects) =>
             let
                 ProcessObject = (accumulator, object) =>
@@ -111,7 +111,7 @@
             in
                 finalState[chunks],
         
-        // Generate final table
+        // generate final table
         ChunkedData = ProcessObjects(JsonResponse),
         FinalTable = Table.FromRecords(ChunkedData)
     in
