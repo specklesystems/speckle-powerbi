@@ -103,7 +103,7 @@ jobs:
           repo: specklesystems/connector-installers
           token: ${{ secrets.CONNECTORS_GH_TOKEN }}
           inputs: '{ "run_id": "${{ github.run_id }}", "semver": "${{ needs.build-connector.outputs.semver }}", "file_version": "${{ needs.build-connector.outputs.file_version }}", "public_release": ${{ env.IS_TAG_BUILD }} }'
-          ref: pbi-installer
+          ref: main
           wait-for-completion: true
           wait-for-completion-interval: 10s
           wait-for-completion-timeout: 10m
