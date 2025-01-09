@@ -93,11 +93,14 @@ jobs:
         with:
           name: powerbi-visual
           path: artifacts/
+      - name: Zip artifacts
+        run: |
+          Compress-Archive -Path artifacts/* -DestinationPath powerbi.zip -Force
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: output-${{needs.build-connector.outputs.semver}}
-          path: artifacts/*
+          path: powerbi.zip
       - name: 🔫 Trigger Build Installers
         uses: ALEEF02/workflow-dispatch@v3.0.0
         with:
