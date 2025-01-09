@@ -64,9 +64,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3.0.0
+        with:
+          versionSpec: 6.0.5 # github actions doesnt like 6.1.0 onwards https://github.com/GitTools/actions/blob/main/docs/versions.md
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3.0.0
+
       - run: npm ci
         working-directory: src/powerbi-visual
-      - run: npm version 2.12.3 --allow-same-version
+      - run: npm version ${{steps.gitversion.outputs.semVer}} --allow-same-version
         working-directory: src/powerbi-visual
       - run: npm run build
         working-directory: src/powerbi-visual
@@ -95,7 +105,7 @@ jobs:
           path: artifacts/
       - name: Zip artifacts
         run: |
-          Compress-Archive -Path artifacts/* -DestinationPath powerbi.zip -Force
+          cd artifacts && zip -r ../powerbi.zip .
       - name: upload artifacts
         uses: actions/upload-artifact@v4
         with:
