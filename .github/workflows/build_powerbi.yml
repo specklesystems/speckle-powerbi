@@ -7,7 +7,7 @@ jobs:
     runs-on: windows-latest
     outputs:
       semver: ${{ steps.set-version.outputs.semver }}
-      file_version: ${{ steps.set-info-version.outputs.file_version }}
+      file-version: ${{ steps.set-info-version.outputs.file-version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,7 +104,7 @@ jobs:
           workflow: Build PowerBI
           repo: specklesystems/connector-installers
           token: ${{ secrets.CONNECTORS_GH_TOKEN }}
-          inputs: '{ "run_id": "${{ github.run_id }}", "semver": "${{ needs.build-connector.outputs.semver }}", "file_version": "${{ needs.build-connector.outputs.file_version }}", "public_release": ${{ env.IS_TAG_BUILD }} }'
+          inputs: '{ "run_id": "${{ github.run_id }}", "semver": "${{ needs.build-connector.outputs.semver }}", "file_version": "${{ needs.build-connector.outputs.file-version }}", "public_release": ${{ env.IS_TAG_BUILD }} }'
           ref: main
           wait-for-completion: true
           wait-for-completion-interval: 10s
