@@ -51,9 +51,11 @@ jobs:
       - id: set-version
         name: Set version to output
         run: echo "semver=${{steps.gitversion.outputs.semVer}}" >> "$GITHUB_OUTPUT"
+        shell: bash
       - id: set-info-version
         name: Set version to output
         run: echo "file-version=${{steps.gitversion.outputs.AssemblySemVer}}" >> "$GITHUB_OUTPUT"
+        shell: bash
 
   build-visual:
     runs-on: ubuntu-latest
