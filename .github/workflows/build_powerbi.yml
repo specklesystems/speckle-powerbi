@@ -2,6 +2,7 @@ name: build_powerbi
 on:
   push:
     branches: ["dev"]
+    tags: ["v3.*"] # Manual delivery on every 3.x tag
 jobs:
   build-connector:
     runs-on: windows-latest
