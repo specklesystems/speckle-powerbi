@@ -1,53 +1,109 @@
 name: build_powerbi
-on: 
-    push: 
-        branches: ["dogukan/rename-data-column"]
+on:
+  push:
+    branches: ["dogukan/rename-data-column"]
 jobs:
-    build-connector: 
-        runs-on: windows-latest
-        steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-        
-        - name: Set connector internal version
-          working-directory: src/powerbi-data-connector
-          run: |
-            $version = if($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "2.12.54" }
-            (Get-Content ./Speckle.pq).replace('[Version = "3.0.0"]', '[Version = "'+$version+'"]') | Set-Content ./Speckle.pq
-        
-        - name: Setup MSBuild
-          uses: microsoft/setup-msbuild@v2
-        
-        - name: Build Data Connector
-          working-directory: src/powerbi-data-connector
-          run: |
-            msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
-        
-        - name: Create PQX file
-          run: |
-            ./tools/MakePQX/MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
-        
-        - name: Upload artifact
-          uses: actions/upload-artifact@v4
-          with:
-            name: speckle-connector
-            path: src/powerbi-data-connector/bin/Speckle.pqx
-            retention-days: 5
+  build-connector:
+    runs-on: windows-latest
+    outputs:
+      semver: ${{ steps.set-version.outputs.semver }}
+      file_version: ${{ steps.set-info-version.outputs.file_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    build-visual:
-        runs-on: ubuntu-latest
-        steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with:
-            node-version: 20
-        - run: npm ci
-          working-directory: src/powerbi-visual
-        - run: npm version 2.12.3 --allow-same-version
-          working-directory: src/powerbi-visual
-        - run: npm run build
-          working-directory: src/powerbi-visual
-        - uses: actions/upload-artifact@v4
-          with:
-            name: powerbi-visual
-            path: src/powerbi-visual/dist/*.pbiviz
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3.0.0
+        with:
+          versionSpec: 6.0.5 # github actions doesnt like 6.1.0 onwards https://github.com/GitTools/actions/blob/main/docs/versions.md
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3.0.0
+
+      - name: Set connector internal version
+        working-directory: src/powerbi-data-connector
+        run: |
+          $version = ${{steps.gitversion.outputs.semVer}}
+          (Get-Content ./Speckle.pq).replace('[Version = "3.0.0"]', '[Version = "'+$version+'"]') | Set-Content ./Speckle.pq
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Data Connector
+        working-directory: src/powerbi-data-connector
+        run: |
+          msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
+
+      - name: Create PQX file
+        run: |
+          ./tools/MakePQX/MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerbi-connector
+          path: src/powerbi-data-connector/bin/Speckle.pqx
+          retention-days: 5
+
+      - id: set-version
+        name: Set version to output
+        run: echo "semver=${{steps.gitversion.outputs.semVer}}" >> "$GITHUB_OUTPUT"
+      - id: set-info-version
+        name: Set version to output
+        run: echo "file-version=${{steps.gitversion.outputs.AssemblySemVer}}" >> "$GITHUB_OUTPUT"
+
+  build-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: src/powerbi-visual
+      - run: npm version 2.12.3 --allow-same-version
+        working-directory: src/powerbi-visual
+      - run: npm run build
+        working-directory: src/powerbi-visual
+      - uses: actions/upload-artifact@v4
+        with:
+          name: powerbi-visual
+          path: src/powerbi-visual/dist/*.pbiviz
+
+  deploy-installers:
+    runs-on: ubuntu-latest
+    needs:
+      - build-connector
+      - build-visual
+    env:
+      IS_TAG_BUILD: ${{ github.ref_type == 'tag' }}
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: powerbi-connector
+          path: artifacts/
+      - name: download artifacts visual
+        uses: actions/download-artifact@v4
+        with:
+          name: powerbi-visual
+          path: artifacts/
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-${{needs.build-connector.outputs.semver}}
+          path: artifacts/*
+      - name: 🔫 Trigger Build Installers
+        uses: ALEEF02/workflow-dispatch@v3.0.0
+        with:
+          workflow: Build PowerBI
+          repo: specklesystems/connector-installers
+          token: ${{ secrets.CONNECTORS_GH_TOKEN }}
+          inputs: '{ "run_id": "${{ github.run_id }}", "semver": "${{ needs.build-connector.outputs.semver }}", "file_version": "${{ needs.build-connector.outputs.file_version }}", "public_release": ${{ env.IS_TAG_BUILD }} }'
+          ref: pbi-installer
+          wait-for-completion: true
+          wait-for-completion-interval: 10s
+          wait-for-completion-timeout: 10m
+          display-workflow-run-url: true
+          display-workflow-run-url-interval: 10s
