@@ -3,11 +3,36 @@ on:
     push: 
         branches: ["dogukan/rename-data-column"]
 jobs:
-    build: 
+    build-connector: 
         runs-on: windows-latest
         steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+        - name: Checkout code
+          uses: actions/checkout@v4
+        
+        - name: Set connector internal version
+          working-directory: src/powerbi-data-connector
+          run: |
+            $version = if($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "2.12.54" }
+            (Get-Content ./Speckle.pq).replace('[Version = "3.0.0"]', '[Version = "'+$version+'"]') | Set-Content ./Speckle.pq
+        
+        - name: Setup MSBuild
+          uses: microsoft/setup-msbuild@v2
+        
+        - name: Build Data Connector
+          working-directory: src/powerbi-data-connector
+          run: |
+            msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
+        
+        - name: Create PQX file
+          run: |
+            ./tools/MakePQX/MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
+        
+        - name: Upload artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: speckle-connector
+            path: src/powerbi-data-connector/bin/Speckle.pqx
+            retention-days: 5
 
     build-visual:
         runs-on: ubuntu-latest
