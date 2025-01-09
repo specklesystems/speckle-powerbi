@@ -1,7 +1,7 @@
 name: build_powerbi
 on: 
     push: 
-        branches: ["*"]
+        branches: ["dogukan/rename-data-column"]
 jobs:
     build: 
         runs-on: windows-latest
