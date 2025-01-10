@@ -1,6 +1,11 @@
 workflow: GitFlow/v1
 next-version: 3.0.0
+mode: ManualDeployment
 branches:
-  release:
-    prevent-increment:
-      when-current-commit-tagged: true
+  main:
+    label: rc
+  develop:
+    regex: ^dev$
+    label: beta
+  unknown:
+    increment: None
