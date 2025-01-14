@@ -24,12 +24,6 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v3.0.0
 
-      - name: Set connector internal version
-        working-directory: src/powerbi-data-connector
-        run: |
-          $version = ${{steps.gitversion.outputs.AssemblySemVer}}
-          (Get-Content ./Speckle.pq).replace('[Version = "3.0.0"]', '[Version = "'+$version+'"]') | Set-Content ./Speckle.pq
-
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
