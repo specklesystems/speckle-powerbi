@@ -67,6 +67,13 @@
     }
   ],
   "objects": {
+    "storedData": {
+      "properties": {
+        "fullData": {
+          "type": { "text": true }
+        }
+      }
+    },
     "camera": {
       "properties": {
         "defaultView": {

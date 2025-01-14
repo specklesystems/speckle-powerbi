@@ -6,6 +6,7 @@ import {
   IntersectionQuery,
   CameraController
 } from '@speckle/viewer'
+import { SpeckleDataInput } from '@src/types'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
 import { toRaw } from 'vue'
@@ -37,7 +38,7 @@ export interface IViewerEvents {
   forceViewerUpdate: () => void
   unIsolateObjects: () => void
   zoomExtends: () => void
-  loadObjects: (objects: object[]) => void
+  loadObjects: (dataInput: SpeckleDataInput) => void
 }
 
 export class ViewerHandler {
@@ -140,11 +141,17 @@ export class ViewerHandler {
     }
   }
 
-  public loadObjects = (objects: object[]) => {
-    const stringifiedObject = JSON.stringify(objects)
-    void this.viewer.unloadAll()
+  public loadObjects = async (dataInput: SpeckleDataInput) => {
+    const stringifiedObject = JSON.stringify(dataInput.objects)
+    await this.viewer.unloadAll()
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
-    void this.viewer.loadObject(loader, true)
+    await this.viewer.loadObject(loader, true)
+    if (dataInput.selectedIds.length > 0) {
+      await this.isolateObjects(dataInput.selectedIds, false)
+    } else {
+      await this.isolateObjects(dataInput.objectIds, false)
+    }
+    await this.colorObjectsByGroup(dataInput.colorByIds)
     this.viewer.zoom() // zoom extends
   }
 

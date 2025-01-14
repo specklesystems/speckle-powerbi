@@ -34,12 +34,14 @@ export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
   private selectionHandler: SelectionHandler
   private tooltipHandler: TooltipHandler
+  private isFirstViewerLoad: boolean
 
   private formattingSettings: SpeckleVisualSettingsModel
   private formattingSettingsService: FormattingSettingsService
 
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
+    this.isFirstViewerLoad = false
     Tracker.loaded()
     this.host = options.host
     this.formattingSettingsService = new FormattingSettingsService()
@@ -59,6 +61,7 @@ export class Visual implements IVisual {
     // set `host` to visual store to be able use later in other components if needed
     const visualStore = useVisualStore()
     visualStore.setHost(this.host)
+    this.host.refreshHostData() // to be able to trigger `update` function after constructor! by this way i was able to trigger viewer load objects from properties store
   }
 
   private async clear() {
@@ -78,20 +81,19 @@ export class Visual implements IVisual {
 
     try {
       const matrixVew = options.dataViews[0].matrix
+      let objectsFromStore = undefined
+      if (!this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
+        objectsFromStore = JSON.parse(
+          options.dataViews[0].metadata.objects.storedData?.fullData as string
+        )
+        console.log(`${objectsFromStore.length} objects retrieved from persistent properties!`)
+      }
+
       if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Should be toast notificiation too!
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
-
-      if (!validationResult.viewerData || !validationResult.objectIds) {
-        visualStore.setInputStatus('incomplete')
-        return
-      } else {
-        this.host.persistProperties({
-          merge: [{ objectName: 'viewerData', properties: {}, selector: 'tooltipData' }]
-        })
-      }
 
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
@@ -100,7 +102,7 @@ export class Visual implements IVisual {
         case powerbi.VisualUpdateType.ViewMode:
         case powerbi.VisualUpdateType.Resize + powerbi.VisualUpdateType.ResizeEnd:
           return
-        default:
+        case powerbi.VisualUpdateType.Data:
           try {
             const input = processMatrixView(
               matrixVew,
@@ -109,10 +111,13 @@ export class Visual implements IVisual {
               this.formattingSettings,
               (obj, id) => this.selectionHandler.set(obj, id)
             )
-            this.throttleUpdate(input)
+            this.loadViewerFromStore(input, objectsFromStore)
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
+          break
+        default:
+          return
       }
     } catch (e) {
       console.log('❌Input not valid:', (e as Error).message)
@@ -136,22 +141,82 @@ export class Visual implements IVisual {
     return model
   }
 
-  private throttleUpdate = _.throttle((input: SpeckleDataInput) => {
+  private loadViewerFromStore(input: SpeckleDataInput, objectsFromStore: object[] | undefined) {
     const visualStore = useVisualStore()
-    console.log('throttle update', input)
+    console.log('loadViewerFromStore update', input)
 
     this.tooltipHandler.setup(input.objectTooltipData)
     visualStore.setInputStatus('valid')
 
+    if (!this.isFirstViewerLoad && objectsFromStore) {
+      // `dev happiness level 0/10 < user happiness level 10/10`
+      this.isFirstViewerLoad = true
+      input.objects = objectsFromStore
+      input.isFromStore = true
+    }
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
+      console.log('update on data input')
       visualStore.setDataInput(input)
     } else {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
+        console.log('setting data inputttttttttttttttttt in timeout')
+
         visualStore.setDataInput(input)
-      }, 250) // having timeout in throttle? smells
+        this.host.persistProperties({
+          merge: [
+            {
+              objectName: 'storedData',
+              properties: {
+                fullData: JSON.stringify(input.objects)
+              },
+              selector: null
+            }
+          ]
+        })
+      }, 500) // having timeout in throttle? smells
     }
-  }, 500)
+  }
+
+  private throttleUpdate = _.throttle(
+    (input: SpeckleDataInput, objectsFromStore: object[] | undefined) => {
+      const visualStore = useVisualStore()
+      console.log('throttle update', input)
+
+      this.tooltipHandler.setup(input.objectTooltipData)
+      visualStore.setInputStatus('valid')
+
+      if (!this.isFirstViewerLoad && objectsFromStore) {
+        // `dev happiness level 0/10 < user happiness level 10/10`
+        this.isFirstViewerLoad = true
+        input.objects = objectsFromStore
+        input.isFromStore = true
+      }
+
+      if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
+        visualStore.setDataInput(input)
+      } else {
+        // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
+        setTimeout(() => {
+          console.log('setting data inputttttttttttttttttt')
+
+          visualStore.setDataInput(input)
+          this.host.persistProperties({
+            merge: [
+              {
+                objectName: 'storedData',
+                properties: {
+                  fullData: JSON.stringify(input.objects)
+                },
+                selector: null
+              }
+            ]
+          })
+        }, 500) // having timeout in throttle? smells
+      }
+    },
+    1500
+  )
 
   public async destroy() {
     await this.clear()

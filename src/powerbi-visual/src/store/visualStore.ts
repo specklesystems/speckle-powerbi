@@ -69,13 +69,23 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
+  const loadObjectsFromStore = async () => {
+    lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
+    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
+    viewerReloadNeeded.value = false
+    await viewerEmit.value('loadObjects', dataInput.value)
+  }
+
   /**
    * Sets upcoming data input into store to be able to pass it through viewer by evaluating the data.
    * @param newValue new data input that user dragged and dropped to the fields in visual
    */
-  const setDataInput = (newValue: SpeckleDataInput) => {
+  const setDataInput = async (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
-
+    if (dataInput.value.isFromStore) {
+      await loadObjectsFromStore()
+      return
+    }
     // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
     if (viewerReloadNeeded.value || !lastLoadedRootObjectId.value) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
@@ -83,7 +93,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         `🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`
       )
       viewerReloadNeeded.value = false
-      viewerEmit.value('loadObjects', dataInput.value.objects)
+      await viewerEmit.value('loadObjects', dataInput.value)
     } else {
       if (dataInput.value.selectedIds.length > 0) {
         viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
@@ -134,6 +144,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     dataInput,
     dataInputStatus,
     viewerEmit,
+    loadObjectsFromStore,
     setHost,
     setViewerEmitter,
     setDataInput,

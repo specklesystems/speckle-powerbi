@@ -296,6 +296,7 @@ export function processMatrixView(
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
-    view: matrixView
+    view: matrixView,
+    isFromStore: false
   }
 }
