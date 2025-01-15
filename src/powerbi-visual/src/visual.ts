@@ -1,7 +1,6 @@
 import 'core-js/stable'
 import 'regenerator-runtime/runtime'
 import '../style/visual.css'
-import * as _ from 'lodash'
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel'
 import { createApp } from 'vue'
 import App from './App.vue'
@@ -111,7 +110,7 @@ export class Visual implements IVisual {
               this.formattingSettings,
               (obj, id) => this.selectionHandler.set(obj, id)
             )
-            this.loadViewerFromStore(input, objectsFromStore)
+            this.updateViewer(input, objectsFromStore)
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
@@ -141,9 +140,9 @@ export class Visual implements IVisual {
     return model
   }
 
-  private loadViewerFromStore(input: SpeckleDataInput, objectsFromStore: object[] | undefined) {
+  private updateViewer(input: SpeckleDataInput, objectsFromStore: object[] | undefined) {
     const visualStore = useVisualStore()
-    console.log('loadViewerFromStore update', input)
+    // console.log('loadViewerFromStore update', input)
 
     this.tooltipHandler.setup(input.objectTooltipData)
     visualStore.setInputStatus('valid')
@@ -160,8 +159,6 @@ export class Visual implements IVisual {
     } else {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
-        console.log('setting data inputttttttttttttttttt in timeout')
-
         visualStore.setDataInput(input)
         this.host.persistProperties({
           merge: [
@@ -174,49 +171,9 @@ export class Visual implements IVisual {
             }
           ]
         })
-      }, 500) // having timeout in throttle? smells
+      }, 250)
     }
   }
-
-  private throttleUpdate = _.throttle(
-    (input: SpeckleDataInput, objectsFromStore: object[] | undefined) => {
-      const visualStore = useVisualStore()
-      console.log('throttle update', input)
-
-      this.tooltipHandler.setup(input.objectTooltipData)
-      visualStore.setInputStatus('valid')
-
-      if (!this.isFirstViewerLoad && objectsFromStore) {
-        // `dev happiness level 0/10 < user happiness level 10/10`
-        this.isFirstViewerLoad = true
-        input.objects = objectsFromStore
-        input.isFromStore = true
-      }
-
-      if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
-        visualStore.setDataInput(input)
-      } else {
-        // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
-        setTimeout(() => {
-          console.log('setting data inputttttttttttttttttt')
-
-          visualStore.setDataInput(input)
-          this.host.persistProperties({
-            merge: [
-              {
-                objectName: 'storedData',
-                properties: {
-                  fullData: JSON.stringify(input.objects)
-                },
-                selector: null
-              }
-            ]
-          })
-        }, 500) // having timeout in throttle? smells
-      }
-    },
-    1500
-  )
 
   public async destroy() {
     await this.clear()
