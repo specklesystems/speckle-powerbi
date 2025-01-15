@@ -14,6 +14,7 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
   const isViewerReadyToInitialize = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
@@ -64,18 +65,32 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
+  const setObjectsFromStore = (newObjectsFromStore: object[]) => {
+    objectsFromStore.value = newObjectsFromStore
+  }
+
   // MAKE TS HAPPY
   type SpeckleObject = {
     id: string
+  }
+
+  const loadObjectsFromStore = async () => {
+    lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
+    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
+    viewerReloadNeeded.value = false
+    await viewerEmit.value('loadObjects', dataInput.value)
   }
 
   /**
    * Sets upcoming data input into store to be able to pass it through viewer by evaluating the data.
    * @param newValue new data input that user dragged and dropped to the fields in visual
    */
-  const setDataInput = (newValue: SpeckleDataInput) => {
+  const setDataInput = async (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
-
+    if (dataInput.value.isFromStore) {
+      await loadObjectsFromStore()
+      return
+    }
     // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
     if (viewerReloadNeeded.value || !lastLoadedRootObjectId.value) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
@@ -83,7 +98,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         `🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`
       )
       viewerReloadNeeded.value = false
-      viewerEmit.value('loadObjects', dataInput.value.objects)
+      await viewerEmit.value('loadObjects', dataInput.value)
     } else {
       if (dataInput.value.selectedIds.length > 0) {
         viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
@@ -95,28 +110,41 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const setFieldInputState = (newFieldInputState: FieldInputState) => {
-    fieldInputState.value = newFieldInputState
-    console.log(fieldInputState.value, 'fieldInputState.value')
-
-    if (!fieldInputState.value.viewerData && !fieldInputState.value.objectIds) {
+    if (!newFieldInputState.viewerData || !newFieldInputState.objectIds) {
       setInputStatus('incomplete')
+    } else {
+      setInputStatus('valid')
     }
-    if (!isViewerInitialized.value) {
-      if (
-        fieldInputState.value.viewerData &&
-        fieldInputState.value.objectIds &&
-        !fieldInputState.value.tooltipData &&
-        !fieldInputState.value.colorBy
-      ) {
-        viewerReloadNeeded.value = true
-      }
+
+    // Check for the changes on fields that viewer care, if user changes important fields, we have to ask for viewer reload
+    if (
+      fieldInputState.value.viewerData &&
+      fieldInputState.value.objectIds &&
+      (!newFieldInputState.viewerData || !newFieldInputState.objectIds)
+    ) {
+      viewerReloadNeeded.value = true
     }
+
+    // if (!isViewerInitialized.value) {
+    //   if (
+    //     fieldInputState.value.viewerData &&
+    //     fieldInputState.value.objectIds &&
+    //     !fieldInputState.value.tooltipData &&
+    //     !fieldInputState.value.colorBy
+    //   ) {
+    //     viewerReloadNeeded.value = true
+    //   }
+    // }
+
+    fieldInputState.value = newFieldInputState
   }
 
   /**
    * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
    */
   const setInputStatus = (newValue: InputState) => {
+    console.log('❓ Data input statues changed to:', newValue)
+
     dataInputStatus.value = newValue
     if (dataInputStatus.value !== 'valid') {
       viewerReloadNeeded.value = true
@@ -129,12 +157,15 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
+    objectsFromStore,
     isViewerInitialized,
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     viewerEmit,
+    loadObjectsFromStore,
     setHost,
+    setObjectsFromStore,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
