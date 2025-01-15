@@ -89,7 +89,9 @@ export class ViewerHandler {
 
   public selectObjects = async (objectIds: string[]) => {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
-    await this.viewer.selectObjects(objectIds)
+    if (objectIds) {
+      await this.viewer.selectObjects(objectIds)
+    }
   }
 
   public colorObjectsByGroup = async (
