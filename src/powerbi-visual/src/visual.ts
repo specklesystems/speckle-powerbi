@@ -40,7 +40,7 @@ export class Visual implements IVisual {
 
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
-    this.isFirstViewerLoad = false
+    this.isFirstViewerLoad = true
     Tracker.loaded()
     this.host = options.host
     this.formattingSettingsService = new FormattingSettingsService()
@@ -80,19 +80,20 @@ export class Visual implements IVisual {
 
     try {
       const matrixVew = options.dataViews[0].matrix
-      let objectsFromStore = undefined
-      if (!this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
-        objectsFromStore = JSON.parse(
-          options.dataViews[0].metadata.objects.storedData?.fullData as string
-        )
-        console.log(`${objectsFromStore.length} objects retrieved from persistent properties!`)
-      }
-
-      if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Should be toast notificiation too!
+      if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
+
+      // read saved data from file if any
+      if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
+        const objectsFromStore = JSON.parse(
+          options.dataViews[0].metadata.objects.storedData?.fullData as string
+        )
+        visualStore.setObjectsFromStore(objectsFromStore)
+        console.log(`${objectsFromStore.length} objects retrieved from persistent properties!`)
+      }
 
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
@@ -110,7 +111,7 @@ export class Visual implements IVisual {
               this.formattingSettings,
               (obj, id) => this.selectionHandler.set(obj, id)
             )
-            this.updateViewer(input, objectsFromStore)
+            this.updateViewer(input)
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
@@ -140,21 +141,35 @@ export class Visual implements IVisual {
     return model
   }
 
-  private updateViewer(input: SpeckleDataInput, objectsFromStore: object[] | undefined) {
+  private updateViewer(input: SpeckleDataInput) {
     const visualStore = useVisualStore()
-    // console.log('loadViewerFromStore update', input)
+    console.log('loadViewerFromStore update', input)
 
     this.tooltipHandler.setup(input.objectTooltipData)
-    visualStore.setInputStatus('valid')
 
-    if (!this.isFirstViewerLoad && objectsFromStore) {
+    if (this.isFirstViewerLoad && visualStore.objectsFromStore) {
       // `dev happiness level 0/10 < user happiness level 10/10`
-      this.isFirstViewerLoad = true
-      input.objects = objectsFromStore
+      this.isFirstViewerLoad = false
+      input.objects = visualStore.objectsFromStore
       input.isFromStore = true
     }
+
+    // if (!visualStore.isViewerInitialized && visualStore.viewerReloadNeeded) {
+    //   this.host.persistProperties({
+    //     merge: [
+    //       {
+    //         objectName: 'storedData',
+    //         properties: {
+    //           fullData: JSON.stringify(input.objects)
+    //         },
+    //         selector: null
+    //       }
+    //     ]
+    //   })
+    // }
+    // visualStore.setDataInput(input)
+
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
-      console.log('update on data input')
       visualStore.setDataInput(input)
     } else {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10

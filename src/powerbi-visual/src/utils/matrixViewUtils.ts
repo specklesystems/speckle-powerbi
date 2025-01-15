@@ -22,6 +22,11 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
       if (!hasViewerData) hasViewerData = source.roles['viewerData'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
+    })
+  })
+
+  matrixVew.columns.levels.forEach((level) => {
+    level.sources.forEach((source) => {
       if (!hasTooltipData) hasTooltipData = source.roles['tooltipData'] != undefined
     })
   })
@@ -202,91 +207,17 @@ export function processMatrixView(
       })
     }
   })
-
   const jsonObjects: object[] = []
-  // otherwise there is no point to join collected objects
-  if (visualStore.viewerReloadNeeded) {
-    for (const objs of Object.values(objects)) {
-      jsonObjects.push(JSON.parse(objs.join('')))
+  try {
+    // otherwise there is no point to join collected objects
+    if (visualStore.viewerReloadNeeded) {
+      for (const objs of Object.values(objects)) {
+        jsonObjects.push(JSON.parse(objs.join('')))
+      }
     }
+  } catch (error) {
+    console.error(error)
   }
-
-  // matrixView.rows.root.children.forEach((streamUrlChild) => {
-  //   const url = streamUrlChild.value
-
-  //   streamUrlChild.children?.forEach((parentObjectIdChild) => {
-  //     const parentId = parentObjectIdChild.value
-
-  //     if (!hasColorFilter) {
-  //       processObjectIdLevel(parentObjectIdChild, host, matrixView).forEach((objRes) => {
-  //         objectIds.push(objRes.id)
-  //         onSelectionPair(objRes.id, objRes.selectionId)
-  //         if (objRes.shouldSelect) selectedIds.push(objRes.id)
-  //         if (objRes.color) {
-  //           let group = colorByIds.find((g) => g.color === objRes.color)
-  //           if (!group) {
-  //             group = {
-  //               color: objRes.color,
-  //               objectIds: []
-  //             }
-  //             colorByIds.push(group)
-  //           }
-  //           group.objectIds.push(objRes.id)
-  //         }
-  //         objectTooltipData.set(objRes.id, {
-  //           selectionId: objRes.selectionId,
-  //           data: objRes.data
-  //         })
-  //       })
-  //     } else {
-  //       if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-  //       parentObjectIdChild.children?.forEach((colorByChild) => {
-  //         const colorSelectionId = host
-  //           .createSelectionIdBuilder()
-  //           .withMatrixNode(colorByChild, matrixView.rows.levels)
-  //           .createSelectionId()
-
-  //         const color = host.colorPalette.getColor(colorByChild.value as string)
-  //         if (colorByChild.objects) {
-  //           console.log(
-  //             '⚠️COLOR NODE HAS objects',
-  //             colorByChild.objects,
-  //             colorByChild.objects.color?.fill
-  //           )
-  //         }
-
-  //         const colorSlice = new fs.ColorPicker({
-  //           name: 'selectorFill',
-  //           displayName: colorByChild.value.toString(),
-  //           value: {
-  //             value: color.value
-  //           },
-  //           selector: colorSelectionId.getSelector()
-  //         })
-
-  //         const colorGroup = {
-  //           color: color.value,
-  //           slice: colorSlice,
-  //           objectIds: []
-  //         }
-
-  //         processObjectIdLevel(colorByChild, host, matrixView).forEach((objRes) => {
-  //           objectIds.push(objRes.id)
-  //           onSelectionPair(objRes.id, objRes.selectionId)
-  //           if (objRes.shouldSelect) selectedIds.push(objRes.id)
-  //           if (objRes.shouldColor) {
-  //             colorGroup.objectIds.push(objRes.id)
-  //           }
-  //           objectTooltipData.set(objRes.id, {
-  //             selectionId: objRes.selectionId,
-  //             data: objRes.data
-  //           })
-  //         })
-  //         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
-  //       })
-  //     }
-  //   })
-  // })
 
   previousPalette = host.colorPalette['colorPalette']
 

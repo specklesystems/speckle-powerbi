@@ -14,6 +14,7 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
   const isViewerReadyToInitialize = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
@@ -64,6 +65,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
+  const setObjectsFromStore = (newObjectsFromStore: object[]) => {
+    objectsFromStore.value = newObjectsFromStore
+  }
+
   // MAKE TS HAPPY
   type SpeckleObject = {
     id: string
@@ -105,28 +110,41 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const setFieldInputState = (newFieldInputState: FieldInputState) => {
-    fieldInputState.value = newFieldInputState
-    console.log(fieldInputState.value, 'fieldInputState.value')
-
-    if (!fieldInputState.value.viewerData && !fieldInputState.value.objectIds) {
+    if (!newFieldInputState.viewerData || !newFieldInputState.objectIds) {
       setInputStatus('incomplete')
+    } else {
+      setInputStatus('valid')
     }
-    if (!isViewerInitialized.value) {
-      if (
-        fieldInputState.value.viewerData &&
-        fieldInputState.value.objectIds &&
-        !fieldInputState.value.tooltipData &&
-        !fieldInputState.value.colorBy
-      ) {
-        viewerReloadNeeded.value = true
-      }
+
+    // Check for the changes on fields that viewer care, if user changes important fields, we have to ask for viewer reload
+    if (
+      fieldInputState.value.viewerData &&
+      fieldInputState.value.objectIds &&
+      (!newFieldInputState.viewerData || !newFieldInputState.objectIds)
+    ) {
+      viewerReloadNeeded.value = true
     }
+
+    // if (!isViewerInitialized.value) {
+    //   if (
+    //     fieldInputState.value.viewerData &&
+    //     fieldInputState.value.objectIds &&
+    //     !fieldInputState.value.tooltipData &&
+    //     !fieldInputState.value.colorBy
+    //   ) {
+    //     viewerReloadNeeded.value = true
+    //   }
+    // }
+
+    fieldInputState.value = newFieldInputState
   }
 
   /**
    * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
    */
   const setInputStatus = (newValue: InputState) => {
+    console.log('❓ Data input statues changed to:', newValue)
+
     dataInputStatus.value = newValue
     if (dataInputStatus.value !== 'valid') {
       viewerReloadNeeded.value = true
@@ -139,6 +157,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
+    objectsFromStore,
     isViewerInitialized,
     viewerReloadNeeded,
     dataInput,
@@ -146,6 +165,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit,
     loadObjectsFromStore,
     setHost,
+    setObjectsFromStore,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
