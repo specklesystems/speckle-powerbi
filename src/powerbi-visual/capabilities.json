@@ -27,7 +27,7 @@
         "rows": {
           "dataReductionAlgorithm": {
             "top": {
-              "count": 30000
+              "count": 150000
             }
           },
           "select": [
