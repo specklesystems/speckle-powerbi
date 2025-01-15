@@ -208,16 +208,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": [
-        "https://app.speckle.systems",
-        "https://speckle.xyz",
-        "https://*.speckle.xyz",
-        "https://latest.speckle.systems",
-        "https://latest.speckle.dev",
-        "https://*.speckle.dev",
-        "https://analytics.speckle.systems",
-        "*"
-      ]
+      "parameters": ["https://analytics.speckle.systems", "*"]
     },
     {
       "essential": false,
