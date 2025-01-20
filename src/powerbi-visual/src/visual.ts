@@ -85,6 +85,9 @@ export class Visual implements IVisual {
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
+      if (visualStore.dataInputStatus !== 'valid') {
+        throw new Error('Inputs are not completed!')
+      }
 
       // read saved data from file if any
       if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {

@@ -143,22 +143,26 @@ export function processMatrixView(
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
   matrixView.rows.root.children.forEach((obj) => {
     // otherwise there is no point to collect objects
+
+    // const id = obj.children[0].value as unknown as string
     if (visualStore.viewerReloadNeeded) {
-      const id = obj.children[0].value as unknown as string
       const viewerDataValue = obj.value as unknown as string
       if (!viewerDataValue.startsWith('z_')) {
         objectsString += viewerDataValue.slice(9)
       }
-
-      // before row optimization
-      // const value = (obj.value as unknown as string).slice(9)
-      // const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
-      // if (!existingObjectId) {
-      //   objects[id] = [value]
-      // } else {
-      //   objects[existingObjectId].push(value)
-      // }
     }
+
+    // before row optimization
+    // if (visualStore.viewerReloadNeeded) {
+    //   const id = obj.children[0].value as unknown as string
+    //   const value = (obj.value as unknown as string).slice(9)
+    //   const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
+    //   if (!existingObjectId) {
+    //     objects[id] = [value]
+    //   } else {
+    //     objects[existingObjectId].push(value)
+    //   }
+    // }
 
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
@@ -214,18 +218,22 @@ export function processMatrixView(
       })
     }
   })
-  const jsonObjects: object[] = []
-  try {
-    // otherwise there is no point to join collected objects
-    if (visualStore.viewerReloadNeeded) {
-      // for (const objs of Object.values(objects)) {
-      //   jsonObjects.push(JSON.parse(objs.join('')))
-      // }
-      jsonObjects.push(JSON.parse(objectsString))
-    }
-  } catch (error) {
-    console.error(error)
+  let jsonObjects = []
+  if (visualStore.viewerReloadNeeded) {
+    jsonObjects = JSON.parse(objectsString)
   }
+  // // const jsonObjects: object[] = JSON.parse(objectsString)
+  // try {
+  //   // otherwise there is no point to join collected objects
+  //   // if (visualStore.viewerReloadNeeded) {
+  //   //   for (const objs of Object.values(objects)) {
+  //   //     jsonObjects.push(JSON.parse(objs.join('')))
+  //   //   }
+  //   // }
+  //   jsonObjects = JSON.parse(objectsString)
+  // } catch (error) {
+  //   console.error(error)
+  // }
 
   previousPalette = host.colorPalette['colorPalette']
 
