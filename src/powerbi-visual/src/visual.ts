@@ -79,15 +79,20 @@ export class Visual implements IVisual {
     console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
+      console.log('options', options)
+
       const matrixVew = options.dataViews[0].matrix
       if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
+      console.log(matrixVew)
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
+      console.log(validationResult)
+
       visualStore.setFieldInputState(validationResult)
-      if (visualStore.dataInputStatus !== 'valid') {
-        throw new Error('Inputs are not completed!')
-      }
+      // if (visualStore.dataInputStatus !== 'valid') {
+      //   throw new Error('Inputs are not completed!')
+      // }
 
       // read saved data from file if any
       if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {

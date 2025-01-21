@@ -39,6 +39,7 @@ export interface IViewerEvents {
   unIsolateObjects: () => void
   zoomExtends: () => void
   loadObjects: (dataInput: SpeckleDataInput) => void
+  loadObjectsFromJSON: (objects: object[]) => void
 }
 
 export class ViewerHandler {
@@ -58,6 +59,7 @@ export class ViewerHandler {
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
+    this.emitter.on('loadObjectsFromJSON', this.loadObjectsFromJSON)
   }
 
   async init(parent: HTMLElement) {
@@ -141,6 +143,13 @@ export class ViewerHandler {
       hit: this.pickViewableHit(res.objects),
       objects: res.objects
     }
+  }
+
+  public loadObjectsFromJSON = async (objects: object[]) => {
+    await this.viewer.unloadAll()
+    const stringifiedObject = JSON.stringify(objects)
+    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
+    await this.viewer.loadObject(loader, true)
   }
 
   public loadObjects = async (dataInput: SpeckleDataInput) => {

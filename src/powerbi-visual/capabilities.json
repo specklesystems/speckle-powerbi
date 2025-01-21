@@ -1,11 +1,6 @@
 {
   "dataRoles": [
     {
-      "displayName": "Viewer Data",
-      "kind": "Grouping",
-      "name": "viewerData"
-    },
-    {
       "displayName": "Object IDs",
       "kind": "Grouping",
       "name": "objectIds"
@@ -33,11 +28,6 @@
           "select": [
             {
               "bind": {
-                "to": "viewerData"
-              }
-            },
-            {
-              "bind": {
                 "to": "objectColorBy"
               }
             },
@@ -60,7 +50,6 @@
       },
       "conditions": [
         {
-          "viewerData": { "max": 1 },
           "objectIds": { "max": 1 }
         }
       ]

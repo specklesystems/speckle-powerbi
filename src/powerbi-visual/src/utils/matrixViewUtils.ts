@@ -110,9 +110,7 @@ function processObjectIdLevel(
   host: powerbi.extensibility.visual.IVisualHost,
   matrixView: powerbi.DataViewMatrix
 ) {
-  return parentObjectIdChild.children?.map((objectIdChild) =>
-    processObjectNode(objectIdChild, host, matrixView)
-  )
+  return processObjectNode(parentObjectIdChild, host, matrixView)
 }
 
 export let previousPalette = null
@@ -138,19 +136,19 @@ export function processMatrixView(
 
   const objects: Record<string, string[]> = {}
 
-  let objectsString = ''
+  // let objectsString = ''
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
   matrixView.rows.root.children.forEach((obj) => {
     // otherwise there is no point to collect objects
 
     // const id = obj.children[0].value as unknown as string
-    if (visualStore.viewerReloadNeeded) {
-      const viewerDataValue = obj.value as unknown as string
-      if (!viewerDataValue.startsWith('z_')) {
-        objectsString += viewerDataValue.slice(9)
-      }
-    }
+    // if (visualStore.viewerReloadNeeded) {
+    //   const viewerDataValue = obj.value as unknown as string
+    //   if (!viewerDataValue.startsWith('z_')) {
+    //     objectsString += viewerDataValue.slice(9)
+    //   }
+    // }
 
     // before row optimization
     // if (visualStore.viewerReloadNeeded) {
@@ -166,17 +164,27 @@ export function processMatrixView(
 
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
-    processedObjectIdLevels.forEach((objRes) => {
-      objectIds.push(objRes.id)
-      onSelectionPair(objRes.id, objRes.selectionId)
-      if (objRes.shouldSelect) {
-        selectedIds.push(objRes.id)
-      }
-      objectTooltipData.set(objRes.id, {
-        selectionId: objRes.selectionId,
-        data: objRes.data
-      })
+    objectIds.push(processedObjectIdLevels.id)
+    onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+    if (processedObjectIdLevels.shouldSelect) {
+      selectedIds.push(processedObjectIdLevels.id)
+    }
+    objectTooltipData.set(processedObjectIdLevels.id, {
+      selectionId: processedObjectIdLevels.selectionId,
+      data: processedObjectIdLevels.data
     })
+
+    // processedObjectIdLevels.forEach((objRes) => {
+    //   objectIds.push(objRes.id)
+    //   onSelectionPair(objRes.id, objRes.selectionId)
+    //   if (objRes.shouldSelect) {
+    //     selectedIds.push(objRes.id)
+    //   }
+    //   objectTooltipData.set(objRes.id, {
+    //     selectionId: objRes.selectionId,
+    //     data: objRes.data
+    //   })
+    // })
 
     if (hasColorFilter) {
       obj.children.forEach((child) => {
@@ -202,26 +210,39 @@ export function processMatrixView(
           objectIds: []
         }
 
-        processObjectIdLevel(child, host, matrixView).forEach((objRes) => {
-          objectIds.push(objRes.id)
-          onSelectionPair(objRes.id, objRes.selectionId)
-          if (objRes.shouldSelect) selectedIds.push(objRes.id)
-          if (objRes.shouldColor) {
-            colorGroup.objectIds.push(objRes.id)
-          }
-          objectTooltipData.set(objRes.id, {
-            selectionId: objRes.selectionId,
-            data: objRes.data
-          })
+        const processedObjectIdLevels = processObjectIdLevel(child, host, matrixView)
+
+        objectIds.push(processedObjectIdLevels.id)
+        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+        if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+        if (processedObjectIdLevels.shouldColor) {
+          colorGroup.objectIds.push(processedObjectIdLevels.id)
+        }
+        objectTooltipData.set(processedObjectIdLevels.id, {
+          selectionId: processedObjectIdLevels.selectionId,
+          data: processedObjectIdLevels.data
         })
+
+        // processObjectIdLevel(child, host, matrixView).forEach((objRes) => {
+        //   objectIds.push(objRes.id)
+        //   onSelectionPair(objRes.id, objRes.selectionId)
+        //   if (objRes.shouldSelect) selectedIds.push(objRes.id)
+        //   if (objRes.shouldColor) {
+        //     colorGroup.objectIds.push(objRes.id)
+        //   }
+        //   objectTooltipData.set(objRes.id, {
+        //     selectionId: objRes.selectionId,
+        //     data: objRes.data
+        //   })
+        // })
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
     }
   })
-  let jsonObjects = []
-  if (visualStore.viewerReloadNeeded) {
-    jsonObjects = JSON.parse(objectsString)
-  }
+  const jsonObjects = []
+  // if (visualStore.viewerReloadNeeded) {
+  //   jsonObjects = JSON.parse(objectsString)
+  // }
   // // const jsonObjects: object[] = JSON.parse(objectsString)
   // try {
   //   // otherwise there is no point to join collected objects
