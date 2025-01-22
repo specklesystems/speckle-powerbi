@@ -197,7 +197,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": ["https://analytics.speckle.systems", "*"]
+      "parameters": ["https://analytics.speckle.systems", "http://localhost:8091", "*"]
     },
     {
       "essential": false,

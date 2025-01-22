@@ -10,12 +10,15 @@
     <div class="flex justify-center mt-2 gap-1">
       <button :class="buttonClass" @click="goToForum">Help</button>
       <button :class="buttonClass" @click="goToGuide">Getting started</button>
-      <button :class="buttonClass" @click="triggerFileInput">Upload File</button>
+      <button :class="buttonClass" @click="loadFileFromPath">Upload File</button>
+      <button :class="buttonClass" @click="getDataFromLocalServer">
+        Get Data From Local Server
+      </button>
       <!-- TODO: dependency issue need to be resolved to be able to use ui-components library-->
       <!-- <FormButton color="subtle" @click="goToForum">Help</FormButton>
       <FormButton color="subtle" @click="goToGuide">Getting started</FormButton> -->
     </div>
-    <input ref="fileInput" type="file" style="display: none" @change="handleFileChange" />
+    <input ref="fileInput" type="file" style="display: none" @change="loadFileFromPath" />
     <!-- <CommonLoadingBar :loading="true"/> -->
   </div>
 </template>
@@ -74,6 +77,42 @@ function handleFileChange(event: Event) {
     reader.readAsText(file)
 
     // Add logic to process the file as needed
+  }
+}
+
+async function getDataFromLocalServer() {
+  const res = await fetch('http://localhost:8091/get-all-data')
+  const content = await res.json()
+  console.log(content)
+}
+
+// Method to load data from a specified path
+async function loadFileFromPath() {
+  const filePath = 'C:\\Users\\Oguzhan\\Desktop\\snowdon.json' // Replace with the actual file path or URL
+  try {
+    const response = await fetch(filePath)
+    if (!response.ok) {
+      throw new Error(`Failed to load file: ${response.statusText}`)
+    }
+    const fileContent = await response.json()
+    processFileContent(JSON.stringify(fileContent)) // Ensure consistent handling with uploaded files
+  } catch (error) {
+    console.error('Error loading file from path:', error)
+  }
+}
+
+// Common method to process file content
+function processFileContent(content: string) {
+  try {
+    const objects = JSON.parse(content)
+    console.log('File content:', objects)
+    visualStore.setInputStatus('valid')
+    setTimeout(() => {
+      visualStore.loadObjects(objects)
+    }, 250)
+  } catch (error) {
+    console.error('Error parsing file content:', error)
+    visualStore.setInputStatus('invalid')
   }
 }
 </script>
