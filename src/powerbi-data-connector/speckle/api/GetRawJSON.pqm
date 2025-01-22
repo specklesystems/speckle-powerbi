@@ -19,7 +19,7 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-        
+
         // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
@@ -35,6 +35,7 @@
                 Headers = [
                     #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
                 ],
+                Query = [timestamp = Text.From(DateTime.LocalNow())],
                 ManualStatusHandling = {400, 401, 403}
             ]
         ),
@@ -77,6 +78,16 @@
         
         // convert to table
         Chunks = Table.FromRecords(List.Transform(ChunkIndices, CreateChunk)),
+
+        Response = Web.Contents(
+            "http://localhost:8091/send-data",
+            [
+                Headers = [#"Content-Type" = "application/json"],
+                Query = [timestamp = Text.From(DateTime.LocalNow())],
+                Content = Json.FromValue([key = 235.7, value = 41.53])
+            ]
+        ),
+        JsonResponse = Json.Document(Response),
         
         // set correct data types
         FinalTable = Table.TransformColumnTypes(
@@ -84,6 +95,6 @@
             {
                 {"viewer_data", type text}
             }
-        )
+        )        
     in
         FinalTable
