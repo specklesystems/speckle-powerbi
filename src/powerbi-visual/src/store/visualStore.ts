@@ -6,7 +6,6 @@ import { ref, shallowRef } from 'vue'
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
 export type FieldInputState = {
-  viewerData: boolean
   objectIds: boolean
   colorBy: boolean
   tooltipData: boolean
@@ -16,10 +15,10 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
-  const isViewerReadyToInitialize = ref<boolean>(false)
+  const isViewerReadyToLoad = ref<boolean>(false)
+  const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
   const fieldInputState = ref<FieldInputState>({
-    viewerData: false,
     objectIds: false,
     colorBy: false,
     tooltipData: false
@@ -74,7 +73,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
-  const loadObjects = async (objects: object[]) => {
+  const loadObjectsFromFile = async (objects: object[]) => {
     await viewerEmit.value('loadObjectsFromJSON', objects)
     host.value.persistProperties({
       merge: [
@@ -87,6 +86,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         }
       ]
     })
+    isViewerObjectsLoaded.value = true
   }
 
   const loadObjectsFromStore = async () => {
@@ -94,6 +94,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     viewerReloadNeeded.value = false
     await viewerEmit.value('loadObjects', dataInput.value)
+    isViewerObjectsLoaded.value = true
   }
 
   /**
@@ -113,87 +114,39 @@ export const useVisualStore = defineStore('visualStore', () => {
       viewerEmit.value('isolateObjects', dataInput.value.objectIds)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
-
-    // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
-    // if (viewerReloadNeeded.value || !lastLoadedRootObjectId.value) {
-    //   // lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
-    //   console.log(
-    //     `🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`
-    //   )
-    //   viewerReloadNeeded.value = false
-    //   await viewerEmit.value('loadObjects', dataInput.value)
-    // } else {
-    //   if (dataInput.value.selectedIds.length > 0) {
-    //     viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
-    //   } else {
-    //     viewerEmit.value('isolateObjects', dataInput.value.objectIds)
-    //   }
-    //   viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
-    // }
   }
 
   const setFieldInputState = (newFieldInputState: FieldInputState) => {
-    if (!newFieldInputState.viewerData || !newFieldInputState.objectIds) {
-      setInputStatus('valid')
-    } else {
-      setInputStatus('valid')
-    }
-
-    // Check for the changes on fields that viewer care, if user changes important fields, we have to ask for viewer reload
-    if (
-      fieldInputState.value.viewerData &&
-      fieldInputState.value.objectIds &&
-      (!newFieldInputState.viewerData || !newFieldInputState.objectIds)
-    ) {
-      viewerReloadNeeded.value = true
-    }
-
-    // if (!isViewerInitialized.value) {
-    //   if (
-    //     fieldInputState.value.viewerData &&
-    //     fieldInputState.value.objectIds &&
-    //     !fieldInputState.value.tooltipData &&
-    //     !fieldInputState.value.colorBy
-    //   ) {
-    //     viewerReloadNeeded.value = true
-    //   }
-    // }
-
     fieldInputState.value = newFieldInputState
-  }
-
-  /**
-   * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
-   */
-  const setInputStatus = (newValue: InputState) => {
-    console.log('❓ Data input statues changed to:', newValue)
-
-    dataInputStatus.value = newValue
-    if (dataInputStatus.value !== 'valid') {
-      viewerReloadNeeded.value = true
-    }
   }
 
   const clearDataInput = () => {
     dataInput.value = null
   }
 
+  const setViewerReadyToLoad = () => {
+    isViewerReadyToLoad.value = true
+  }
+
   return {
     host,
     objectsFromStore,
     isViewerInitialized,
+    isViewerReadyToLoad,
+    isViewerObjectsLoaded,
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     viewerEmit,
-    loadObjects,
+    fieldInputState,
+    loadObjectsFromFile,
     loadObjectsFromStore,
     setHost,
     setObjectsFromStore,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
-    setInputStatus,
-    clearDataInput
+    clearDataInput,
+    setViewerReadyToLoad
   }
 })

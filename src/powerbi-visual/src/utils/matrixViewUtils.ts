@@ -12,14 +12,12 @@ import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
   const matrixVew = options.dataViews[0].matrix
 
-  let hasViewerData = false,
-    hasObjectIds = false,
+  let hasObjectIds = false,
     hasColorFilter = false,
     hasTooltipData = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasViewerData) hasViewerData = source.roles['viewerData'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
@@ -32,7 +30,6 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
   })
 
   return {
-    viewerData: hasViewerData,
     objectIds: hasObjectIds,
     colorBy: hasColorFilter,
     tooltipData: hasTooltipData

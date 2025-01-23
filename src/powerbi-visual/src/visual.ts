@@ -79,20 +79,15 @@ export class Visual implements IVisual {
     console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
-      console.log('options', options)
-
-      const matrixVew = options.dataViews[0].matrix
-      if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
-      console.log(matrixVew)
+      const matrixView = options.dataViews[0].matrix
+      if (!matrixView) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
+      console.log(matrixView)
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
       console.log(validationResult)
 
       visualStore.setFieldInputState(validationResult)
-      // if (visualStore.dataInputStatus !== 'valid') {
-      //   throw new Error('Inputs are not completed!')
-      // }
 
       // read saved data from file if any
       if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
@@ -113,7 +108,7 @@ export class Visual implements IVisual {
         case powerbi.VisualUpdateType.Data:
           try {
             const input = processMatrixView(
-              matrixVew,
+              matrixView,
               this.host,
               validationResult.colorBy,
               this.formattingSettings,
@@ -136,8 +131,7 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-
-      visualStore.setInputStatus('incomplete')
+      visualStore.setFieldInputState({ objectIds: false, colorBy: false, tooltipData: false })
       return
     }
   }
@@ -161,21 +155,7 @@ export class Visual implements IVisual {
       input.objects = visualStore.objectsFromStore
       input.isFromStore = true
     }
-
-    // if (!visualStore.isViewerInitialized && visualStore.viewerReloadNeeded) {
-    //   this.host.persistProperties({
-    //     merge: [
-    //       {
-    //         objectName: 'storedData',
-    //         properties: {
-    //           fullData: JSON.stringify(input.objects)
-    //         },
-    //         selector: null
-    //       }
-    //     ]
-    //   })
-    // }
-    // visualStore.setDataInput(input)
+    visualStore.setViewerReadyToLoad()
 
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
       visualStore.setDataInput(input)
