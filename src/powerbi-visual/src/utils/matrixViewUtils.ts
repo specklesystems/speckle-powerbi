@@ -146,6 +146,7 @@ export async function processMatrixView(
       objects = await res.json()
       visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
     } catch (error) {
+      // TODO: global toast notification to throw message for local server (manager)
       console.log("Objects couldn't retrieved from local server.")
     }
   }

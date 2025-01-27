@@ -1,7 +1,7 @@
 <template>
   <div
     id="speckle-home-view"
-    class="flex flex-col justify-center items-center h-full w-full bg-primary text-center text-foundation"
+    class="flex flex-col justify-center items-center h-full w-full bg-foreground text-center text-foundation"
   >
     <div class="flex justify-center items-center">
       <img src="@assets/logo-white.png" alt="Logo" class="w-1/3" />
@@ -11,7 +11,7 @@
       <button :class="buttonClass" @click="goToForum">Help</button>
       <button :class="buttonClass" @click="goToGuide">Getting started</button>
       <!-- <button :class="buttonClass" @click="triggerFileInput">Upload File</button> -->
-      <button :class="buttonClass" @click="getFromLocalServer">Get From Local Server</button>
+      <!-- <button :class="buttonClass" @click="getFromLocalServer">Get From Local Server</button> -->
       <!-- TODO: dependency issue need to be resolved to be able to use ui-components library-->
       <!-- <FormButton color="subtle" @click="goToForum">Help</FormButton>
       <FormButton color="subtle" @click="goToGuide">Getting started</FormButton> -->
