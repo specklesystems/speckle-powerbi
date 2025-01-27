@@ -25,6 +25,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     colorBy: false,
     tooltipData: false
   })
+  const lastLoadedRootObjectId = ref<string>()
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -38,8 +39,6 @@ export const useVisualStore = defineStore('visualStore', () => {
   // TODO: investigate about shallow ref? https://vuejs.org/api/reactivity-advanced.html#shallowref
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
-
-  const lastLoadedRootObjectId = ref<string>()
 
   /**
    * Ideally one time setup on initialization.
@@ -77,22 +76,13 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const loadObjectsFromFile = async (objects: object[]) => {
     await viewerEmit.value('loadObjectsFromJSON', objects)
-    host.value.persistProperties({
-      merge: [
-        {
-          objectName: 'storedData',
-          properties: {
-            fullData: JSON.stringify(objects)
-          },
-          selector: null
-        }
-      ]
-    })
+    objectsFromStore.value = objects
+    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
     isViewerObjectsLoaded.value = true
   }
 
   const loadObjectsFromStore = async () => {
-    lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
+    lastLoadedRootObjectId.value = (objectsFromStore.value[0] as SpeckleObject).id
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     viewerReloadNeeded.value = false
     await viewerEmit.value('loadObjects', dataInput.value)
@@ -155,6 +145,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     dataInputStatus,
     viewerEmit,
     fieldInputState,
+    lastLoadedRootObjectId,
     loadObjectsFromFile,
     loadObjectsFromStore,
     setHost,

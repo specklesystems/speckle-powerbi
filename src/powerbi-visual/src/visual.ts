@@ -67,7 +67,7 @@ export class Visual implements IVisual {
     this.selectionHandler.clear()
   }
 
-  public update(options: VisualUpdateOptions) {
+  public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
@@ -81,21 +81,15 @@ export class Visual implements IVisual {
     try {
       const matrixView = options.dataViews[0].matrix
       if (!matrixView) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
-      console.log(matrixView)
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
-      console.log(validationResult)
-
       visualStore.setFieldInputState(validationResult)
+      console.log('❓Field inputs', validationResult)
 
       // read saved data from file if any
       if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
-        const objectsFromStore = JSON.parse(
-          options.dataViews[0].metadata.objects.storedData?.fullData as string
-        )
-        visualStore.setObjectsFromStore(objectsFromStore)
-        console.log(`${objectsFromStore.length} objects retrieved from persistent properties!`)
+        this.tryReadFromFile(options, visualStore)
       }
 
       switch (options.type) {
@@ -107,7 +101,7 @@ export class Visual implements IVisual {
           return
         case powerbi.VisualUpdateType.Data:
           try {
-            const input = processMatrixView(
+            const input = await processMatrixView(
               matrixView,
               this.host,
               validationResult.colorBy,
@@ -152,13 +146,6 @@ export class Visual implements IVisual {
     const visualStore = useVisualStore()
 
     this.tooltipHandler.setup(input.objectTooltipData)
-
-    if (this.isFirstViewerLoad && visualStore.objectsFromStore) {
-      // `dev happiness level 0/10 < user happiness level 10/10`
-      this.isFirstViewerLoad = false
-      input.objects = visualStore.objectsFromStore
-      input.isFromStore = true
-    }
     visualStore.setViewerReadyToLoad()
 
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
@@ -170,6 +157,18 @@ export class Visual implements IVisual {
         visualStore.writeObjectsToFile(input.objects)
       }, 250)
     }
+  }
+
+  private tryReadFromFile(options: VisualUpdateOptions, visualStore) {
+    const objectsFromFile = JSON.parse(
+      options.dataViews[0].metadata.objects.storedData?.fullData as string
+    )
+    visualStore.setViewerReadyToLoad()
+    setTimeout(() => {
+      visualStore.loadObjectsFromFile(objectsFromFile)
+      this.isFirstViewerLoad = false
+    }, 250)
+    console.log(`${objectsFromFile.length} objects retrieved from persistent properties!`)
   }
 
   public async destroy() {

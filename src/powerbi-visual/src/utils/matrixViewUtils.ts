@@ -119,13 +119,13 @@ export function resetPalette() {
   previousPalette = null
 }
 
-export function processMatrixView(
+export async function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
   hasColorFilter: boolean,
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
-): SpeckleDataInput {
+): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
   const objectIds = [],
     selectedIds = [],
@@ -134,34 +134,23 @@ export function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView)
 
-  const objects: Record<string, string[]> = {}
+  const localMatrixView = matrixView.rows.root.children[0]
+  const id = localMatrixView.value as unknown as string
+  console.log('🗝️ Root Object Id: ', id)
+
+  let objects: object[] = undefined
+  if (visualStore.lastLoadedRootObjectId !== id) {
+    try {
+      const res = await fetch(`http://localhost:8099/get-data/${id}`)
+      objects = await res.json()
+    } catch (error) {
+      console.log("Objects couldn't retrieved from local server.")
+    }
+  }
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  matrixView.rows.root.children.forEach((obj) => {
+  localMatrixView.children?.forEach((obj) => {
     // otherwise there is no point to collect objects
-
-    const id = obj.value as unknown as string
-    console.log(id)
-
-    // if (visualStore.viewerReloadNeeded) {
-    //   const viewerDataValue = obj.value as unknown as string
-    //   if (!viewerDataValue.startsWith('z_')) {
-    //     objectsString += viewerDataValue.slice(9)
-    //   }
-    // }
-
-    // before row optimization
-    // if (visualStore.viewerReloadNeeded) {
-    //   const id = obj.children[0].value as unknown as string
-    //   const value = (obj.value as unknown as string).slice(9)
-    //   const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
-    //   if (!existingObjectId) {
-    //     objects[id] = [value]
-    //   } else {
-    //     objects[existingObjectId].push(value)
-    //   }
-    // }
-
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
     objectIds.push(processedObjectIdLevels.id)
@@ -173,18 +162,6 @@ export function processMatrixView(
       selectionId: processedObjectIdLevels.selectionId,
       data: processedObjectIdLevels.data
     })
-
-    // processedObjectIdLevels.forEach((objRes) => {
-    //   objectIds.push(objRes.id)
-    //   onSelectionPair(objRes.id, objRes.selectionId)
-    //   if (objRes.shouldSelect) {
-    //     selectedIds.push(objRes.id)
-    //   }
-    //   objectTooltipData.set(objRes.id, {
-    //     selectionId: objRes.selectionId,
-    //     data: objRes.data
-    //   })
-    // })
 
     if (hasColorFilter) {
       obj.children.forEach((child) => {
@@ -223,43 +200,15 @@ export function processMatrixView(
           data: processedObjectIdLevels.data
         })
 
-        // processObjectIdLevel(child, host, matrixView).forEach((objRes) => {
-        //   objectIds.push(objRes.id)
-        //   onSelectionPair(objRes.id, objRes.selectionId)
-        //   if (objRes.shouldSelect) selectedIds.push(objRes.id)
-        //   if (objRes.shouldColor) {
-        //     colorGroup.objectIds.push(objRes.id)
-        //   }
-        //   objectTooltipData.set(objRes.id, {
-        //     selectionId: objRes.selectionId,
-        //     data: objRes.data
-        //   })
-        // })
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
     }
   })
-  const jsonObjects = []
-  // if (visualStore.viewerReloadNeeded) {
-  //   jsonObjects = JSON.parse(objectsString)
-  // }
-  // // const jsonObjects: object[] = JSON.parse(objectsString)
-  // try {
-  //   // otherwise there is no point to join collected objects
-  //   // if (visualStore.viewerReloadNeeded) {
-  //   //   for (const objs of Object.values(objects)) {
-  //   //     jsonObjects.push(JSON.parse(objs.join('')))
-  //   //   }
-  //   // }
-  //   jsonObjects = JSON.parse(objectsString)
-  // } catch (error) {
-  //   console.error(error)
-  // }
 
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objects: jsonObjects,
+    objects,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
