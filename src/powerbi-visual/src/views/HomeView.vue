@@ -10,7 +10,8 @@
     <div class="flex justify-center mt-2 gap-1">
       <button :class="buttonClass" @click="goToForum">Help</button>
       <button :class="buttonClass" @click="goToGuide">Getting started</button>
-      <button :class="buttonClass" @click="triggerFileInput">Upload File</button>
+      <!-- <button :class="buttonClass" @click="triggerFileInput">Upload File</button> -->
+      <button :class="buttonClass" @click="getFromLocalServer">Get From Local Server</button>
       <!-- TODO: dependency issue need to be resolved to be able to use ui-components library-->
       <!-- <FormButton color="subtle" @click="goToForum">Help</FormButton>
       <FormButton color="subtle" @click="goToGuide">Getting started</FormButton> -->
@@ -35,6 +36,16 @@ function goToForum() {
 
 function goToGuide() {
   visualStore.host.launchUrl('https://speckle.guide/user/powerbi')
+}
+
+async function getFromLocalServer() {
+  const res = await fetch('http://localhost:8099/get-data/a7b03a6a6f97a7d28deeb387397d02d4')
+  const objects = await res.json()
+  visualStore.setViewerReadyToLoad()
+  setTimeout(() => {
+    visualStore.loadObjectsFromFile(objects)
+  }, 250)
+  console.log(objects)
 }
 
 // Method to programmatically trigger the file input
