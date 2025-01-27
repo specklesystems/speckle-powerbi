@@ -75,17 +75,11 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const loadObjectsFromFile = async (objects: object[]) => {
+    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
+    viewerReloadNeeded.value = false
+    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjectsFromJSON', objects)
     objectsFromStore.value = objects
-    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
-    isViewerObjectsLoaded.value = true
-  }
-
-  const loadObjectsFromStore = async () => {
-    lastLoadedRootObjectId.value = (objectsFromStore.value[0] as SpeckleObject).id
-    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
-    viewerReloadNeeded.value = false
-    await viewerEmit.value('loadObjects', dataInput.value)
     isViewerObjectsLoaded.value = true
   }
 
@@ -95,9 +89,13 @@ export const useVisualStore = defineStore('visualStore', () => {
    */
   const setDataInput = async (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
-    if (dataInput.value.isFromStore) {
-      await loadObjectsFromStore()
-      return
+
+    if (viewerReloadNeeded.value) {
+      lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
+      console.log(`🔄 Forcing viewer re-render for new root object id.`)
+      await viewerEmit.value('loadObjectsFromJSON', dataInput.value.objects)
+      viewerReloadNeeded.value = false
+      writeObjectsToFile(dataInput.value.objects)
     }
 
     if (dataInput.value.selectedIds.length > 0) {
@@ -122,17 +120,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
-  const setFieldInputState = (newFieldInputState: FieldInputState) => {
-    fieldInputState.value = newFieldInputState
-  }
+  const setFieldInputState = (newFieldInputState: FieldInputState) =>
+    (fieldInputState.value = newFieldInputState)
 
-  const clearDataInput = () => {
-    dataInput.value = null
-  }
+  const clearDataInput = () => (dataInput.value = null)
 
-  const setViewerReadyToLoad = () => {
-    isViewerReadyToLoad.value = true
-  }
+  const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
+
+  const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
   return {
     host,
@@ -147,8 +142,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     fieldInputState,
     lastLoadedRootObjectId,
     loadObjectsFromFile,
-    loadObjectsFromStore,
     setHost,
+    setViewerReloadNeeded,
     setObjectsFromStore,
     writeObjectsToFile,
     setViewerEmitter,

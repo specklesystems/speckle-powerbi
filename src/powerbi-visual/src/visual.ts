@@ -87,11 +87,6 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
-      // read saved data from file if any
-      if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
-        this.tryReadFromFile(options, visualStore)
-      }
-
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
         case powerbi.VisualUpdateType.ResizeEnd:
@@ -101,6 +96,16 @@ export class Visual implements IVisual {
           return
         case powerbi.VisualUpdateType.Data:
           try {
+            // read saved data from file if any
+            if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
+              const objectsFromFile = JSON.parse(
+                options.dataViews[0].metadata.objects.storedData?.fullData as string
+              )
+              if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
+                this.tryReadFromFile(objectsFromFile, visualStore)
+              }
+            }
+
             const input = await processMatrixView(
               matrixView,
               this.host,
@@ -159,10 +164,7 @@ export class Visual implements IVisual {
     }
   }
 
-  private tryReadFromFile(options: VisualUpdateOptions, visualStore) {
-    const objectsFromFile = JSON.parse(
-      options.dataViews[0].metadata.objects.storedData?.fullData as string
-    )
+  private tryReadFromFile(objectsFromFile: object[], visualStore) {
     visualStore.setViewerReadyToLoad()
     setTimeout(() => {
       visualStore.loadObjectsFromFile(objectsFromFile)

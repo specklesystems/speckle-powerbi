@@ -137,12 +137,14 @@ export async function processMatrixView(
   const localMatrixView = matrixView.rows.root.children[0]
   const id = localMatrixView.value as unknown as string
   console.log('🗝️ Root Object Id: ', id)
+  console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
   let objects: object[] = undefined
   if (visualStore.lastLoadedRootObjectId !== id) {
     try {
       const res = await fetch(`http://localhost:8099/get-data/${id}`)
       objects = await res.json()
+      visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
     } catch (error) {
       console.log("Objects couldn't retrieved from local server.")
     }
