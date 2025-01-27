@@ -39,7 +39,7 @@ function goToGuide() {
 }
 
 async function getFromLocalServer() {
-  const res = await fetch('http://localhost:8099/get-data/97dd3381bcc850529cb218295f36baf6')
+  const res = await fetch('http://localhost:8099/get-data/443b8461a3fd1437a983364e9a047778')
   const objects = await res.json()
   visualStore.setViewerReadyToLoad()
   setTimeout(() => {

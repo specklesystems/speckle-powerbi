@@ -150,7 +150,6 @@ export class Visual implements IVisual {
 
   private updateViewer(input: SpeckleDataInput) {
     const visualStore = useVisualStore()
-    console.log('loadViewerFromStore update', input)
 
     this.tooltipHandler.setup(input.objectTooltipData)
 
@@ -168,17 +167,7 @@ export class Visual implements IVisual {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
         visualStore.setDataInput(input)
-        this.host.persistProperties({
-          merge: [
-            {
-              objectName: 'storedData',
-              properties: {
-                fullData: JSON.stringify(input.objects)
-              },
-              selector: null
-            }
-          ]
-        })
+        visualStore.writeObjectsToFile(input.objects)
       }, 250)
     }
   }

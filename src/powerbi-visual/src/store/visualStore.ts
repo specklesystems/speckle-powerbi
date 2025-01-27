@@ -118,6 +118,20 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
+  const writeObjectsToFile = (objects: object[]) => {
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'storedData',
+          properties: {
+            fullData: JSON.stringify(objects)
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const setFieldInputState = (newFieldInputState: FieldInputState) => {
     fieldInputState.value = newFieldInputState
   }
@@ -145,6 +159,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     loadObjectsFromStore,
     setHost,
     setObjectsFromStore,
+    writeObjectsToFile,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
