@@ -47,7 +47,7 @@
         
         // Send to localhost
         SendOperation = Web.Contents(
-            "http://127.0.0.1:8099/send-data",
+            "http://127.0.0.1:8099/",
             [
                 Headers = [
                     #"Content-Type" = "application/json",
@@ -60,8 +60,8 @@
 
         // Get sending status
         SendStatus = if Value.Metadata(SendOperation)[Response.Status] = 200 
-            then "Data successfully sent." 
-            else "Failed to send data.",
+            then " - " 
+            else " ? ",
         
         // Convert JSON to table directly instead of calling GetStructuredData
         TableFromList = Table.FromList(
@@ -89,7 +89,6 @@
                     [
                         #"Object IDs" = record[id],
                         #"Root Object ID" = rootId,
-                        #"Send Status" = SendStatus,
                         #"Speckle Type" = record[speckle_type],
                         data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
                     ]
@@ -101,7 +100,7 @@
             {"Name", "Data"},
             {
                 { 
-                    "Structured Data - " & modelName, 
+                    "Structured Data " & SendStatus & modelName, 
                     StructuredData
                 }
             }
