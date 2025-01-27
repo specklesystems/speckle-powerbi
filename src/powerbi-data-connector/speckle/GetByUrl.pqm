@@ -3,6 +3,7 @@
         // import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
+        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -24,6 +25,7 @@
         // get model info and parsed URL
         modelInfo = GetModel(url),
         modelName = modelInfo[modelName],
+        rootId = modelInfo[rootObjectId],
         parsedUrl = Parser(url),
         
         // get API key if available
@@ -62,50 +64,26 @@
             then "Data successfully sent to localhost" 
             else "Failed to send data",
         
-        // Convert JSON to table directly instead of calling GetStructuredData
-        TableFromList = Table.FromList(
-            JsonResponse, 
-            Splitter.SplitByNothing(), 
-            null, 
-            null, 
-            ExtraValues.Error
-        ),
-        
-        // Fields to remove from data record
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
+        // get structured data
+        StructuredData = GetStructuredData(url),
 
-        // Create the structured data table
-        StructuredData = Table.FromRecords(
-            List.Transform(
-                TableFromList[Column1],
-                each let
-                    record = _,
-                    fieldsToRemoveForThisRecord = List.Select(
-                        FieldsToRemove,
-                        each Record.HasFields(record, {_})
-                    )
-                in
-                    [
-                        #"Object IDs" = record[id],
-                        #"Speckle Type" = record[speckle_type],
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
-                    ]
-            )
+        // get viewer data
+        ViewerData = #table(
+            {"Root Object ID"},
+            {{rootId}}
         ),
         
         // create navigation table
         source = #table(
-            {"Name", "Data", "Description"},
+            {"Name", "Data"},
             {
                 { 
                     "Structured Data - " & modelName, 
-                    StructuredData,
-                    "Original structured data from Speckle"
+                    StructuredData
                 },
                 {
-                    "JSON Status", 
-                    #table({"Status"}, {{SendStatus}}),
-                    "Status of JSON sent to localhost"
+                    "Viewer Data",
+                    ViewerData
                 }
             }
         ),

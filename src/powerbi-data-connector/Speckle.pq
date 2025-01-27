@@ -46,12 +46,6 @@ shared Speckle.GetStructuredData = Value.ReplaceType(
     type function (url as Uri.Type) as table
 );
 
-[DataSource.Kind = "Speckle"]
-shared Speckle.ProcessJSON = Value.ReplaceType(
-    Speckle.LoadFunction("ProcessJSON.pqm"),
-    type function (url as Uri.Type) as text
-);
-
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
