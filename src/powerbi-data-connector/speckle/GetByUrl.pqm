@@ -96,8 +96,8 @@
 
         // Create viewer data table
         ViewerData = #table(
-            {"Root Object ID"},
-            {{rootId}}
+            {"Root Object ID", "Status"},
+            {{rootId, SendStatus}}
         ),
 
         // create navigation table
@@ -109,11 +109,7 @@
                     StructuredData
                 },
                 {
-                    "Status", 
-                    #table({"Status"}, {{SendStatus}})
-                },
-                {
-                    "Viewer Data",
+                    "Viewer Data - " & modelName,
                     ViewerData
                 }
             }
