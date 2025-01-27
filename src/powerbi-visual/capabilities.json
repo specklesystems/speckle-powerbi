@@ -1,6 +1,11 @@
 {
   "dataRoles": [
     {
+      "displayName": "Root Object ID",
+      "kind": "Grouping",
+      "name": "rootObjectId"
+    },
+    {
       "displayName": "Object IDs",
       "kind": "Grouping",
       "name": "objectIds"
@@ -28,6 +33,11 @@
           "select": [
             {
               "bind": {
+                "to": "rootObjectId"
+              }
+            },
+            {
+              "bind": {
                 "to": "objectColorBy"
               }
             },
@@ -50,7 +60,8 @@
       },
       "conditions": [
         {
-          "objectIds": { "max": 1 }
+          "objectIds": { "max": 1 },
+          "rootObjectId": { "max": 1 }
         }
       ]
     }

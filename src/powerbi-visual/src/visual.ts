@@ -131,7 +131,12 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      visualStore.setFieldInputState({ objectIds: false, colorBy: false, tooltipData: false })
+      visualStore.setFieldInputState({
+        rootObjectId: false,
+        objectIds: false,
+        colorBy: false,
+        tooltipData: false
+      })
       return
     }
   }

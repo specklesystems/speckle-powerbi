@@ -12,12 +12,14 @@ import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
   const matrixVew = options.dataViews[0].matrix
 
-  let hasObjectIds = false,
+  let hasRootObjectId = false,
+    hasObjectIds = false,
     hasColorFilter = false,
     hasTooltipData = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
+      if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
@@ -30,6 +32,7 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
   })
 
   return {
+    rootObjectId: hasRootObjectId,
     objectIds: hasObjectIds,
     colorBy: hasColorFilter,
     tooltipData: hasTooltipData
@@ -133,13 +136,13 @@ export function processMatrixView(
 
   const objects: Record<string, string[]> = {}
 
-  // let objectsString = ''
-
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
   matrixView.rows.root.children.forEach((obj) => {
     // otherwise there is no point to collect objects
 
-    // const id = obj.children[0].value as unknown as string
+    const id = obj.value as unknown as string
+    console.log(id)
+
     // if (visualStore.viewerReloadNeeded) {
     //   const viewerDataValue = obj.value as unknown as string
     //   if (!viewerDataValue.startsWith('z_')) {

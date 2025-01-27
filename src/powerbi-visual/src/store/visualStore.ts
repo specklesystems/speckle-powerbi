@@ -6,6 +6,7 @@ import { ref, shallowRef } from 'vue'
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
 export type FieldInputState = {
+  rootObjectId: boolean
   objectIds: boolean
   colorBy: boolean
   tooltipData: boolean
@@ -19,6 +20,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
   const fieldInputState = ref<FieldInputState>({
+    rootObjectId: false,
     objectIds: false,
     colorBy: false,
     tooltipData: false
