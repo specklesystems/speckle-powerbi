@@ -1,5 +1,5 @@
 // function for getting structured object data
-(url as text) as table =>
+(url as text) as text =>
     let
         // import the parser function and getModel
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -42,51 +42,23 @@
 
         // parse the JSON response
         JsonResponse = Json.Document(Source),
+        JsonText = Json.FromValue(JsonResponse),
 
-        Response = Web.Contents(
+        SendOperation = Web.Contents(
             "http://127.0.0.1:8000",
             [
                 Headers = [
-                    #"Content-Type" = "application/json"
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST"
                 ],
-                Content = Json.FromValue(JsonResponse),
+                Content = JsonText,
                 ManualStatusHandling = {400, 401, 403, 404, 500}
             ]
         ),
         
-        // convert list to table with all columns expanded
-        TableFromList = Table.FromList(
-            JsonResponse, 
-            Splitter.SplitByNothing(), 
-            null, 
-            null, 
-            ExtraValues.Error
-        ),
+        Status = if Value.Metadata(SendOperation)[Response.Status] = 200 
+            then "Data successfully sent to localhost" 
+            else "Failed to send data"
 
-        // fields to remove from data record
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-
-        // create the final table with cleaned data records
-        FinalTable = Table.FromRecords(
-            List.Transform(
-                TableFromList[Column1],
-                each let
-                    record = _,
-                    fieldsToRemoveForThisRecord = List.Select(
-                        FieldsToRemove,
-                        each Record.HasFields(record, {_})
-                    )
-                in
-                    [
-                        #"Object IDs" = record[id], // Object IDs
-                        #"Speckle Type" = record[speckle_type], // Speckle Type
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
-                    ]
-            )
-        ),
-        
-        // filter out rows where applicationId is null
-        // we can discuss this further
-        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
     in
-        FilteredTable
+        Status
