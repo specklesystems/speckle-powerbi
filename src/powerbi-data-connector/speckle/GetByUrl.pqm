@@ -75,7 +75,7 @@
         // Fields to remove from data record
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
 
-        // Create the structured data table
+        // Create the structured data table with Root Object ID and Send Status included
         StructuredData = Table.FromRecords(
             List.Transform(
                 TableFromList[Column1],
@@ -88,16 +88,12 @@
                 in
                     [
                         #"Object IDs" = record[id],
+                        #"Root Object ID" = rootId,
+                        #"Send Status" = SendStatus,
                         #"Speckle Type" = record[speckle_type],
                         data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
                     ]
             )
-        ),
-
-        // Create viewer data table
-        ViewerData = #table(
-            {"Root Object ID", "Status"},
-            {{rootId, SendStatus}}
         ),
 
         // create navigation table
@@ -107,10 +103,6 @@
                 { 
                     "Structured Data - " & modelName, 
                     StructuredData
-                },
-                {
-                    "Viewer Data - " & modelName,
-                    ViewerData
                 }
             }
         ),
@@ -120,7 +112,6 @@
         newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
             NavigationTable.NameColumn = "Name",
             NavigationTable.DataColumn = "Data",
-            NavigationTable.DescriptionColumn = "Description",
             Documentation.Name = "Speckle Model"
         ],
         
