@@ -3,7 +3,7 @@
     <ButtonSimple flat secondary @click="onZoomExtentsClicked">
       <ArrowsPointingOutIcon class="h-5 w-5" />
     </ButtonSimple>
-    <!-- <Menu as="div" class="relative z-30">
+    <Menu as="div" class="relative z-30">
       <MenuButton v-slot="{ open }" as="template">
         <ButtonToggle flat secondary :active="open">
           <VideoCameraIcon class="h-5 w-5" />
@@ -18,7 +18,7 @@
         leave-to-class="opacity-0"
       >
         <MenuItems
-          class="absolute w-60 left-2 -translate-y-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
+          class="absolute w-24 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
         >
           <MenuItem
             v-for="view in canonicalViews"
@@ -52,6 +52,7 @@
         </MenuItems>
       </Transition>
     </Menu>
+    <!-- 
     <ButtonToggle
       flat
       secondary

@@ -4,7 +4,8 @@ import {
   SpeckleOfflineLoader,
   FilteringState,
   IntersectionQuery,
-  CameraController
+  CameraController,
+  CanonicalView
 } from '@speckle/viewer'
 import { SpeckleDataInput } from '@src/types'
 import { createNanoEvents, Emitter } from 'nanoevents'
@@ -75,14 +76,9 @@ export class ViewerHandler {
     this.viewer.zoom(objectIds)
   }
 
-  public zoomExtends = () => {
-    this.viewer.zoom()
-  }
+  public zoomExtends = () => this.viewer.zoom()
 
-  public setView = (view: any) => {
-    // TODO
-    return
-  }
+  public setView = (view: CanonicalView) => this.viewer.setView(view)
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
