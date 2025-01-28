@@ -100,7 +100,7 @@
             {"Name", "Data"},
             {
                 { 
-                    "Structured Data " & SendStatus & modelName, 
+                    "Structured Data - " & modelName & SendStatus, 
                     StructuredData
                 }
             }
