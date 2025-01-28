@@ -24,6 +24,7 @@
         // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
+        rootId = modelInfo[rootObjectId],
         modelInfo = GetModel(url),
         
         // get API key if available
@@ -42,17 +43,6 @@
 
         // parse the JSON response
         JsonResponse = Json.Document(Source),
-
-        Response = Web.Contents(
-            "http://127.0.0.1:8000",
-            [
-                Headers = [
-                    #"Content-Type" = "application/json"
-                ],
-                Content = Json.FromValue(JsonResponse),
-                ManualStatusHandling = {400, 401, 403, 404, 500}
-            ]
-        ),
         
         // convert list to table with all columns expanded
         TableFromList = Table.FromList(
@@ -80,6 +70,7 @@
                     [
                         #"Object IDs" = record[id], // Object IDs
                         #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Root Object ID" = rootId,
                         data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
                     ]
             )

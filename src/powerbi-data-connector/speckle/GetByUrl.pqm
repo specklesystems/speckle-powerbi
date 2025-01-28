@@ -1,8 +1,9 @@
 (url as text) as table =>
     let
         // import required functions
+        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
+        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
-        Parser = Extension.LoadFunction("Parser.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -21,79 +22,15 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        // get model info and parsed URL
+        // get model name
         modelInfo = GetModel(url),
         modelName = modelInfo[modelName],
-        rootId = modelInfo[rootObjectId],
-        parsedUrl = Parser(url),
-        
-        // get API key if available
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        
-        // make the API request to objects endpoint
-        Source = Web.Contents(
-            Text.Combine({parsedUrl[baseUrl], "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
-            [
-                Headers = [
-                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
-                ],
-                ManualStatusHandling = {400, 401, 403}
-            ]
-        ),
-        
-        // parse the JSON response
-        JsonResponse = Json.Document(Source),
-        JsonText = Json.FromValue(JsonResponse),
-        
-        // Send to localhost
-        SendOperation = Web.Contents(
-            "http://127.0.0.1:8099/send-data",
-            [
-                Headers = [
-                    #"Content-Type" = "application/json",
-                    #"Method" = "POST"
-                ],
-                Content = JsonText,
-                ManualStatusHandling = {400, 401, 403, 404, 500}
-            ]
-        ),
 
-        // Get sending status
-        SendStatus = if Value.Metadata(SendOperation)[Response.Status] = 200 
-            then " - " 
-            else " ? ",
+        // get sending status
+        SendStatus = SendToServer(url),
         
-        // Convert JSON to table directly instead of calling GetStructuredData
-        TableFromList = Table.FromList(
-            JsonResponse, 
-            Splitter.SplitByNothing(), 
-            null, 
-            null, 
-            ExtraValues.Error
-        ),
-        
-        // Fields to remove from data record
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-
-        // Create the structured data table with Root Object ID and Send Status included
-        StructuredData = Table.FromRecords(
-            List.Transform(
-                TableFromList[Column1],
-                each let
-                    record = _,
-                    fieldsToRemoveForThisRecord = List.Select(
-                        FieldsToRemove,
-                        each Record.HasFields(record, {_})
-                    )
-                in
-                    [
-                        #"Object IDs" = record[id],
-                        #"Root Object ID" = rootId,
-                        #"Speckle Type" = record[speckle_type],
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
-                    ]
-            )
-        ),
+        // get structured data
+        StructuredData = GetStructuredData(url),
 
         // create navigation table
         source = #table(
