@@ -142,7 +142,7 @@ export async function processMatrixView(
   let objects: object[] = undefined
   if (visualStore.lastLoadedRootObjectId !== id) {
     try {
-      const res = await fetch(`http://localhost:8099/get-data/${id}`)
+      const res = await fetch(`http://localhost:49161/get-data/${id}`)
       objects = await res.json()
       visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
     } catch (error) {
