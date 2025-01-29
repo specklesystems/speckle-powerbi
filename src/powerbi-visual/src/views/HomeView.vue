@@ -14,7 +14,6 @@
       <!-- <FormButton color="subtle" @click="goToForum">Help</FormButton>
       <FormButton color="subtle" @click="goToGuide">Getting started</FormButton> -->
     </div>
-    <input ref="fileInput" type="file" style="display: none" @change="handleFileChange" />
     <!-- <CommonLoadingBar :loading="true"/> -->
   </div>
 </template>
@@ -34,39 +33,5 @@ function goToForum() {
 
 function goToGuide() {
   visualStore.host.launchUrl('https://speckle.guide/user/powerbi')
-}
-
-// Method to handle file selection
-function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (file) {
-    console.log('Selected file:', file.name)
-    console.log(file)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const fileContent = e.target?.result
-      if (fileContent) {
-        const visualStore = useVisualStore()
-        visualStore.setViewerReadyToLoad()
-        setTimeout(() => {
-          const objects = JSON.parse(fileContent as string)
-          console.log('File content:', objects)
-          visualStore.loadObjectsFromFile(objects)
-        }, 250)
-
-        // Process the file content (e.g., parse JSON, display text, etc.)
-      }
-    }
-    // Handle errors if any occur
-    reader.onerror = (e) => {
-      console.error('Error reading file:', e)
-    }
-
-    // Read the file as text (you can also use readAsDataURL, readAsBinaryString, etc.)
-    reader.readAsText(file)
-
-    // Add logic to process the file as needed
-  }
 }
 </script>
