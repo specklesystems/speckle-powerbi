@@ -69,7 +69,10 @@
   "objects": {
     "storedData": {
       "properties": {
-        "fullData": {
+        "speckleObjects": {
+          "type": { "text": true }
+        },
+        "userInfo": {
           "type": { "text": true }
         }
       }

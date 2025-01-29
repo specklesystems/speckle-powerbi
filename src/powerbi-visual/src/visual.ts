@@ -9,7 +9,7 @@ import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
-import { processMatrixView, validateMatrixView } from './utils/matrixViewUtils'
+import { processMatrixView, UserInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
 
 import TooltipHandler from './handlers/tooltipHandler'
@@ -41,7 +41,7 @@ export class Visual implements IVisual {
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
     this.isFirstViewerLoad = true
-    Tracker.loaded()
+    // Tracker.loaded()
     this.host = options.host
     this.formattingSettingsService = new FormattingSettingsService()
 
@@ -99,8 +99,12 @@ export class Visual implements IVisual {
             // read saved data from file if any
             if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
               const objectsFromFile = JSON.parse(
-                options.dataViews[0].metadata.objects.storedData?.fullData as string
+                options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
               )
+              const userInfoFromFile = JSON.parse(
+                options.dataViews[0].metadata.objects.storedData?.userInfo as string
+              ) as UserInfo
+              visualStore.setUserInfo(userInfoFromFile)
               if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }

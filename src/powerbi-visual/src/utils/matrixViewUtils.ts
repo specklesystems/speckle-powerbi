@@ -119,6 +119,11 @@ export function resetPalette() {
   previousPalette = null
 }
 
+export type UserInfo = {
+  userEmail: string
+  serverUrl: string
+}
+
 export async function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
@@ -139,11 +144,18 @@ export async function processMatrixView(
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
+  type Data = {
+    userInfo: UserInfo
+    objects: object[]
+  }
+
   let objects: object[] = undefined
   if (visualStore.lastLoadedRootObjectId !== id) {
     try {
       const res = await fetch(`http://localhost:49161/get-data/${id}`)
-      objects = await res.json()
+      const data = (await res.json()) as unknown as Data
+      objects = data.objects
+      visualStore.setUserInfo(data.userInfo)
       visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
     } catch (error) {
       // TODO: global toast notification to throw message for local server (manager)

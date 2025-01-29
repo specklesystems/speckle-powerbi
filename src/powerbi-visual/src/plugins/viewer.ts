@@ -8,6 +8,7 @@ import {
   CanonicalView
 } from '@speckle/viewer'
 import { SpeckleDataInput } from '@src/types'
+import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
 import { toRaw } from 'vue'
@@ -144,6 +145,7 @@ export class ViewerHandler {
     const stringifiedObject = JSON.stringify(objects)
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     await this.viewer.loadObject(loader, true)
+    Tracker.dataLoaded()
   }
 
   private handlePing = (message: string) => {
