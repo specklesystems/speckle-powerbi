@@ -6,7 +6,7 @@ import { ref, shallowRef } from 'vue'
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
 export type FieldInputState = {
-  viewerData: boolean
+  rootObjectId: boolean
   objectIds: boolean
   colorBy: boolean
   tooltipData: boolean
@@ -16,14 +16,16 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
-  const isViewerReadyToInitialize = ref<boolean>(false)
+  const isViewerReadyToLoad = ref<boolean>(false)
+  const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
   const fieldInputState = ref<FieldInputState>({
-    viewerData: false,
+    rootObjectId: false,
     objectIds: false,
     colorBy: false,
     tooltipData: false
   })
+  const lastLoadedRootObjectId = ref<string>()
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -37,8 +39,6 @@ export const useVisualStore = defineStore('visualStore', () => {
   // TODO: investigate about shallow ref? https://vuejs.org/api/reactivity-advanced.html#shallowref
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
-
-  const lastLoadedRootObjectId = ref<string>()
 
   /**
    * Ideally one time setup on initialization.
@@ -74,11 +74,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
-  const loadObjectsFromStore = async () => {
-    lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
-    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
+  const loadObjectsFromFile = async (objects: object[]) => {
+    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
     viewerReloadNeeded.value = false
-    await viewerEmit.value('loadObjects', dataInput.value)
+    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
+    await viewerEmit.value('loadObjects', objects)
+    objectsFromStore.value = objects
+    isViewerObjectsLoaded.value = true
   }
 
   /**
@@ -87,89 +89,67 @@ export const useVisualStore = defineStore('visualStore', () => {
    */
   const setDataInput = async (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
-    if (dataInput.value.isFromStore) {
-      await loadObjectsFromStore()
-      return
-    }
-    // here we have to check upcoming data is require viewer to force update! like a new model or some explicit force..
-    if (viewerReloadNeeded.value || !lastLoadedRootObjectId.value) {
+
+    if (viewerReloadNeeded.value) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
-      console.log(
-        `🔄 Forcing viewer re-render for new root object with ${lastLoadedRootObjectId.value} id.`
-      )
+      console.log(`🔄 Forcing viewer re-render for new root object id.`)
+      await viewerEmit.value('loadObjects', dataInput.value.objects)
       viewerReloadNeeded.value = false
-      await viewerEmit.value('loadObjects', dataInput.value)
+      writeObjectsToFile(dataInput.value.objects)
+    }
+
+    if (dataInput.value.selectedIds.length > 0) {
+      viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
     } else {
-      if (dataInput.value.selectedIds.length > 0) {
-        viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
-      } else {
-        viewerEmit.value('isolateObjects', dataInput.value.objectIds)
-      }
-      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+      viewerEmit.value('isolateObjects', dataInput.value.objectIds)
     }
+    viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
-  const setFieldInputState = (newFieldInputState: FieldInputState) => {
-    if (!newFieldInputState.viewerData || !newFieldInputState.objectIds) {
-      setInputStatus('incomplete')
-    } else {
-      setInputStatus('valid')
-    }
-
-    // Check for the changes on fields that viewer care, if user changes important fields, we have to ask for viewer reload
-    if (
-      fieldInputState.value.viewerData &&
-      fieldInputState.value.objectIds &&
-      (!newFieldInputState.viewerData || !newFieldInputState.objectIds)
-    ) {
-      viewerReloadNeeded.value = true
-    }
-
-    // if (!isViewerInitialized.value) {
-    //   if (
-    //     fieldInputState.value.viewerData &&
-    //     fieldInputState.value.objectIds &&
-    //     !fieldInputState.value.tooltipData &&
-    //     !fieldInputState.value.colorBy
-    //   ) {
-    //     viewerReloadNeeded.value = true
-    //   }
-    // }
-
-    fieldInputState.value = newFieldInputState
+  const writeObjectsToFile = (objects: object[]) => {
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'storedData',
+          properties: {
+            fullData: JSON.stringify(objects)
+          },
+          selector: null
+        }
+      ]
+    })
   }
 
-  /**
-   * Sets input status as flags `viewerReloadNeeded` if the new status is not 'valid'
-   */
-  const setInputStatus = (newValue: InputState) => {
-    console.log('❓ Data input statues changed to:', newValue)
+  const setFieldInputState = (newFieldInputState: FieldInputState) =>
+    (fieldInputState.value = newFieldInputState)
 
-    dataInputStatus.value = newValue
-    if (dataInputStatus.value !== 'valid') {
-      viewerReloadNeeded.value = true
-    }
-  }
+  const clearDataInput = () => (dataInput.value = null)
 
-  const clearDataInput = () => {
-    dataInput.value = null
-  }
+  const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
+
+  const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
   return {
     host,
     objectsFromStore,
     isViewerInitialized,
+    isViewerReadyToLoad,
+    isViewerObjectsLoaded,
     viewerReloadNeeded,
     dataInput,
     dataInputStatus,
     viewerEmit,
-    loadObjectsFromStore,
+    fieldInputState,
+    lastLoadedRootObjectId,
+    loadObjectsFromFile,
     setHost,
+    setViewerReloadNeeded,
     setObjectsFromStore,
+    writeObjectsToFile,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
-    setInputStatus,
-    clearDataInput
+    clearDataInput,
+    setViewerReadyToLoad
   }
 })

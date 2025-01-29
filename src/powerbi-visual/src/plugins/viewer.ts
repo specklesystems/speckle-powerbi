@@ -4,7 +4,8 @@ import {
   SpeckleOfflineLoader,
   FilteringState,
   IntersectionQuery,
-  CameraController
+  CameraController,
+  CanonicalView
 } from '@speckle/viewer'
 import { SpeckleDataInput } from '@src/types'
 import { createNanoEvents, Emitter } from 'nanoevents'
@@ -38,7 +39,7 @@ export interface IViewerEvents {
   forceViewerUpdate: () => void
   unIsolateObjects: () => void
   zoomExtends: () => void
-  loadObjects: (dataInput: SpeckleDataInput) => void
+  loadObjects: (objects: object[]) => void
 }
 
 export class ViewerHandler {
@@ -73,14 +74,9 @@ export class ViewerHandler {
     this.viewer.zoom(objectIds)
   }
 
-  public zoomExtends = () => {
-    this.viewer.zoom()
-  }
+  public zoomExtends = () => this.viewer.zoom()
 
-  public setView = (view: any) => {
-    // TODO
-    return
-  }
+  public setView = (view: CanonicalView) => this.viewer.setView(view)
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
@@ -143,18 +139,11 @@ export class ViewerHandler {
     }
   }
 
-  public loadObjects = async (dataInput: SpeckleDataInput) => {
-    const stringifiedObject = JSON.stringify(dataInput.objects)
+  public loadObjects = async (objects: object[]) => {
     await this.viewer.unloadAll()
+    const stringifiedObject = JSON.stringify(objects)
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     await this.viewer.loadObject(loader, true)
-    if (dataInput.selectedIds.length > 0) {
-      await this.isolateObjects(dataInput.selectedIds, false)
-    } else {
-      await this.isolateObjects(dataInput.objectIds, false)
-    }
-    await this.colorObjectsByGroup(dataInput.colorByIds)
-    this.viewer.zoom() // zoom extends
   }
 
   private handlePing = (message: string) => {

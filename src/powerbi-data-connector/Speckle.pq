@@ -41,20 +41,14 @@ shared Speckle.GetModel = Value.ReplaceType(
 );
 
 [DataSource.Kind = "Speckle"]
-shared Speckle.GetRawData = Value.ReplaceType(
-    Speckle.LoadFunction("GetRawData.pqm"),
-    type function (url as Uri.Type) as table
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetRawJSON = Value.ReplaceType(
-    Speckle.LoadFunction("GetRawJSON.pqm"),
-    type function (url as Uri.Type) as table
-);
-
-[DataSource.Kind = "Speckle"]
 shared Speckle.GetStructuredData = Value.ReplaceType(
     Speckle.LoadFunction("GetStructuredData.pqm"),
+    type function (url as Uri.Type) as table
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.SendToServer = Value.ReplaceType(
+    Speckle.LoadFunction("SendToServer.pqm"),
     type function (url as Uri.Type) as table
 );
 

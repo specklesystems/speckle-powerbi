@@ -12,14 +12,14 @@ import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
   const matrixVew = options.dataViews[0].matrix
 
-  let hasViewerData = false,
+  let hasRootObjectId = false,
     hasObjectIds = false,
     hasColorFilter = false,
     hasTooltipData = false
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasViewerData) hasViewerData = source.roles['viewerData'] != undefined
+      if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
     })
@@ -32,7 +32,7 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
   })
 
   return {
-    viewerData: hasViewerData,
+    rootObjectId: hasRootObjectId,
     objectIds: hasObjectIds,
     colorBy: hasColorFilter,
     tooltipData: hasTooltipData
@@ -110,9 +110,7 @@ function processObjectIdLevel(
   host: powerbi.extensibility.visual.IVisualHost,
   matrixView: powerbi.DataViewMatrix
 ) {
-  return parentObjectIdChild.children?.map((objectIdChild) =>
-    processObjectNode(objectIdChild, host, matrixView)
-  )
+  return processObjectNode(parentObjectIdChild, host, matrixView)
 }
 
 export let previousPalette = null
@@ -121,13 +119,13 @@ export function resetPalette() {
   previousPalette = null
 }
 
-export function processMatrixView(
+export async function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
   hasColorFilter: boolean,
   settings: SpeckleVisualSettingsModel,
   onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
-): SpeckleDataInput {
+): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
   const objectIds = [],
     selectedIds = [],
@@ -136,35 +134,36 @@ export function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView)
 
-  const objects: Record<string, string[]> = {}
+  const localMatrixView = matrixView.rows.root.children[0]
+  const id = localMatrixView.value as unknown as string
+  console.log('🗝️ Root Object Id: ', id)
+  console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
+
+  let objects: object[] = undefined
+  if (visualStore.lastLoadedRootObjectId !== id) {
+    try {
+      const res = await fetch(`http://localhost:49161/get-data/${id}`)
+      objects = await res.json()
+      visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
+    } catch (error) {
+      // TODO: global toast notification to throw message for local server (manager)
+      console.log("Objects couldn't retrieved from local server.")
+    }
+  }
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  matrixView.rows.root.children.forEach((obj) => {
+  localMatrixView.children?.forEach((obj) => {
     // otherwise there is no point to collect objects
-    if (visualStore.viewerReloadNeeded) {
-      const id = obj.children[0].value as unknown as string
-      const value = (obj.value as unknown as string).slice(9)
-
-      const existingObjectId = Object.keys(objects).find((k) => id.includes(k))
-      if (!existingObjectId) {
-        objects[id] = [value]
-      } else {
-        objects[existingObjectId].push(value)
-      }
-    }
-
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
-    processedObjectIdLevels.forEach((objRes) => {
-      objectIds.push(objRes.id)
-      onSelectionPair(objRes.id, objRes.selectionId)
-      if (objRes.shouldSelect) {
-        selectedIds.push(objRes.id)
-      }
-      objectTooltipData.set(objRes.id, {
-        selectionId: objRes.selectionId,
-        data: objRes.data
-      })
+    objectIds.push(processedObjectIdLevels.id)
+    onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+    if (processedObjectIdLevels.shouldSelect) {
+      selectedIds.push(processedObjectIdLevels.id)
+    }
+    objectTooltipData.set(processedObjectIdLevels.id, {
+      selectionId: processedObjectIdLevels.selectionId,
+      data: processedObjectIdLevels.data
     })
 
     if (hasColorFilter) {
@@ -191,38 +190,28 @@ export function processMatrixView(
           objectIds: []
         }
 
-        processObjectIdLevel(child, host, matrixView).forEach((objRes) => {
-          objectIds.push(objRes.id)
-          onSelectionPair(objRes.id, objRes.selectionId)
-          if (objRes.shouldSelect) selectedIds.push(objRes.id)
-          if (objRes.shouldColor) {
-            colorGroup.objectIds.push(objRes.id)
-          }
-          objectTooltipData.set(objRes.id, {
-            selectionId: objRes.selectionId,
-            data: objRes.data
-          })
+        const processedObjectIdLevels = processObjectIdLevel(child, host, matrixView)
+
+        objectIds.push(processedObjectIdLevels.id)
+        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+        if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+        if (processedObjectIdLevels.shouldColor) {
+          colorGroup.objectIds.push(processedObjectIdLevels.id)
+        }
+        objectTooltipData.set(processedObjectIdLevels.id, {
+          selectionId: processedObjectIdLevels.selectionId,
+          data: processedObjectIdLevels.data
         })
+
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
     }
   })
-  const jsonObjects: object[] = []
-  try {
-    // otherwise there is no point to join collected objects
-    if (visualStore.viewerReloadNeeded) {
-      for (const objs of Object.values(objects)) {
-        jsonObjects.push(JSON.parse(objs.join('')))
-      }
-    }
-  } catch (error) {
-    console.error(error)
-  }
 
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objects: jsonObjects,
+    objects,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,

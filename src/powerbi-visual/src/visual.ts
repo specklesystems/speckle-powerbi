@@ -67,7 +67,7 @@ export class Visual implements IVisual {
     this.selectionHandler.clear()
   }
 
-  public update(options: VisualUpdateOptions) {
+  public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
@@ -79,21 +79,13 @@ export class Visual implements IVisual {
     console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
-      const matrixVew = options.dataViews[0].matrix
-      if (!matrixVew) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
+      const matrixView = options.dataViews[0].matrix
+      if (!matrixView) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
-
-      // read saved data from file if any
-      if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
-        const objectsFromStore = JSON.parse(
-          options.dataViews[0].metadata.objects.storedData?.fullData as string
-        )
-        visualStore.setObjectsFromStore(objectsFromStore)
-        console.log(`${objectsFromStore.length} objects retrieved from persistent properties!`)
-      }
+      console.log('❓Field inputs', validationResult)
 
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
@@ -104,8 +96,18 @@ export class Visual implements IVisual {
           return
         case powerbi.VisualUpdateType.Data:
           try {
-            const input = processMatrixView(
-              matrixVew,
+            // read saved data from file if any
+            if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
+              const objectsFromFile = JSON.parse(
+                options.dataViews[0].metadata.objects.storedData?.fullData as string
+              )
+              if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
+                this.tryReadFromFile(objectsFromFile, visualStore)
+              }
+            }
+
+            const input = await processMatrixView(
+              matrixView,
               this.host,
               validationResult.colorBy,
               this.formattingSettings,
@@ -128,8 +130,12 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-
-      visualStore.setInputStatus('incomplete')
+      visualStore.setFieldInputState({
+        rootObjectId: false,
+        objectIds: false,
+        colorBy: false,
+        tooltipData: false
+      })
       return
     }
   }
@@ -143,31 +149,9 @@ export class Visual implements IVisual {
 
   private updateViewer(input: SpeckleDataInput) {
     const visualStore = useVisualStore()
-    console.log('loadViewerFromStore update', input)
 
     this.tooltipHandler.setup(input.objectTooltipData)
-
-    if (this.isFirstViewerLoad && visualStore.objectsFromStore) {
-      // `dev happiness level 0/10 < user happiness level 10/10`
-      this.isFirstViewerLoad = false
-      input.objects = visualStore.objectsFromStore
-      input.isFromStore = true
-    }
-
-    // if (!visualStore.isViewerInitialized && visualStore.viewerReloadNeeded) {
-    //   this.host.persistProperties({
-    //     merge: [
-    //       {
-    //         objectName: 'storedData',
-    //         properties: {
-    //           fullData: JSON.stringify(input.objects)
-    //         },
-    //         selector: null
-    //       }
-    //     ]
-    //   })
-    // }
-    // visualStore.setDataInput(input)
+    visualStore.setViewerReadyToLoad()
 
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
       visualStore.setDataInput(input)
@@ -175,19 +159,18 @@ export class Visual implements IVisual {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
         visualStore.setDataInput(input)
-        this.host.persistProperties({
-          merge: [
-            {
-              objectName: 'storedData',
-              properties: {
-                fullData: JSON.stringify(input.objects)
-              },
-              selector: null
-            }
-          ]
-        })
+        visualStore.writeObjectsToFile(input.objects)
       }, 250)
     }
+  }
+
+  private tryReadFromFile(objectsFromFile: object[], visualStore) {
+    visualStore.setViewerReadyToLoad()
+    setTimeout(() => {
+      visualStore.loadObjectsFromFile(objectsFromFile)
+      this.isFirstViewerLoad = false
+    }, 250)
+    console.log(`${objectsFromFile.length} objects retrieved from persistent properties!`)
   }
 
   public async destroy() {

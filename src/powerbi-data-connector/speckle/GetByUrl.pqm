@@ -1,9 +1,8 @@
-// function for getting data by URL with navigation
 (url as text) as table =>
     let
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
-        GetRawData = Extension.LoadFunction("GetRawData.pqm"),
+        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
 
         // the logic for importing functions from other files
@@ -23,20 +22,28 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        // get model info to access the model name
+        // get model name
         modelInfo = GetModel(url),
         modelName = modelInfo[modelName],
+
+        // get sending status
+        SendStatus = SendToServer(url),
         
-        // create navigation table from raw and structured data
+        // get structured data
+        StructuredData = GetStructuredData(url),
+
+        // create navigation table
         source = #table(
             {"Name", "Data"},
             {
-                { "Structured Data - " & modelName, GetStructuredData(url)},
-                { "Viewer Data - " & modelName, GetRawData(url)}
+                { 
+                    "Structured Data - " & modelName & SendStatus, 
+                    StructuredData
+                }
             }
         ),
         
-        // add navigation table metadata directly
+        // add navigation table metadata
         tableType = Value.Type(source),
         newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
             NavigationTable.NameColumn = "Name",

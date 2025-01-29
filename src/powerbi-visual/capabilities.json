@@ -1,9 +1,9 @@
 {
   "dataRoles": [
     {
-      "displayName": "Viewer Data",
+      "displayName": "Root Object ID",
       "kind": "Grouping",
-      "name": "viewerData"
+      "name": "rootObjectId"
     },
     {
       "displayName": "Object IDs",
@@ -33,7 +33,7 @@
           "select": [
             {
               "bind": {
-                "to": "viewerData"
+                "to": "rootObjectId"
               }
             },
             {
@@ -60,8 +60,8 @@
       },
       "conditions": [
         {
-          "viewerData": { "max": 1 },
-          "objectIds": { "max": 1 }
+          "objectIds": { "max": 1 },
+          "rootObjectId": { "max": 1 }
         }
       ]
     }
@@ -208,7 +208,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": ["https://analytics.speckle.systems", "*"]
+      "parameters": ["https://analytics.speckle.systems", "http://localhost:49161", "*"]
     },
     {
       "essential": false,

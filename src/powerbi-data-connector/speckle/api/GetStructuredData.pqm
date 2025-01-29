@@ -24,6 +24,7 @@
         // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
+        rootId = modelInfo[rootObjectId],
         modelInfo = GetModel(url),
         
         // get API key if available
@@ -39,7 +40,7 @@
                 ManualStatusHandling = {400, 401, 403}
             ]
         ),
-        
+
         // parse the JSON response
         JsonResponse = Json.Document(Source),
         
@@ -69,6 +70,7 @@
                     [
                         #"Object IDs" = record[id], // Object IDs
                         #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Root Object ID" = rootId,
                         data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
                     ]
             )

@@ -1,8 +1,9 @@
 ﻿// use this file to write queries to test your data connector
 let
-    result = Speckle.GetByUrl(
+    result = Speckle.SendToServer(
 
-        "https://app.speckle.systems/projects/e9141d302e/models/482749356d"
+        "https://latest.speckle.systems/projects/126cd4b7bb/models/85c44d39c6"
     )
+
 in
     result
