@@ -78,7 +78,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
-    await viewerEmit.value('loadObjectsFromJSON', objects)
+    await viewerEmit.value('loadObjects', objects)
     objectsFromStore.value = objects
     isViewerObjectsLoaded.value = true
   }
@@ -93,7 +93,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     if (viewerReloadNeeded.value) {
       lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
-      await viewerEmit.value('loadObjectsFromJSON', dataInput.value.objects)
+      await viewerEmit.value('loadObjects', dataInput.value.objects)
       viewerReloadNeeded.value = false
       writeObjectsToFile(dataInput.value.objects)
     }

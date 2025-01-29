@@ -39,8 +39,7 @@ export interface IViewerEvents {
   forceViewerUpdate: () => void
   unIsolateObjects: () => void
   zoomExtends: () => void
-  loadObjects: (dataInput: SpeckleDataInput) => void
-  loadObjectsFromJSON: (objects: object[]) => void
+  loadObjects: (objects: object[]) => void
 }
 
 export class ViewerHandler {
@@ -60,7 +59,6 @@ export class ViewerHandler {
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
-    this.emitter.on('loadObjectsFromJSON', this.loadObjectsFromJSON)
   }
 
   async init(parent: HTMLElement) {
@@ -141,25 +139,11 @@ export class ViewerHandler {
     }
   }
 
-  public loadObjectsFromJSON = async (objects: object[]) => {
+  public loadObjects = async (objects: object[]) => {
     await this.viewer.unloadAll()
     const stringifiedObject = JSON.stringify(objects)
     const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
     await this.viewer.loadObject(loader, true)
-  }
-
-  public loadObjects = async (dataInput: SpeckleDataInput) => {
-    const stringifiedObject = JSON.stringify(dataInput.objects)
-    await this.viewer.unloadAll()
-    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
-    await this.viewer.loadObject(loader, true)
-    if (dataInput.selectedIds.length > 0) {
-      await this.isolateObjects(dataInput.selectedIds, false)
-    } else {
-      await this.isolateObjects(dataInput.objectIds, false)
-    }
-    await this.colorObjectsByGroup(dataInput.colorByIds)
-    this.viewer.zoom() // zoom extends
   }
 
   private handlePing = (message: string) => {
