@@ -1,5 +1,6 @@
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
+import { UserInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 
@@ -19,6 +20,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isViewerReadyToLoad = ref<boolean>(false)
   const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
+  const userInfo = ref<UserInfo>(undefined)
   const fieldInputState = ref<FieldInputState>({
     rootObjectId: false,
     objectIds: false,
@@ -47,6 +49,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setHost = (hostToSet: powerbi.extensibility.visual.IVisualHost) => {
     host.value = hostToSet
   }
+
+  const setUserInfo = (newUserInfo: UserInfo) => (userInfo.value = newUserInfo)
 
   /**
    * Ideally one time set when onMounted of `ViewerWrapper.vue` component
@@ -112,7 +116,8 @@ export const useVisualStore = defineStore('visualStore', () => {
         {
           objectName: 'storedData',
           properties: {
-            fullData: JSON.stringify(objects)
+            speckleObjects: JSON.stringify(objects),
+            userInfo: JSON.stringify(userInfo.value)
           },
           selector: null
         }
@@ -131,6 +136,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
+    userInfo,
     objectsFromStore,
     isViewerInitialized,
     isViewerReadyToLoad,
@@ -143,6 +149,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     lastLoadedRootObjectId,
     loadObjectsFromFile,
     setHost,
+    setUserInfo,
     setViewerReloadNeeded,
     setObjectsFromStore,
     writeObjectsToFile,

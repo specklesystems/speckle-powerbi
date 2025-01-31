@@ -3,6 +3,7 @@
         // import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -26,6 +27,9 @@
         modelName = modelInfo[modelName],
         rootId = modelInfo[rootObjectId],
         parsedUrl = Parser(url),
+        userInfo = GetUser(url),
+        userEmail = userInfo[UserEmail],
+        serverUrl = parsedUrl[baseUrl],
         
         // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
@@ -40,10 +44,16 @@
                 ManualStatusHandling = {400, 401, 403}
             ]
         ),
-        
+
         // parse the JSON response
         JsonResponse = Json.Document(Source),
-        JsonText = Json.FromValue(JsonResponse),
+        JsonText = Json.FromValue([
+            userInfo = [
+                userEmail = userEmail,
+                serverUrl = serverUrl
+            ],
+            objects = JsonResponse
+        ]),
         
         // Send to localhost
         SendOperation = Web.Contents(
