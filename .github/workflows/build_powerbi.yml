@@ -102,7 +102,7 @@ jobs:
           path: artifacts/
       - name: pull powerbi-service
         run: |
-          curl --location --output powerbi-service.zip https://releases.speckle.dev/services/powerbi-service/powerbi-service-0.3.0.zip # bump this version as needed
+          curl --location --output powerbi-service.zip https://releases.speckle.dev/services/powerbi-service/powerbi-service-0.4.0.zip # bump this version as needed
           unzip powerbi-service.zip -d artifacts
 
       - name: Zip artifacts
