@@ -32,26 +32,8 @@
         // get structured data
         StructuredData = GetStructuredData(url),
 
-        // create navigation table
-        source = #table(
-            {"Name", "Data"},
-            {
-                { 
-                    "Structured Data - " & modelName & SendStatus, 
-                    StructuredData
-                }
-            }
-        ),
-        
-        // add navigation table metadata
-        tableType = Value.Type(source),
-        newTableType = Type.AddTableKey(tableType, {"Name"}, true) meta [
-            NavigationTable.NameColumn = "Name",
-            NavigationTable.DataColumn = "Data",
-            Documentation.Name = "Speckle Model"
-        ],
-        
-        // convert to navigation table
-        navTable = Value.ReplaceType(source, newTableType)
+        // rename column based on send status
+        NewColumnName = if SendStatus = "-" then "Viewer Data ID +" else "Viewer Data ID ?",
+        Result = Table.RenameColumns(StructuredData, {{"Viewer Data ID", NewColumnName}})
     in
-        navTable
+        Result
