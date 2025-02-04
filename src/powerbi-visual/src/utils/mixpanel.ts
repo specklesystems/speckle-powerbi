@@ -65,6 +65,6 @@ export class Tracker {
   }
 
   public static dataLoaded() {
-    return this.track('PowerBI Action')
+    return this.track('Receive')
   }
 }
