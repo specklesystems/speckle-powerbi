@@ -36,7 +36,7 @@
         
         // check if data already exists
         CheckOperation = Web.Contents(
-            "http://127.0.0.1:49161/check",
+            "http://127.0.0.1:49161/check-data-exists",
             [
                 Headers = [
                     #"Content-Type" = "application/json"
