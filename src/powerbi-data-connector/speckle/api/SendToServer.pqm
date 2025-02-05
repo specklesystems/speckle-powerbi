@@ -36,7 +36,7 @@
         
         // check if data already exists
         CheckOperation = Web.Contents(
-            "http://127.0.0.1:49161/check-data-exists",
+            Text.Combine({"http://127.0.0.1:49161/check-data-exists", rootId}, "/"),
             [
                 Headers = [
                     #"Content-Type" = "application/json"
@@ -44,8 +44,8 @@
                 ManualStatusHandling = {400, 401, 403, 404, 500}
             ]
         ),
-        CheckResponse = Json.Document(CheckOperation),
-        DataExists = CheckResponse[exists],
+        CheckResponse = Text.FromBinary(CheckOperation),
+        DataExists = if CheckResponse = "true" then true else false,
         
         // return "-" if data exists, otherwise proceed with sending
         Result = if DataExists then "-" else
