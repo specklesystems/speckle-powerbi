@@ -73,7 +73,7 @@
                 
                 // send to server
                 SendOperation = Web.Contents(
-                    "http://127.0.0.1:49161/send-data",
+                    Text.Combine({"http://127.0.0.1:49161/send-data", rootId}, "/"),
                     [
                         Headers = [
                             #"Content-Type" = "application/json",
