@@ -4,6 +4,7 @@
         // import the parser function and getModel
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
+        
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -24,15 +25,22 @@
         // get parsed URL components and model info
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
-        rootId = modelInfo[rootObjectId],
         modelInfo = GetModel(url),
+        rootId = modelInfo[rootObjectId],
+        versionId = modelInfo[versionId],
         
         // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
         // make the API request to objects endpoint
+        // includes version ID in the path if it exists
         Source = Web.Contents(
-            Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
+            Text.Combine({
+                server, 
+                "objects", 
+                parsedUrl[projectId],
+                modelInfo[rootObjectId]
+            }, "/"),
             [
                 Headers = [
                     #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
@@ -57,6 +65,7 @@
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
 
         // create the final table with cleaned data records
+        // includes version ID in the output
         FinalTable = Table.FromRecords(
             List.Transform(
                 TableFromList[Column1],
@@ -68,16 +77,15 @@
                     )
                 in
                     [
-                        #"Object IDs" = record[id], // Object IDs
-                        #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Object IDs" = record[id],
+                        #"Speckle Type" = record[speckle_type],
                         #"Viewer Data ID" = rootId,
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
+                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
                     ]
             )
         ),
         
-        // filter out rows where applicationId is null
-        // we can discuss this further
+        // filter out rows where applicationId is null -- to be discussed
         FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
     in
         FilteredTable

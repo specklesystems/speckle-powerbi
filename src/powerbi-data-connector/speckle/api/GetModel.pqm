@@ -26,30 +26,54 @@
         server = parsedUrl[baseUrl],
         projectId = parsedUrl[projectId],
         modelId = parsedUrl[modelId],
+        versionId = parsedUrl[versionId],
         
         // get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
         // graphql query to get model info including root object id
-        query = "query ($projectId: String!, $modelId: String!) {
-            project(id: $projectId) {
-                model(id: $modelId) {
-                    id
-                    name
-                    versions {
-                        items {
+        // includes specific version if provided
+        query = if versionId = null then
+            "query ($projectId: String!, $modelId: String!) {
+                project(id: $projectId) {
+                    model(id: $modelId) {
+                        id
+                        name
+                        versions {
+                            items {
+                                id
+                                referencedObject
+                            }
+                        }
+                    }
+                }
+            }"
+        else 
+            "query ($projectId: String!, $modelId: String!, $versionId: String!) {
+                project(id: $projectId) {
+                    model(id: $modelId) {
+                        id
+                        name
+                        version(id: $versionId) {
                             id
                             referencedObject
                         }
                     }
                 }
-            }
-        }",
+            }",
         
-        variables = [
-            projectId = projectId,
-            modelId = modelId
-        ],
+        // include versionId in variables if it exists
+        variables = if versionId = null then
+            [
+                projectId = projectId,
+                modelId = modelId
+            ]
+        else
+            [
+                projectId = projectId,
+                modelId = modelId,
+                versionId = versionId
+            ],
         
         // make the api request
         Source = Web.Contents(
@@ -71,17 +95,24 @@
         // parse the response
         JsonResponse = Json.Document(Source),
         
-        // extract needed information
+        // extract needed information, now handling both version-specific and latest version cases
         result = if Record.HasFields(JsonResponse, {"errors"}) then
             error JsonResponse[errors]{0}[message]
         else if JsonResponse[data]?[project]?[model] = null then
             error "Model not found or access denied. Please check your authentication and model ID."
-        else 
+        else if versionId = null then
             [
                 modelId = JsonResponse[data][project][model][id],
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][versions][items]{0}[id],
                 rootObjectId = JsonResponse[data][project][model][versions][items]{0}[referencedObject]
+            ]
+        else
+            [
+                modelId = JsonResponse[data][project][model][id],
+                modelName = JsonResponse[data][project][model][name],
+                versionId = JsonResponse[data][project][model][version][id],
+                rootObjectId = JsonResponse[data][project][model][version][referencedObject]
             ]
     in
         result
