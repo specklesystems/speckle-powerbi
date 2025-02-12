@@ -25,15 +25,12 @@
         // get model name
         modelInfo = GetModel(url),
         modelName = modelInfo[modelName],
-
-        // get sending status
-        SendStatus = SendToServer(url),
         
         // get structured data
         StructuredData = GetStructuredData(url),
 
         // rename column based on send status
-        NewColumnName = if SendStatus = "-" then "Viewer Data ID +" else "Viewer Data ID ?",
+        NewColumnName = "Viewer Data ID",
         Result = Table.RenameColumns(StructuredData, {{"Viewer Data ID", NewColumnName}})
     in
         Result

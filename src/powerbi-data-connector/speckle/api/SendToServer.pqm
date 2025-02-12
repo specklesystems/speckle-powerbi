@@ -1,11 +1,9 @@
-(url as text) as text =>
+(url as text) as table =>
     let
-        // import required functions
+        // Import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
-        GetUser = Extension.LoadFunction("GetUser.pqm"),
-
-        // the logic for importing functions from other files
+         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName),
@@ -21,73 +19,37 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-
-        // get model info and parsed URL
-        modelInfo = GetModel(url),
-        modelName = modelInfo[modelName],
-        rootId = modelInfo[rootObjectId],
-        parsedUrl = Parser(url),
-        userInfo = GetUser(url),
-        userEmail = userInfo[UserEmail],
-        serverUrl = parsedUrl[baseUrl],
         
-        // get API key if available
+        // Get model info and parsed URL
+        modelInfo = GetModel(url),
+        parsedUrl = Parser(url),
+        
+        // Get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
-        // check if data already exists
-        CheckOperation = Web.Contents(
-            Text.Combine({"http://127.0.0.1:49161/check-data-exists", rootId}, "/"),
+        // Prepare request data
+        requestData = Json.FromValue([
+            Url = url,
+            ProjectId = parsedUrl[projectId],
+            ObjectId = modelInfo[rootObjectId],
+            token = apiKey
+        ]),
+        
+        // Send request to local server
+        Response = Web.Contents(
+            "http://127.0.0.1:49161/download",
             [
                 Headers = [
-                    #"Content-Type" = "application/json"
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST"
                 ],
+                Content = requestData,
                 ManualStatusHandling = {400, 401, 403, 404, 500}
             ]
         ),
-        CheckResponse = Text.FromBinary(CheckOperation),
-        DataExists = if CheckResponse = "true" then true else false,
         
-        // return "-" if data exists, otherwise proceed with sending
-        Result = if DataExists then "-" else
-            let
-                // make the API request to objects endpoint
-                Source = Web.Contents(
-                    Text.Combine({parsedUrl[baseUrl], "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
-                    [
-                        Headers = [
-                            #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
-                        ],
-                        ManualStatusHandling = {400, 401, 403}
-                    ]
-                ),
-
-                // parse the JSON response
-                JsonResponse = Json.Document(Source),
-                JsonText = Json.FromValue([
-                    userInfo = [
-                        userEmail = userEmail,
-                        serverUrl = serverUrl
-                    ],
-                    objects = JsonResponse
-                ]),
-                
-                // send to server
-                SendOperation = Web.Contents(
-                    Text.Combine({"http://127.0.0.1:49161/send-data", rootId}, "/"),
-                    [
-                        Headers = [
-                            #"Content-Type" = "application/json",
-                            #"Method" = "POST"
-                        ],
-                        Content = JsonText,
-                        ManualStatusHandling = {400, 401, 403, 404, 500}
-                    ]
-                ),
-
-                SendStatus = if Value.Metadata(SendOperation)[Response.Status] = 200 
-                    then "-" 
-                    else "?"
-            in
-                SendStatus
+        // Parse response and convert to table
+        JsonResponse = Json.Document(Response),
+        Result = Table.FromRecords(JsonResponse)
     in
         Result
