@@ -15,6 +15,7 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
   const isViewerReadyToLoad = ref<boolean>(false)
@@ -71,6 +72,13 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setObjectsFromStore = (newObjectsFromStore: object[]) => {
     objectsFromStore.value = newObjectsFromStore
+  }
+
+  const setLoadingProgress = (summary: string, progress: number) => {
+    loadingProgress.value = { summary, progress }
+    if (loadingProgress.value.progress >= 1) {
+      loadingProgress.value = undefined
+    }
   }
 
   // MAKE TS HAPPY
@@ -147,6 +155,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit,
     fieldInputState,
     lastLoadedRootObjectId,
+    loadingProgress,
     loadObjectsFromFile,
     setHost,
     setUserInfo,
@@ -157,6 +166,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setDataInput,
     setFieldInputState,
     clearDataInput,
-    setViewerReadyToLoad
+    setViewerReadyToLoad,
+    setLoadingProgress
   }
 })
