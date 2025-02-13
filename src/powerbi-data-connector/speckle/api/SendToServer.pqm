@@ -1,4 +1,4 @@
-(url as text) as table =>
+(url as text) as list =>
     let
         // Import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
@@ -48,8 +48,8 @@
             ]
         ),
         
-        // Parse response and convert to table
-        JsonResponse = Json.Document(Response),
-        Result = Table.FromRecords(JsonResponse)
+        // Parse response
+        JsonResponse = Json.Document(Response)
+
     in
-        Result
+        JsonResponse

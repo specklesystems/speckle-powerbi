@@ -25,30 +25,44 @@
         // get model info and server data
         modelInfo = GetModel(url),
         rootId = modelInfo[rootObjectId],
-        serverData = SendToServer(url),
         
-        // Convert table to list of records
-        DataList = Table.ToRecords(serverData),
+        // Get the data from SendToServer - this is already a response from the service
+        JsonResponse = SendToServer(url),
         
-        // Transform the server data into required format
-        TransformedTable = Table.FromRecords(
+        // convert list to table with all columns expanded
+        TableFromList = Table.FromList(
+            JsonResponse, 
+            Splitter.SplitByNothing(), 
+            null, 
+            null, 
+            ExtraValues.Error
+        ),
+
+        // fields to remove from data record
+        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
+
+        // create the final table with cleaned data records
+        FinalTable = Table.FromRecords(
             List.Transform(
-                DataList,
+                TableFromList[Column1],
                 each let
-                    // Remove the fields we want separately
-                    dataFields = Record.RemoveFields(
-                        _,
-                        {"id", "speckle_type", "displayValue"}
+                    record = _,
+                    fieldsToRemoveForThisRecord = List.Select(
+                        FieldsToRemove,
+                        each Record.HasFields(record, {_})
                     )
                 in
                     [
-                        #"Object IDs" = _[id],
-                        #"Speckle Type" = _[speckle_type],
+                        #"Object IDs" = record[id], // Object IDs
+                        #"Speckle Type" = record[speckle_type], // Speckle Type
                         #"Viewer Data ID" = rootId,
-                        data = dataFields
+                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
                     ]
             )
-        )
-
+        ),
+        
+        // filter out rows where applicationId is null
+        // we can discuss this further
+        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
     in
-        TransformedTable
+        FilteredTable
