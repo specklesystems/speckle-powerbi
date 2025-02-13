@@ -1,9 +1,10 @@
 // function for getting structured object data
 (url as text) as table =>
     let
-        // import the parser function and getModel
-        Parser = Extension.LoadFunction("Parser.pqm"),
+        // import the required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
+        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
+        
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -21,28 +22,12 @@
                             Detail = [File = fileName, Error = e]
                         ],
         
-        // get parsed URL components and model info
-        parsedUrl = Parser(url),
-        server = parsedUrl[baseUrl],
-        rootId = modelInfo[rootObjectId],
+        // get model info and server data
         modelInfo = GetModel(url),
+        rootId = modelInfo[rootObjectId],
         
-        // get API key if available
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
-        
-        // make the API request to objects endpoint
-        Source = Web.Contents(
-            Text.Combine({server, "objects", parsedUrl[projectId], modelInfo[rootObjectId]}, "/"),
-            [
-                Headers = [
-                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
-                ],
-                ManualStatusHandling = {400, 401, 403}
-            ]
-        ),
-
-        // parse the JSON response
-        JsonResponse = Json.Document(Source),
+        // Get the data from SendToServer - this is already a response from the service
+        JsonResponse = SendToServer(url),
         
         // convert list to table with all columns expanded
         TableFromList = Table.FromList(
