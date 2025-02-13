@@ -97,14 +97,23 @@ export class Visual implements IVisual {
         case powerbi.VisualUpdateType.Data:
           try {
             // read saved data from file if any
-            if (this.isFirstViewerLoad && options.dataViews[0].metadata.objects) {
+            if (
+              !visualStore.isViewerObjectsLoaded &&
+              this.isFirstViewerLoad &&
+              options.dataViews[0].metadata.objects
+            ) {
               const objectsFromFile = JSON.parse(
                 options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
               )
-              const userInfoFromFile = JSON.parse(
-                options.dataViews[0].metadata.objects.storedData?.userInfo as string
-              ) as UserInfo
-              visualStore.setUserInfo(userInfoFromFile)
+              try {
+                const userInfoFromFile = JSON.parse(
+                  options.dataViews[0].metadata.objects.storedData?.userInfo as string
+                ) as UserInfo
+                visualStore.setUserInfo(userInfoFromFile)
+              } catch (error) {
+                console.log(error)
+                console.log('missing mixpanel info')
+              }
               if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }

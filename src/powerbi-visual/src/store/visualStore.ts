@@ -107,6 +107,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
       await viewerEmit.value('loadObjects', dataInput.value.objects)
       viewerReloadNeeded.value = false
+      isViewerObjectsLoaded.value = true
       writeObjectsToFile(dataInput.value.objects)
     }
 

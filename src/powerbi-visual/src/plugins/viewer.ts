@@ -7,6 +7,7 @@ import {
   CameraController,
   CanonicalView
 } from '@speckle/viewer'
+import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { SpeckleDataInput } from '@src/types'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
@@ -142,8 +143,9 @@ export class ViewerHandler {
 
   public loadObjects = async (objects: object[]) => {
     await this.viewer.unloadAll()
-    const stringifiedObject = JSON.stringify(objects)
-    const loader = new SpeckleOfflineLoader(this.viewer.getWorldTree(), stringifiedObject)
+    // const stringifiedObject = JSON.stringify(objects)
+    //@ts-ignore
+    const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
     await this.viewer.loadObject(loader, true)
     Tracker.dataLoaded()
   }

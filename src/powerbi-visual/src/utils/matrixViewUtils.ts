@@ -258,13 +258,37 @@ async function fetchStreamedData(id) {
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    const objects = []
     let buffer = ''
 
     console.log('Streaming started...')
     for await (const chunk of readStream(reader)) {
+      // chucks.push(chuck)
       buffer += decoder.decode(chunk, { stream: true })
+
+      let boundary
+      while ((boundary = buffer.indexOf('\n')) !== -1) {
+        const jsonString = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 1)
+
+        try {
+          const obj = JSON.parse(jsonString)
+          objects.push(obj)
+
+          // console.log('Received object:', jsonObject)
+        } catch (e) {
+          console.error('Invalid JSON chunk:', jsonString)
+        }
+      }
     }
-    return JSON.parse(buffer)
+    try {
+      const obj = JSON.parse(buffer)
+      objects.push(obj)
+      // console.log('Received object:', jsonObject)
+    } catch (e) {
+      console.error('Invalid JSON chunk:', buffer)
+    }
+    return objects
   } catch (error) {
     console.log(error)
     console.log("Objects couldn't retrieved from local server.")
