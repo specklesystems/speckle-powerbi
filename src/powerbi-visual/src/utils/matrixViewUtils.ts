@@ -175,8 +175,6 @@ async function fetchDataInBatches(id, batchSize = 10) {
 
     for (const batch of batches) {
       count++
-      // console.log(`Fetching batch: ${batch.join(', ')}`)
-
       const batchPromises = batch.map(async (childId) => {
         pause.tick(100)
         if (pause.needsWait) {
@@ -217,16 +215,13 @@ async function fetchOneByOne(id: string) {
     if (!rootResponse.ok) {
       throw new Error(`HTTP error! Status: ${rootResponse.status} for root object ${id}`)
     }
-    let loadedObject = 1
     const childIds = Object.keys(rootObject.__closure)
     const totalObjectCount = childIds.length + 1
     console.log(`Total object count: ${totalObjectCount}`)
 
     const childrenObjects = []
     for (const childId of childIds) {
-      // console.log(`Fetching child: ${childId}`)
       const response = await fetch(`http://localhost:49161/get-object/${childId}`)
-      loadedObject++
       if (!response.ok) {
         console.warn(`Failed to fetch child ${childId}, skipping...`)
         continue
@@ -275,57 +270,6 @@ async function fetchStreamedData(id) {
     console.log("Objects couldn't retrieved from local server.")
   } finally {
     console.log('Streaming finished!')
-  }
-}
-
-async function fetchStreamedData2(id) {
-  const visualStore = useVisualStore()
-  try {
-    const totalObjectCount = (await getTotalChildrenCount(id)) + 1
-    const response = await fetch(`http://localhost:49161/get-objects/${id}`)
-
-    if (!response.body) {
-      console.error('No response body')
-      return
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let objects = []
-    const count = 0
-    const progress = 0
-
-    console.log('Streaming started...')
-
-    for await (const chunk of readStream(reader)) {
-      buffer += decoder.decode(chunk, { stream: true })
-
-      // try {
-      //   const parsed = JSON.parse(buffer)
-      //   count++
-      //   if (Array.isArray(parsed)) {
-      //     objects = parsed
-      //   } else {
-      //     objects.push(parsed)
-      //   }
-      //   buffer = ''
-      //   const newProgress = parseFloat((count / totalObjectCount).toFixed(2))
-      //   if (newProgress !== progress) {
-      //     visualStore.setLoadingProgress('Loading', newProgress)
-      //     progress = newProgress
-      //   }
-      // } catch (err) {
-      //   console.log(err)
-      // }
-    }
-    const parsed = JSON.parse(buffer)
-    objects = parsed
-    console.log('Streaming finished!')
-    return objects
-  } catch (error) {
-    console.log(error)
-    console.log("Objects couldn't retrieved from local server.")
   }
 }
 
