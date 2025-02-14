@@ -41,11 +41,11 @@ jobs:
 
       - name: Create PQX file
         run: |
-          .\tools\MakePQX\MakePQX.exe pack \
-            --mez src/powerbi-data-connector/bin/Speckle.mez  \
-            --target src/powerbi-data-connector/bin/Speckle.pqx \
-            --certificate ${{env.CertFile}} \
-            --password ${{secrets.SELF_CERT_PASSWORD}} \
+          .\tools\MakePQX\MakePQX.exe pack ^
+            --mez src/powerbi-data-connector/bin/Speckle.mez ^
+            --target src/powerbi-data-connector/bin/Speckle.pqx ^
+            --certificate ${{env.CertFile}} ^
+            --password ${{secrets.SELF_CERT_PASSWORD}} ^
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
