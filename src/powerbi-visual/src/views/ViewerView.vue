@@ -21,6 +21,26 @@
       field is needed for interactivity.
     </div>
   </div>
+
+  <div
+    v-if="visualStore.loadingProgress"
+    class="absolute top-1/2 left-1/2 w-1/2 -translate-x-1/2 z-20 text-center text-sm"
+  >
+    <!-- Progress Bar -->
+    <div
+      v-if="visualStore.loadingProgress"
+      class="absolute left-1/2 -translate-x-1/2 w-1/2 bg-gray-300 rounded-full h-3 shadow-lg"
+    >
+      <div
+        class="bg-blue-600 h-full rounded-full transition-all"
+        :style="{ width: visualStore.loadingProgress.progress * 100 + '%' }"
+      ></div>
+    </div>
+    <div class="mt-4 text-blue-600">
+      {{ Math.round(visualStore.loadingProgress.progress * 100) + ' %' }}
+    </div>
+  </div>
+
   <viewer-wrapper id="speckle-3d-view" class="h-full w-full"></viewer-wrapper>
 </template>
 

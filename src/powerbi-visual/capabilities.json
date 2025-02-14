@@ -1,7 +1,7 @@
 {
   "dataRoles": [
     {
-      "displayName": "Root Object ID",
+      "displayName": "Viewer Data ID",
       "kind": "Grouping",
       "name": "rootObjectId"
     },

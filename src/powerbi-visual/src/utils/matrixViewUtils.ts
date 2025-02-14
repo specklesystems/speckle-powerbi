@@ -8,6 +8,27 @@ import {
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
+import { delay } from 'lodash'
+
+export class AsyncPause {
+  private lastPauseTime = 0
+  public needsWait = false
+
+  public tick(maxDelta: number) {
+    const now = performance.now()
+    const delta = now - this.lastPauseTime
+    // console.log('Delta -> ', delta)
+    if (delta > maxDelta) {
+      this.needsWait = true
+    }
+  }
+
+  public async wait(waitTime: number) {
+    this.lastPauseTime = performance.now()
+    await new Promise((resolve) => setTimeout(resolve, waitTime))
+    this.needsWait = false
+  }
+}
 
 export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
   const matrixVew = options.dataViews[0].matrix
@@ -124,6 +145,166 @@ export type UserInfo = {
   serverUrl: string
 }
 
+function chunkArray(array: string[], size: number) {
+  return Array.from({ length: Math.ceil(array.length / size) }, (_, i) =>
+    array.slice(i * size, i * size + size)
+  )
+}
+
+async function fetchDataInBatches(id, batchSize = 10) {
+  try {
+    const visualStore = useVisualStore()
+    // Fetch the root object
+    const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+    if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
+
+    const rootObject = await rootResponse.json()
+
+    if (!rootObject.__closure) throw new Error('Missing `__closure` in root object')
+
+    visualStore.setLoadingProgress('Loading', 0)
+
+    const childIds = Object.keys(rootObject.__closure)
+    const childrenObjects = []
+
+    const batches = chunkArray(childIds, batchSize)
+    let count = 0
+    let progress = 0
+
+    const pause = new AsyncPause()
+
+    for (const batch of batches) {
+      count++
+      const batchPromises = batch.map(async (childId) => {
+        pause.tick(100)
+        if (pause.needsWait) {
+          await pause.wait(50)
+        }
+        const response = await fetch(`http://localhost:49161/get-object/${childId}`)
+
+        if (!response.ok) {
+          console.warn(`Failed to fetch child ${childId}, skipping...`)
+          return null
+        }
+
+        return response.json()
+      })
+
+      const results = await Promise.all(batchPromises)
+      const newProgress = parseFloat((count / batches.length).toFixed(2))
+      if (newProgress !== progress) {
+        visualStore.setLoadingProgress('Loading', newProgress)
+        progress = newProgress
+      }
+
+      childrenObjects.push(...results)
+    }
+
+    visualStore.setLoadingProgress('Loading', 1)
+
+    return [rootObject, ...childrenObjects]
+  } catch (error) {
+    console.error('Error fetching data:', error)
+  }
+}
+
+async function fetchOneByOne(id: string) {
+  try {
+    const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+    const rootObject = await rootResponse.json()
+    if (!rootResponse.ok) {
+      throw new Error(`HTTP error! Status: ${rootResponse.status} for root object ${id}`)
+    }
+    const childIds = Object.keys(rootObject.__closure)
+    const totalObjectCount = childIds.length + 1
+    console.log(`Total object count: ${totalObjectCount}`)
+
+    const childrenObjects = []
+    for (const childId of childIds) {
+      const response = await fetch(`http://localhost:49161/get-object/${childId}`)
+      if (!response.ok) {
+        console.warn(`Failed to fetch child ${childId}, skipping...`)
+        continue
+      }
+      const childObject = await response.json()
+      childrenObjects.push(childObject)
+    }
+    return [rootObject, ...childrenObjects]
+  } catch (error) {
+    console.log(error)
+    console.log("Objects couldn't retrieved from local server.")
+  }
+}
+
+async function getTotalChildrenCount(id: string) {
+  const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+  if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
+
+  const rootObject = await rootResponse.json()
+
+  if (!rootObject.__closure) throw new Error('Missing `__closure` in root object')
+
+  return Object.keys(rootObject.__closure).length
+}
+
+async function fetchStreamedData(id) {
+  try {
+    const response = await fetch(`http://localhost:49161/get-objects/${id}`)
+
+    if (!response.body) {
+      console.error('No response body')
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    const objects = []
+    let buffer = ''
+
+    console.log('Streaming started...')
+    for await (const chunk of readStream(reader)) {
+      // chucks.push(chuck)
+      buffer += decoder.decode(chunk, { stream: true })
+
+      let boundary
+      while ((boundary = buffer.indexOf('\n')) !== -1) {
+        const jsonString = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 1)
+
+        try {
+          const obj = JSON.parse(jsonString)
+          objects.push(obj)
+
+          // console.log('Received object:', jsonObject)
+        } catch (e) {
+          console.error('Invalid JSON chunk:', jsonString)
+        }
+      }
+    }
+    try {
+      const obj = JSON.parse(buffer)
+      objects.push(obj)
+      // console.log('Received object:', jsonObject)
+    } catch (e) {
+      console.error('Invalid JSON chunk:', buffer)
+    }
+    return objects
+  } catch (error) {
+    console.log(error)
+    console.log("Objects couldn't retrieved from local server.")
+  } finally {
+    console.log('Streaming finished!')
+  }
+}
+
+async function* readStream(reader) {
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    yield value
+  }
+}
+
 export async function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
@@ -151,16 +332,35 @@ export async function processMatrixView(
 
   let objects: object[] = undefined
   if (visualStore.lastLoadedRootObjectId !== id) {
-    try {
-      const res = await fetch(`http://localhost:49161/get-data/${id}`)
-      const data = (await res.json()) as unknown as Data
-      objects = data.objects
-      visualStore.setUserInfo(data.userInfo)
-      visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
-    } catch (error) {
-      // TODO: global toast notification to throw message for local server (manager)
-      console.log("Objects couldn't retrieved from local server.")
-    }
+    const start = performance.now()
+    visualStore.setViewerReadyToLoad()
+
+    // old way
+
+    // try {
+    //   const res = await fetch(`http://localhost:49161/get-data/${id}`)
+    //   const data = (await res.json()) as unknown as Data
+    //   objects = data.objects
+    //   visualStore.setUserInfo(data.userInfo)
+    //   visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
+    // } catch (error) {
+    //   // TODO: global toast notification to throw message for local server (manager)
+    //   console.log("Objects couldn't retrieved from local server.")
+    // }
+
+    // stream data 1
+    // objects = await fetchOneByOne(id)
+
+    // stream data 2 - batched
+    // objects = await fetchDataInBatches(id, 100)
+
+    // stream data 3
+    objects = await fetchStreamedData(id)
+
+    // visualStore.setUserInfo(data.userInfo) // TODO: figure it out user details
+    visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
+
+    console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned

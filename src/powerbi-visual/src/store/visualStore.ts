@@ -1,5 +1,6 @@
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
+import { zipJSONChunks } from '@src/utils/compression'
 import { UserInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
@@ -15,6 +16,7 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
   const isViewerInitialized = ref<boolean>(false)
   const isViewerReadyToLoad = ref<boolean>(false)
@@ -73,6 +75,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     objectsFromStore.value = newObjectsFromStore
   }
 
+  const setLoadingProgress = (summary: string, progress: number) => {
+    loadingProgress.value = { summary, progress }
+    if (loadingProgress.value.progress >= 1) {
+      loadingProgress.value = undefined
+    }
+  }
+
   // MAKE TS HAPPY
   type SpeckleObject = {
     id: string
@@ -99,6 +108,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
       await viewerEmit.value('loadObjects', dataInput.value.objects)
       viewerReloadNeeded.value = false
+      isViewerObjectsLoaded.value = true
       writeObjectsToFile(dataInput.value.objects)
     }
 
@@ -111,12 +121,14 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeObjectsToFile = (objects: object[]) => {
+    const compressedChunks = zipJSONChunks(objects, 10000) // Compress in chunks
+
     host.value.persistProperties({
       merge: [
         {
           objectName: 'storedData',
           properties: {
-            speckleObjects: JSON.stringify(objects),
+            speckleObjects: compressedChunks,
             userInfo: JSON.stringify(userInfo.value)
           },
           selector: null
@@ -147,6 +159,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit,
     fieldInputState,
     lastLoadedRootObjectId,
+    loadingProgress,
     loadObjectsFromFile,
     setHost,
     setUserInfo,
@@ -157,6 +170,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setDataInput,
     setFieldInputState,
     clearDataInput,
-    setViewerReadyToLoad
+    setViewerReadyToLoad,
+    setLoadingProgress
   }
 })
