@@ -36,7 +36,7 @@ jobs:
 
       - name: Setup Self-sign certificate
         run: |
-          echo ${{ secrets.SELF_CERT_FILE_B64 }} > certificate.txt
+          echo "${{ secrets.SELF_CERT_FILE_B64 }}" > "certificate.txt"
           certutil -decode certificate.txt ${{ env.CertFile  }}
 
       - name: Create PQX file
