@@ -1,5 +1,6 @@
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
+import { zipJSONChunks } from '@src/utils/compression'
 import { UserInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
@@ -120,12 +121,14 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeObjectsToFile = (objects: object[]) => {
+    const compressedChunks = zipJSONChunks(objects, 10000) // Compress in chunks
+
     host.value.persistProperties({
       merge: [
         {
           objectName: 'storedData',
           properties: {
-            speckleObjects: JSON.stringify(objects),
+            speckleObjects: compressedChunks,
             userInfo: JSON.stringify(userInfo.value)
           },
           selector: null

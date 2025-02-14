@@ -27,6 +27,7 @@ import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 import { pinia } from './plugins/pinia'
 import { FieldInputState, useVisualStore } from './store/visualStore'
+import { unzipJSONChunk, unzipJSONChunks, zipJSONChunks } from './utils/compression'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -102,16 +103,19 @@ export class Visual implements IVisual {
               this.isFirstViewerLoad &&
               options.dataViews[0].metadata.objects
             ) {
-              const objectsFromFile = JSON.parse(
+              const chunks = (
                 options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
-              )
+              ).split(',')
+              const objectsFromFile = unzipJSONChunks(chunks)
+              //const objectsFromFile = []
+              // chunks.forEach((c) => objectsFromFile.push(unzipJSONChunk(c)))
               try {
                 const userInfoFromFile = JSON.parse(
                   options.dataViews[0].metadata.objects.storedData?.userInfo as string
                 ) as UserInfo
                 visualStore.setUserInfo(userInfoFromFile)
               } catch (error) {
-                console.log(error)
+                console.warn(error)
                 console.log('missing mixpanel info')
               }
               if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
@@ -172,7 +176,7 @@ export class Visual implements IVisual {
       // we should give some time to Vue to render ViewerWrapper component to be able to have proper emitter setup. Happiness level 6/10
       setTimeout(() => {
         visualStore.setDataInput(input)
-        visualStore.writeObjectsToFile(input.objects)
+        // visualStore.writeObjectsToFile(input.objects)
       }, 250)
     }
   }
