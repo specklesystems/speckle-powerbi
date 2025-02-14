@@ -9,6 +9,8 @@ jobs:
     outputs:
       semver: ${{ steps.set-version.outputs.semver }}
       file-version: ${{ steps.set-info-version.outputs.file-version }}
+    env:
+      CertFile: "./speckle.pfx"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,9 +34,18 @@ jobs:
         run: |
           msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
 
+      - name: Setup Self-sign certificate
+        run: |
+          echo ${{ secrets.SELF_CERT_FILE_B64 }} > certificate.txt
+          certutil -decode certificate.txt ${{ env.CertFile  }}
+
       - name: Create PQX file
         run: |
-          ./tools/MakePQX/MakePQX.exe pack -mz src/powerbi-data-connector/bin/Speckle.mez -t src/powerbi-data-connector/bin/Speckle.pqx
+          .\tools\MakePQX\MakePQX.exe pack \
+            --mez src/powerbi-data-connector/bin/Speckle.mez  \
+            --target src/powerbi-data-connector/bin/Speckle.pqx \
+            --certificate ${{env.CertFile}} \
+            --password ${{secrets.SELF_CERT_PASSWORD}} \
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
