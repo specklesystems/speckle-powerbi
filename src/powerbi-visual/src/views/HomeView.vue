@@ -4,7 +4,7 @@
     class="flex flex-col justify-center items-center h-full w-full text-center space-y-4 p-2"
   >
     <div class="flex flex-col justify-center items-center h-full w-full text-center space-y-4">
-      <div class="flex flex-row justify-center items-center space-x-1">
+      <div class="flex flex-row justify-center items-center space-x-3">
         <div class="flex justify-center items-center">
           <img src="@assets/logo-big.png" alt="Logo" class="w-12" />
         </div>
