@@ -334,6 +334,7 @@ export async function processMatrixView(
   if (visualStore.lastLoadedRootObjectId !== id) {
     const start = performance.now()
     visualStore.setViewerReadyToLoad()
+    visualStore.setLoadingProgress('Loading', null)
 
     // old way
 
