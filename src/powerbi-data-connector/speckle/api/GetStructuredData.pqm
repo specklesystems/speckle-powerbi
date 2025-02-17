@@ -55,7 +55,7 @@
                     [
                         #"Object IDs" = record[id], // Object IDs
                         #"Speckle Type" = record[speckle_type], // Speckle Type
-                        #"Viewer Data ID" = rootId,
+                        #"Version Object ID" = rootId,
                         data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
                     ]
             )
