@@ -27,6 +27,26 @@
         // Get API key if available
         apiKey = try Extension.CurrentCredential()[Key] otherwise null,
         
+        // Get user email from credentials
+        userEmail = try Extension.CurrentCredential()[Username] otherwise null,
+        
+        // Send mixpanel info to endpoint
+        UserInfoResponse = Web.Contents(
+            "http://127.0.0.1:49161/user-info",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST",
+                    #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                ],
+                Content = Json.FromValue([
+                    email = userEmail,
+                    server = parsedUrl[baseUrl]
+                ]),
+                ManualStatusHandling = {400, 401, 403, 404, 500}
+            ]
+        ),
+        
         // Prepare request data
         requestData = Json.FromValue([
             Url = url,
