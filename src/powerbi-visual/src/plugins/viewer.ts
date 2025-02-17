@@ -1,18 +1,15 @@
 import {
   LegacyViewer,
   DefaultViewerParams,
-  SpeckleOfflineLoader,
   FilteringState,
   IntersectionQuery,
   CameraController,
   CanonicalView
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
-import { SpeckleDataInput } from '@src/types'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
-import { toRaw } from 'vue'
 
 export interface IViewer {
   /**
