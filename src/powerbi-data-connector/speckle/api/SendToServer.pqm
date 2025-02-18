@@ -41,7 +41,8 @@
                 ],
                 Content = Json.FromValue([
                     email = userEmail,
-                    server = parsedUrl[baseUrl]
+                    server = parsedUrl[baseUrl],
+                    ObjectId = modelInfo[rootObjectId]
                 ]),
                 ManualStatusHandling = {400, 401, 403, 404, 500}
             ]
