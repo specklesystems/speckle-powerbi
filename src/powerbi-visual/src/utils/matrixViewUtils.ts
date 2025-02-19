@@ -155,7 +155,7 @@ async function fetchDataInBatches(id, batchSize = 10) {
   try {
     const visualStore = useVisualStore()
     // Fetch the root object
-    const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+    const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
     if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
 
     const rootObject = await rootResponse.json()
@@ -180,7 +180,7 @@ async function fetchDataInBatches(id, batchSize = 10) {
         if (pause.needsWait) {
           await pause.wait(50)
         }
-        const response = await fetch(`http://localhost:49161/get-object/${childId}`)
+        const response = await fetch(`http://localhost:29364/get-object/${childId}`)
 
         if (!response.ok) {
           console.warn(`Failed to fetch child ${childId}, skipping...`)
@@ -210,7 +210,7 @@ async function fetchDataInBatches(id, batchSize = 10) {
 
 async function fetchOneByOne(id: string) {
   try {
-    const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+    const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
     const rootObject = await rootResponse.json()
     if (!rootResponse.ok) {
       throw new Error(`HTTP error! Status: ${rootResponse.status} for root object ${id}`)
@@ -221,7 +221,7 @@ async function fetchOneByOne(id: string) {
 
     const childrenObjects = []
     for (const childId of childIds) {
-      const response = await fetch(`http://localhost:49161/get-object/${childId}`)
+      const response = await fetch(`http://localhost:29364/get-object/${childId}`)
       if (!response.ok) {
         console.warn(`Failed to fetch child ${childId}, skipping...`)
         continue
@@ -237,7 +237,7 @@ async function fetchOneByOne(id: string) {
 }
 
 async function getTotalChildrenCount(id: string) {
-  const rootResponse = await fetch(`http://localhost:49161/get-object/${id}`)
+  const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
   if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
 
   const rootObject = await rootResponse.json()
@@ -249,7 +249,7 @@ async function getTotalChildrenCount(id: string) {
 
 async function fetchStreamedData(id) {
   try {
-    const response = await fetch(`http://localhost:49161/get-objects/${id}`)
+    const response = await fetch(`http://localhost:29364/get-objects/${id}`)
 
     if (!response.body) {
       console.error('No response body')
@@ -339,7 +339,7 @@ export async function processMatrixView(
     // old way
 
     // try {
-    //   const res = await fetch(`http://localhost:49161/get-data/${id}`)
+    //   const res = await fetch(`http://localhost:29364/get-data/${id}`)
     //   const data = (await res.json()) as unknown as Data
     //   objects = data.objects
     //   visualStore.setUserInfo(data.userInfo)
