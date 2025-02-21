@@ -18,12 +18,12 @@ export enum SettingsChangedType {
 export class Tracker {
   public static async track(event: string, properties: any = {}) {
     const visualStore = useVisualStore()
-    const userInfo = visualStore.userInfo
+    const receiveInfo = visualStore.receiveInfo
     let tempProperties = properties
-    if (userInfo) {
-      const hashedEmail = '@' + md5(userInfo.userEmail.toLowerCase() as string).toUpperCase()
+    if (receiveInfo) {
+      const hashedEmail = '@' + md5(receiveInfo.userEmail.toLowerCase() as string).toUpperCase()
       const hashedServer = md5(
-        new URL(userInfo.serverUrl).hostname.toLowerCase() as string
+        new URL(receiveInfo.serverUrl).hostname.toLowerCase() as string
       ).toUpperCase()
       tempProperties = {
         ...tempProperties, // eslint-disable-next-line camelcase
@@ -64,7 +64,7 @@ export class Tracker {
     }
   }
 
-  public static dataLoaded() {
-    return this.track('Receive')
+  public static dataLoaded(properties = {}) {
+    return this.track('Receive', properties)
   }
 }

@@ -7,6 +7,7 @@ import {
   CanonicalView
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
+import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
@@ -144,7 +145,8 @@ export class ViewerHandler {
     //@ts-ignore
     const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
     await this.viewer.loadObject(loader, true)
-    Tracker.dataLoaded()
+    const store = useVisualStore()
+    Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
   }
 
   private handlePing = (message: string) => {

@@ -9,6 +9,7 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { delay } from 'lodash'
+import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -140,9 +141,10 @@ export function resetPalette() {
   previousPalette = null
 }
 
-export type UserInfo = {
+export type ReceiveInfo = {
   userEmail: string
   serverUrl: string
+  sourceApplication?: string
 }
 
 function chunkArray(array: string[], size: number) {
@@ -247,6 +249,21 @@ async function getTotalChildrenCount(id: string) {
   return Object.keys(rootObject.__closure).length
 }
 
+async function getReceiveInfo(id) {
+  try {
+    const response = await fetch(`http://localhost:29364/user-info/${id}`)
+    if (!response.body) {
+      console.error('No response body')
+      return
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.log(error)
+    console.log("User infp couldn't retrieved from local server.")
+  }
+}
+
 async function fetchStreamedData(id) {
   try {
     const response = await fetch(`http://localhost:29364/get-objects/${id}`)
@@ -325,11 +342,6 @@ export async function processMatrixView(
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
-  type Data = {
-    userInfo: UserInfo
-    objects: object[]
-  }
-
   let objects: object[] = undefined
   if (visualStore.lastLoadedRootObjectId !== id) {
     const start = performance.now()
@@ -358,7 +370,15 @@ export async function processMatrixView(
     // stream data 3
     objects = await fetchStreamedData(id)
 
-    // visualStore.setUserInfo(data.userInfo) // TODO: figure it out user details
+    const receiveInfo = await getReceiveInfo(id)
+    if (receiveInfo) {
+      visualStore.setReceiveInfo({
+        userEmail: receiveInfo.email,
+        serverUrl: receiveInfo.server,
+        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication)
+      })
+    }
+
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
 
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)

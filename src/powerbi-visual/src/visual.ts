@@ -9,7 +9,7 @@ import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
-import { processMatrixView, UserInfo, validateMatrixView } from './utils/matrixViewUtils'
+import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
 
 import TooltipHandler from './handlers/tooltipHandler'
@@ -112,8 +112,8 @@ export class Visual implements IVisual {
               try {
                 const userInfoFromFile = JSON.parse(
                   options.dataViews[0].metadata.objects.storedData?.userInfo as string
-                ) as UserInfo
-                visualStore.setUserInfo(userInfoFromFile)
+                ) as ReceiveInfo
+                visualStore.setReceiveInfo(userInfoFromFile)
               } catch (error) {
                 console.warn(error)
                 console.log('missing mixpanel info')
