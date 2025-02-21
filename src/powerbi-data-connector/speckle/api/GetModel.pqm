@@ -43,6 +43,7 @@
                             items {
                                 id
                                 referencedObject
+                                sourceApplication
                             }
                         }
                     }
@@ -57,6 +58,7 @@
                         version(id: $versionId) {
                             id
                             referencedObject
+                            sourceApplication
                         }
                     }
                 }
@@ -105,14 +107,16 @@
                 modelId = JsonResponse[data][project][model][id],
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][versions][items]{0}[id],
-                rootObjectId = JsonResponse[data][project][model][versions][items]{0}[referencedObject]
+                rootObjectId = JsonResponse[data][project][model][versions][items]{0}[referencedObject],
+                sourceApplication = JsonResponse[data][project][model][versions][items]{0}[sourceApplication]
             ]
         else
             [
                 modelId = JsonResponse[data][project][model][id],
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][version][id],
-                rootObjectId = JsonResponse[data][project][model][version][referencedObject]
+                rootObjectId = JsonResponse[data][project][model][version][referencedObject],
+                sourceApplication = JsonResponse[data][project][model][versions][items][sourceApplication]
             ]
     in
         result

@@ -53,9 +53,12 @@
         // Prepare request data
         requestData = Json.FromValue([
             Url = url,
+            Server = parsedUrl[baseUrl],
+            Email = userEmail, // TODO: can't get it
             ProjectId = parsedUrl[projectId],
             ObjectId = modelInfo[rootObjectId],
-            token = apiKey
+            SourceApplication = modelInfo[sourceApplication],
+            Token = apiKey // TODO: why it was lowercased before?
         ]),
         
         // Send request to local server
