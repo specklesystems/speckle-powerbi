@@ -133,7 +133,7 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'storedData',
           properties: {
             speckleObjects: compressedChunks,
-            userInfo: JSON.stringify(receiveInfo.value)
+            receiveInfo: JSON.stringify(receiveInfo.value)
           },
           selector: null
         }

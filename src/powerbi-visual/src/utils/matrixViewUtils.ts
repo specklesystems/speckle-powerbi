@@ -348,26 +348,7 @@ export async function processMatrixView(
     visualStore.setViewerReadyToLoad()
     visualStore.setLoadingProgress('Loading', null)
 
-    // old way
-
-    // try {
-    //   const res = await fetch(`http://localhost:29364/get-data/${id}`)
-    //   const data = (await res.json()) as unknown as Data
-    //   objects = data.objects
-    //   visualStore.setUserInfo(data.userInfo)
-    //   visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
-    // } catch (error) {
-    //   // TODO: global toast notification to throw message for local server (manager)
-    //   console.log("Objects couldn't retrieved from local server.")
-    // }
-
-    // stream data 1
-    // objects = await fetchOneByOne(id)
-
-    // stream data 2 - batched
-    // objects = await fetchDataInBatches(id, 100)
-
-    // stream data 3
+    // stream data
     objects = await fetchStreamedData(id)
 
     const receiveInfo = await getReceiveInfo(id)

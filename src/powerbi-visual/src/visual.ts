@@ -107,13 +107,13 @@ export class Visual implements IVisual {
                 options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
               ).split(',')
               const objectsFromFile = unzipJSONChunks(chunks)
-              //const objectsFromFile = []
-              // chunks.forEach((c) => objectsFromFile.push(unzipJSONChunk(c)))
+
+              // get receive info from file for mixpanel
               try {
-                const userInfoFromFile = JSON.parse(
-                  options.dataViews[0].metadata.objects.storedData?.userInfo as string
+                const receiveInfoFromFile = JSON.parse(
+                  options.dataViews[0].metadata.objects.storedData?.receiveInfo as string
                 ) as ReceiveInfo
-                visualStore.setReceiveInfo(userInfoFromFile)
+                visualStore.setReceiveInfo(receiveInfoFromFile)
               } catch (error) {
                 console.warn(error)
                 console.log('missing mixpanel info')

@@ -30,7 +30,7 @@
         // Get user email from credentials
         userEmail = try Extension.CurrentCredential()[Username] otherwise null,
         
-        // TODO: Dogukan: smth wrong here. Also we will need to have sourceApplication from modelInfo and send to desktop service
+        // TODO: Dogukan: smth wrong here. Also we will need to have sourceApplication from modelInfo and send to desktop service to track workflows
 
         // Send mixpanel info to endpoint
         // UserInfoResponse = Web.Contents(
