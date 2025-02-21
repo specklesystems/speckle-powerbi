@@ -32,7 +32,7 @@
         
         // Send mixpanel info to endpoint
         UserInfoResponse = Web.Contents(
-            "http://127.0.0.1:49161/user-info",
+            "http://127.0.0.1:29364/user-info",
             [
                 Headers = [
                     #"Content-Type" = "application/json",
@@ -42,7 +42,7 @@
                 Content = Json.FromValue([
                     email = userEmail,
                     server = parsedUrl[baseUrl],
-                    ObjectId = modelInfo[rootObjectId]
+                    objectId = modelInfo[rootObjectId]
                 ]),
                 ManualStatusHandling = {400, 401, 403, 404, 500}
             ]
