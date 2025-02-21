@@ -30,7 +30,7 @@
         StructuredData = GetStructuredData(url),
 
         // rename column based on send status
-        NewColumnName = "Viewer Data ID",
-        Result = Table.RenameColumns(StructuredData, {{"Viewer Data ID", NewColumnName}})
+        NewColumnName = "Version Object ID",
+        Result = Table.RenameColumns(StructuredData, {{"Version Object ID", NewColumnName}})
     in
         Result

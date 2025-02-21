@@ -1,6 +1,10 @@
 <template>
-  <div class="absolute top-0 left-0 z-10" @click="goToSpeckleWebsite">
-    <img class="w-16 h-auto mt-1 mr-1 cursor-pointer" src="@assets/powered-by-speckle.png" />
+  <div
+    class="absolute top-0 left-0 z-10 cursor-pointer flex items-center"
+    @click="goToSpeckleWebsite"
+  >
+    <img class="w-8 h-auto mx-2 my-1" src="@assets/logo-big.png" />
+    <div class="font-medium">Speckle</div>
   </div>
   <div
     v-if="isInteractive"
@@ -10,15 +14,15 @@
       <strong>Object IDs</strong>
       and
       <strong>Tooltip Data</strong>
-      fields are needed for interactivity.
+      fields are needed for interactivity with other visuals.
     </div>
     <div v-else-if="onlyObjectIdsMissing">
       <strong>Object IDs</strong>
-      field is needed for interactivity.
+      field is needed for interactivity with other visuals.
     </div>
     <div v-else-if="onlyTooltipDataMissing">
       <strong>Tooltip Data</strong>
-      field is needed for interactivity.
+      field is needed for interactivity with other visuals.
     </div>
   </div>
 
@@ -27,18 +31,7 @@
     class="absolute top-1/2 left-1/2 w-1/2 -translate-x-1/2 z-20 text-center text-sm"
   >
     <!-- Progress Bar -->
-    <div
-      v-if="visualStore.loadingProgress"
-      class="absolute left-1/2 -translate-x-1/2 w-1/2 bg-gray-300 rounded-full h-3 shadow-lg"
-    >
-      <div
-        class="bg-blue-600 h-full rounded-full transition-all"
-        :style="{ width: visualStore.loadingProgress.progress * 100 + '%' }"
-      ></div>
-    </div>
-    <div class="mt-4 text-blue-600">
-      {{ Math.round(visualStore.loadingProgress.progress * 100) + ' %' }}
-    </div>
+    <LoadingBar :loading="!!visualStore.loadingProgress"></LoadingBar>
   </div>
 
   <viewer-wrapper id="speckle-3d-view" class="h-full w-full"></viewer-wrapper>
@@ -48,6 +41,7 @@
 import ViewerWrapper from 'src/components/ViewerWrapper.vue'
 import { useVisualStore } from '../store/visualStore'
 import { computed } from 'vue'
+import LoadingBar from '@src/components/loading/LoadingBar.vue'
 
 const visualStore = useVisualStore()
 

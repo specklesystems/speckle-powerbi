@@ -1,7 +1,7 @@
 {
   "dataRoles": [
     {
-      "displayName": "Viewer Data ID",
+      "displayName": "Version Object ID",
       "kind": "Grouping",
       "name": "rootObjectId"
     },
@@ -211,7 +211,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": ["https://analytics.speckle.systems", "http://localhost:49161", "*"]
+      "parameters": ["https://analytics.speckle.systems", "http://localhost:29364", "*"]
     },
     {
       "essential": false,
