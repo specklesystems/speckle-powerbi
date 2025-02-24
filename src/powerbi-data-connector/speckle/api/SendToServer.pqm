@@ -3,6 +3,7 @@
         // Import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
          // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -23,42 +24,23 @@
         // Get model info and parsed URL
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
+        userInfo = GetUser(url),
         
         // Get API key if available
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        apiKey = userInfo[Token],
         
         // Get user email from credentials
-        userEmail = try Extension.CurrentCredential()[Username] otherwise null,
-        
-        // TODO: Dogukan: smth wrong here. Also we will need to have sourceApplication from modelInfo and send to desktop service to track workflows
-
-        // Send mixpanel info to endpoint
-        // UserInfoResponse = Web.Contents(
-        //     "http://127.0.0.1:29364/user-info",
-        //     [
-        //         Headers = [
-        //             #"Content-Type" = "application/json",
-        //             #"Method" = "POST",
-        //             #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
-        //         ],
-        //         Content = Json.FromValue([
-        //             email = userEmail,
-        //             server = parsedUrl[baseUrl],
-        //             objectId = modelInfo[rootObjectId]
-        //         ]),
-        //         ManualStatusHandling = {400, 401, 403, 404, 500}
-        //     ]
-        // ),
+        userEmail = userInfo[UserEmail],
         
         // Prepare request data
         requestData = Json.FromValue([
             Url = url,
             Server = parsedUrl[baseUrl],
-            Email = userEmail, // TODO: can't get it
+            Email = userEmail,
             ProjectId = parsedUrl[projectId],
             ObjectId = modelInfo[rootObjectId],
             SourceApplication = modelInfo[sourceApplication],
-            Token = apiKey // TODO: why it was lowercased before?
+            Token = apiKey 
         ]),
         
         // Send request to local server
