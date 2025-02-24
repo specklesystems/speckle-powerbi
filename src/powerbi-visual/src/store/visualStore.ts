@@ -1,7 +1,7 @@
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
 import { zipJSONChunks } from '@src/utils/compression'
-import { UserInfo } from '@src/utils/matrixViewUtils'
+import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 
@@ -22,7 +22,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isViewerReadyToLoad = ref<boolean>(false)
   const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
-  const userInfo = ref<UserInfo>(undefined)
+  const receiveInfo = ref<ReceiveInfo>(undefined)
   const fieldInputState = ref<FieldInputState>({
     rootObjectId: false,
     objectIds: false,
@@ -52,7 +52,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value = hostToSet
   }
 
-  const setUserInfo = (newUserInfo: UserInfo) => (userInfo.value = newUserInfo)
+  const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => (receiveInfo.value = newReceiveInfo)
 
   /**
    * Ideally one time set when onMounted of `ViewerWrapper.vue` component
@@ -133,7 +133,7 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'storedData',
           properties: {
             speckleObjects: compressedChunks,
-            userInfo: JSON.stringify(userInfo.value)
+            receiveInfo: JSON.stringify(receiveInfo.value)
           },
           selector: null
         }
@@ -152,7 +152,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   return {
     host,
-    userInfo,
+    receiveInfo,
     objectsFromStore,
     isViewerInitialized,
     isViewerReadyToLoad,
@@ -166,7 +166,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     loadingProgress,
     loadObjectsFromFile,
     setHost,
-    setUserInfo,
+    setReceiveInfo,
     setViewerReloadNeeded,
     setObjectsFromStore,
     writeObjectsToFile,

@@ -9,7 +9,7 @@ import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
-import { processMatrixView, UserInfo, validateMatrixView } from './utils/matrixViewUtils'
+import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
 
 import TooltipHandler from './handlers/tooltipHandler'
@@ -107,13 +107,13 @@ export class Visual implements IVisual {
                 options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
               ).split(',')
               const objectsFromFile = unzipJSONChunks(chunks)
-              //const objectsFromFile = []
-              // chunks.forEach((c) => objectsFromFile.push(unzipJSONChunk(c)))
+
+              // get receive info from file for mixpanel
               try {
-                const userInfoFromFile = JSON.parse(
-                  options.dataViews[0].metadata.objects.storedData?.userInfo as string
-                ) as UserInfo
-                visualStore.setUserInfo(userInfoFromFile)
+                const receiveInfoFromFile = JSON.parse(
+                  options.dataViews[0].metadata.objects.storedData?.receiveInfo as string
+                ) as ReceiveInfo
+                visualStore.setReceiveInfo(receiveInfoFromFile)
               } catch (error) {
                 console.warn(error)
                 console.log('missing mixpanel info')
