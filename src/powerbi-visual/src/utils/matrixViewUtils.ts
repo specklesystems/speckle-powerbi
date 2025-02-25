@@ -381,13 +381,15 @@ export async function processMatrixView(
     })
 
     if (hasColorFilter) {
+      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
       obj.children.forEach((child) => {
         const colorSelectionId = host
           .createSelectionIdBuilder()
           .withMatrixNode(child, matrixView.rows.levels)
           .createSelectionId()
 
-        const color = host.colorPalette.getColor(child.value as string)
+        // const color = host.colorPalette.getColor(child.value as string)
+        const color = host.colorPalette.getColor(child.values[0].value as string)
 
         const colorSlice = new fs.ColorPicker({
           name: 'selectorFill',
