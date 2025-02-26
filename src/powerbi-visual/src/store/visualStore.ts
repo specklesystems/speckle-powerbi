@@ -18,10 +18,14 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
+
+  // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
+  // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
   const isViewerInitialized = ref<boolean>(false)
   const isViewerReadyToLoad = ref<boolean>(false)
   const isViewerObjectsLoaded = ref<boolean>(false)
   const viewerReloadNeeded = ref<boolean>(false)
+  const isLoadingFromFile = ref<boolean>(false)
   const receiveInfo = ref<ReceiveInfo>(undefined)
   const fieldInputState = ref<FieldInputState>({
     rootObjectId: false,
@@ -97,6 +101,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     clearLoadingProgress()
     objectsFromStore.value = objects
     isViewerObjectsLoaded.value = true
+    viewerReloadNeeded.value = false
+    setIsLoadingFromFile(false)
   }
 
   /**
@@ -146,6 +152,8 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const clearDataInput = () => (dataInput.value = null)
 
+  const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
+
   const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
@@ -164,6 +172,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     fieldInputState,
     lastLoadedRootObjectId,
     loadingProgress,
+    isLoadingFromFile,
     loadObjectsFromFile,
     setHost,
     setReceiveInfo,
@@ -176,6 +185,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     clearDataInput,
     setViewerReadyToLoad,
     setLoadingProgress,
-    clearLoadingProgress
+    clearLoadingProgress,
+    setIsLoadingFromFile
   }
 })

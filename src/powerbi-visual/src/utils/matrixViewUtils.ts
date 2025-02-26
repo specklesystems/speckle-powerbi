@@ -241,7 +241,12 @@ export async function processMatrixView(
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
   let objects: object[] = undefined
-  if (visualStore.lastLoadedRootObjectId !== id) {
+
+  if (visualStore.isLoadingFromFile) {
+    console.log('The data is loading from file, skipping the streaming it.')
+  }
+
+  if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
     const start = performance.now()
     visualStore.setViewerReadyToLoad()
     visualStore.setLoadingProgress('Loading', null)
