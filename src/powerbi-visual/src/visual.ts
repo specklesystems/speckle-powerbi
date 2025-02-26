@@ -183,6 +183,7 @@ export class Visual implements IVisual {
 
   private tryReadFromFile(objectsFromFile: object[], visualStore) {
     visualStore.setViewerReadyToLoad()
+    visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
     setTimeout(() => {
       visualStore.loadObjectsFromFile(objectsFromFile)
       this.isFirstViewerLoad = false
