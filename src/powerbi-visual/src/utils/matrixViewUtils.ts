@@ -147,108 +147,6 @@ export type ReceiveInfo = {
   sourceApplication?: string
 }
 
-function chunkArray(array: string[], size: number) {
-  return Array.from({ length: Math.ceil(array.length / size) }, (_, i) =>
-    array.slice(i * size, i * size + size)
-  )
-}
-
-async function fetchDataInBatches(id, batchSize = 10) {
-  try {
-    const visualStore = useVisualStore()
-    // Fetch the root object
-    const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
-    if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
-
-    const rootObject = await rootResponse.json()
-
-    if (!rootObject.__closure) throw new Error('Missing `__closure` in root object')
-
-    visualStore.setLoadingProgress('Loading', 0)
-
-    const childIds = Object.keys(rootObject.__closure)
-    const childrenObjects = []
-
-    const batches = chunkArray(childIds, batchSize)
-    let count = 0
-    let progress = 0
-
-    const pause = new AsyncPause()
-
-    for (const batch of batches) {
-      count++
-      const batchPromises = batch.map(async (childId) => {
-        pause.tick(100)
-        if (pause.needsWait) {
-          await pause.wait(50)
-        }
-        const response = await fetch(`http://localhost:29364/get-object/${childId}`)
-
-        if (!response.ok) {
-          console.warn(`Failed to fetch child ${childId}, skipping...`)
-          return null
-        }
-
-        return response.json()
-      })
-
-      const results = await Promise.all(batchPromises)
-      const newProgress = parseFloat((count / batches.length).toFixed(2))
-      if (newProgress !== progress) {
-        visualStore.setLoadingProgress('Loading', newProgress)
-        progress = newProgress
-      }
-
-      childrenObjects.push(...results)
-    }
-
-    visualStore.setLoadingProgress('Loading', 1)
-
-    return [rootObject, ...childrenObjects]
-  } catch (error) {
-    console.error('Error fetching data:', error)
-  }
-}
-
-async function fetchOneByOne(id: string) {
-  try {
-    const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
-    const rootObject = await rootResponse.json()
-    if (!rootResponse.ok) {
-      throw new Error(`HTTP error! Status: ${rootResponse.status} for root object ${id}`)
-    }
-    const childIds = Object.keys(rootObject.__closure)
-    const totalObjectCount = childIds.length + 1
-    console.log(`Total object count: ${totalObjectCount}`)
-
-    const childrenObjects = []
-    for (const childId of childIds) {
-      const response = await fetch(`http://localhost:29364/get-object/${childId}`)
-      if (!response.ok) {
-        console.warn(`Failed to fetch child ${childId}, skipping...`)
-        continue
-      }
-      const childObject = await response.json()
-      childrenObjects.push(childObject)
-    }
-    return [rootObject, ...childrenObjects]
-  } catch (error) {
-    console.log(error)
-    console.log("Objects couldn't retrieved from local server.")
-  }
-}
-
-async function getTotalChildrenCount(id: string) {
-  const rootResponse = await fetch(`http://localhost:29364/get-object/${id}`)
-  if (!rootResponse.ok) throw new Error(`HTTP error! Status: ${rootResponse.status}`)
-
-  const rootObject = await rootResponse.json()
-
-  if (!rootObject.__closure) throw new Error('Missing `__closure` in root object')
-
-  return Object.keys(rootObject.__closure).length
-}
-
 async function getReceiveInfo(id) {
   try {
     const response = await fetch(`http://localhost:29364/user-info/${id}`)
@@ -388,7 +286,6 @@ export async function processMatrixView(
           .withMatrixNode(child, matrixView.rows.levels)
           .createSelectionId()
 
-        // const color = host.colorPalette.getColor(child.value as string)
         const color = host.colorPalette.getColor(child.values[0].value as string)
 
         const colorSlice = new fs.ColorPicker({
