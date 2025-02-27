@@ -53,6 +53,7 @@ export class Tracker {
                 token: MIXPANEL_TOKEN,
                 hostApp: HOST_APP_NAME,
                 offlineSupport: IS_OFFLINE_SUPPORT,
+                ui: 'dui3',
                 type: 'action'
               })
               return e
