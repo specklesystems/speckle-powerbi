@@ -48,7 +48,8 @@ jobs:
         with:
           name: powerbi-connector
           path: src/powerbi-data-connector/bin/Speckle.pqx
-          retention-days: 5
+          if-no-files-found: error
+          retention-days: 1
 
       - id: set-version
         name: Set version to output
@@ -88,6 +89,8 @@ jobs:
         with:
           name: powerbi-visual
           path: src/powerbi-visual/dist/*.pbiviz
+          if-no-files-found: error
+          retention-days: 1
 
   deploy-installers:
     runs-on: ubuntu-latest
@@ -115,6 +118,8 @@ jobs:
         with:
           name: output-${{needs.build-connector.outputs.semver}}
           path: powerbi.zip
+          if-no-files-found: error
+          retention-days: 1
       - name: 🔫 Trigger Build Installers
         uses: ALEEF02/workflow-dispatch@v3.0.0
         with:
@@ -128,3 +133,7 @@ jobs:
           wait-for-completion-timeout: 10m
           display-workflow-run-url: true
           display-workflow-run-url-interval: 10s
+          
+      - uses: geekyeggo/delete-artifact@v5
+        with:
+          name: output-*
