@@ -116,7 +116,7 @@
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][version][id],
                 rootObjectId = JsonResponse[data][project][model][version][referencedObject],
-                sourceApplication = JsonResponse[data][project][model][versions][items][sourceApplication]
+                sourceApplication = JsonResponse[data][project][model][version][sourceApplication]
             ]
     in
         result
