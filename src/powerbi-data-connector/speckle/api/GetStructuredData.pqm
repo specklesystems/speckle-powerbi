@@ -61,8 +61,7 @@
             )
         ),
         
-        // filter out rows where applicationId is null
-        // we can discuss this further
-        FilteredTable = Table.SelectRows(FinalTable, each Record.FieldOrDefault(([data]), "applicationId", null) <> null)
+        // Filter out DataChunks directly by checking speckle_type
+        FilteredTable = Table.SelectRows(FinalTable, each [data][speckle_type] <> "Speckle.Core.Models.DataChunk")
     in
         FilteredTable
