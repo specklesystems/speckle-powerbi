@@ -4,7 +4,7 @@
         // import the required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         SendToServer = Extension.LoadFunction("SendToServer.pqm"),
-        
+       
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -21,26 +21,24 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-        
+       
         // get model info and server data
         modelInfo = GetModel(url),
         rootId = modelInfo[rootObjectId],
-        
+       
         // Get the data from SendToServer - this is already a response from the service
         JsonResponse = SendToServer(url),
-        
+       
         // convert list to table with all columns expanded
         TableFromList = Table.FromList(
-            JsonResponse, 
-            Splitter.SplitByNothing(), 
-            null, 
-            null, 
+            JsonResponse,
+            Splitter.SplitByNothing(),
+            null,
+            null,
             ExtraValues.Error
         ),
-
         // fields to remove from data record
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-
         // create the final table with cleaned data records
         FinalTable = Table.FromRecords(
             List.Transform(
@@ -60,8 +58,17 @@
                     ]
             )
         ),
-        
-        // Filter out DataChunks directly by checking speckle_type
-        FilteredTable = Table.SelectRows(FinalTable, each [data][speckle_type] <> "Speckle.Core.Models.DataChunk")
+       
+        // Filtering logic here 
+        // If, model data contains any DataObject -> fetch only data objects
+        // If there are no data objects in the data -> fetch everything but DataChunks
+        HasDataObjects = Table.RowCount(
+            Table.SelectRows(FinalTable, each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject"))
+        ) > 0,
+
+        FilteredTable = if HasDataObjects then
+            Table.SelectRows(FinalTable, each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject"))
+        else
+            Table.SelectRows(FinalTable, each Record.FieldOrDefault([data], "speckle_type", "") <> "Speckle.Core.Models.DataChunk")
     in
         FilteredTable
