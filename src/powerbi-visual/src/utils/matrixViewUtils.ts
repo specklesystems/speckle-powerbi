@@ -208,22 +208,16 @@ async function fetchStreamedData(id) {
     const end = performance.now()
     console.log(`Objects streamed in: ${(end - start) / 1000} s`)
 
-    const keysToKeep = ['speckle_type', 'id', 'displayValue']
     const startObjectCleanup = performance.now()
     // Skips first element
     for (let i = 1; i < objects.length; i++) {
       const obj = objects[i]
       if (obj.speckle_type) {
         if (obj.speckle_type.includes('Objects.Data.DataObject')) {
-          for (const key in obj) {
-            if (!keysToKeep.includes(key)) {
-              delete obj[key]
-            }
-          }
-        } else {
-          delete objects[i].__closure
+          delete obj.properties
         }
       }
+      delete obj.__closure
     }
     const endObjectCleanup = performance.now()
     console.log(`Objects cleaned up in: ${(endObjectCleanup - startObjectCleanup) / 1000} s`)
