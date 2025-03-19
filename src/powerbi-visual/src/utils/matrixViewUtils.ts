@@ -176,6 +176,7 @@ async function fetchStreamedData(id) {
     const objects = []
     let buffer = ''
 
+    const start = performance.now()
     console.log('Streaming started...')
     for await (const chunk of readStream(reader)) {
       // chucks.push(chuck)
@@ -203,6 +204,34 @@ async function fetchStreamedData(id) {
     } catch (e) {
       console.error('Invalid JSON chunk:', buffer)
     }
+
+    const end = performance.now()
+    console.log(`Objects streamed in: ${(end - start) / 1000} s`)
+
+    const keysToKeep = ['speckle_type', 'id', 'displayValue']
+    const startObjectCleanup = performance.now()
+    // Skips first element
+    for (let i = 1; i < objects.length; i++) {
+      const obj = objects[i]
+      if (obj.speckle_type) {
+        if (obj.speckle_type.includes('Objects.Data.DataObject')) {
+          for (const key in obj) {
+            if (!keysToKeep.includes(key)) {
+              delete obj[key]
+            }
+          }
+        } else {
+          delete objects[i].__closure
+        }
+      }
+    }
+    const endObjectCleanup = performance.now()
+    console.log(`Objects cleaned up in: ${(endObjectCleanup - startObjectCleanup) / 1000} s`)
+
+    const sizeInBytes = new TextEncoder().encode(JSON.stringify(objects)).length
+    const sizeInMB = sizeInBytes / (1024 * 1024)
+    console.log(`Size of objects: ${sizeInMB} MB`)
+
     return objects
   } catch (error) {
     console.log(error)
