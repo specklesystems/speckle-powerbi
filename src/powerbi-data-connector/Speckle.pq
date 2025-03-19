@@ -99,7 +99,6 @@ shared Speckle.Revit.Parameters.ToNameValueRecord = (r as record, optional exclu
 
 // here we register the GetByUrl function to power bi ui
 GetByUrl.Publish = [
-    Beta = true,
     Cateogry = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
