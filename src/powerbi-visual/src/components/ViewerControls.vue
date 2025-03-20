@@ -3,7 +3,7 @@
     <ButtonSimple flat secondary @click="onZoomExtentsClicked">
       <ArrowsPointingOutIcon class="h-5 w-5" />
     </ButtonSimple>
-    <Menu as="div" class="relative z-30">
+    <Menu as="div" class="relative z-40">
       <MenuButton v-slot="{ open }" as="template">
         <ButtonToggle flat secondary :active="open">
           <VideoCameraIcon class="h-5 w-5" />
