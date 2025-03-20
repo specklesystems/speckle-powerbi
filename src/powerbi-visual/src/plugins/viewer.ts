@@ -5,7 +5,8 @@ import {
   IntersectionQuery,
   CameraController,
   CanonicalView,
-  ViewModes
+  ViewModes,
+  CameraEvent
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -56,6 +57,7 @@ export interface IViewerEvents {
 export class ViewerHandler {
   public emitter: Emitter
   public viewer: LegacyViewer
+  private _needsRender = false
   private parent: HTMLElement
   private filteringState: FilteringState
 
@@ -76,6 +78,33 @@ export class ViewerHandler {
   async init(parent: HTMLElement) {
     this.viewer = await createViewer(parent)
     this.parent = parent
+    this.viewer.speckleRenderer.speckleCamera.on(
+      CameraEvent.FrameUpdate,
+      (needsUpdate: boolean) => {
+        this.needsRender = needsUpdate
+      }
+    )
+  }
+
+  get needsRender(): boolean {
+    return this._needsRender
+  }
+
+  set needsRender(value: boolean) {
+    if (this._needsRender !== value) {
+      this._needsRender = value
+      this.onNeedsRenderChanged(value)
+    }
+  }
+
+  private onNeedsRenderChanged(value: boolean) {
+    // whenever the render is settled means that user stopped interaction, so we will set the camera position
+    if (!value) {
+      console.log(
+        '🎬 Setting the camera position:',
+        this.viewer.speckleRenderer.speckleCamera.renderingCamera
+      )
+    }
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
