@@ -108,6 +108,28 @@ export class Visual implements IVisual {
               ).split(',')
               const objectsFromFile = unzipJSONChunks(chunks)
 
+              if (options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string) {
+                console.log(
+                  `Default View Mode: ${
+                    options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string
+                  }`
+                )
+
+                visualStore.setDefaultViewModeInFile(
+                  options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string
+                )
+              }
+
+              if (options.dataViews[0].metadata.objects.camera?.defaultView as string) {
+                console.log(
+                  `Default View: ${
+                    options.dataViews[0].metadata.objects.camera?.defaultView as string
+                  }`
+                )
+                visualStore.setDefaultCameraInFile(
+                  options.dataViews[0].metadata.objects.camera?.defaultView as string
+                )
+              }
               // get receive info from file for mixpanel
               try {
                 const receiveInfoFromFile = JSON.parse(
