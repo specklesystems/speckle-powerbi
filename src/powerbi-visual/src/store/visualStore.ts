@@ -1,3 +1,4 @@
+import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
 import { zipJSONChunks } from '@src/utils/compression'
@@ -34,6 +35,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     tooltipData: false
   })
   const lastLoadedRootObjectId = ref<string>()
+
+  const defaultCameraInFile = ref<string>(undefined)
+  const defaultViewModeInFile = ref<string>(undefined)
 
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
@@ -147,6 +151,34 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeCameraViewToFile = (view: CanonicalView) => {
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            defaultView: view
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
+  const writeViewModeToFile = (viewMode: ViewMode) => {
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'viewMode',
+          properties: {
+            defaultViewMode: viewMode
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
     (fieldInputState.value = newFieldInputState)
 
@@ -157,6 +189,9 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
+
+  const setDefaultCameraInFile = (newValue: string) => (defaultCameraInFile.value = newValue)
+  const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
   return {
     host,
@@ -173,12 +208,18 @@ export const useVisualStore = defineStore('visualStore', () => {
     lastLoadedRootObjectId,
     loadingProgress,
     isLoadingFromFile,
+    defaultCameraInFile,
+    defaultViewModeInFile,
+    setDefaultCameraInFile,
+    setDefaultViewModeInFile,
     loadObjectsFromFile,
     setHost,
     setReceiveInfo,
     setViewerReloadNeeded,
     setObjectsFromStore,
     writeObjectsToFile,
+    writeCameraViewToFile,
+    writeViewModeToFile,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,

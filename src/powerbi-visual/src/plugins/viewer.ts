@@ -4,7 +4,8 @@ import {
   FilteringState,
   IntersectionQuery,
   CameraController,
-  CanonicalView
+  CanonicalView,
+  ViewModes
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -19,6 +20,15 @@ export interface IViewer {
   on: <E extends keyof IViewerEvents>(event: E, callback: IViewerEvents[E]) => void
 }
 
+export declare enum ViewMode {
+  DEFAULT = 0,
+  DEFAULT_EDGES = 1,
+  SHADED = 2,
+  PEN = 3,
+  ARCTIC = 4,
+  COLORS = 5
+}
+
 export interface Hit {
   guid: string
   object?: Record<string, unknown>
@@ -28,6 +38,7 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
+  setViewMode: (viewMode: ViewMode) => void
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
@@ -53,6 +64,7 @@ export class ViewerHandler {
     this.emit = this.emit.bind(this)
     this.emitter.on('ping', this.handlePing)
     this.emitter.on('setSelection', this.selectObjects)
+    this.emitter.on('setViewMode', this.setViewMode)
     this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
     this.emitter.on('isolateObjects', this.isolateObjects)
     this.emitter.on('unIsolateObjects', this.unIsolateObjects)
@@ -81,6 +93,11 @@ export class ViewerHandler {
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
     return
+  }
+
+  public setViewMode(viewMode: ViewMode) {
+    const viewModes = this.viewer.getExtension(ViewModes)
+    viewModes.setViewMode(viewMode)
   }
 
   public selectObjects = async (objectIds: string[]) => {
@@ -144,9 +161,16 @@ export class ViewerHandler {
     // const stringifiedObject = JSON.stringify(objects)
     //@ts-ignore
     const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
-    await this.viewer.loadObject(loader, true)
     const store = useVisualStore()
+    if (store.defaultViewModeInFile) {
+      this.setViewMode(Number(store.defaultViewModeInFile))
+    }
+    await this.viewer.loadObject(loader, true)
     Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
+    // camera need to be set after objects loaded
+    if (store.defaultCameraInFile) {
+      this.setView(store.defaultCameraInFile as CanonicalView)
+    }
   }
 
   private handlePing = (message: string) => {

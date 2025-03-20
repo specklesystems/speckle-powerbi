@@ -77,37 +77,17 @@
         }
       }
     },
+    "viewMode": {
+      "properties": {
+        "defaultViewMode": {
+          "type": { "text": true }
+        }
+      }
+    },
     "camera": {
       "properties": {
         "defaultView": {
-          "type": {
-            "enumeration": [
-              {
-                "displayName": "Perspective",
-                "value": "perspective"
-              },
-              {
-                "displayName": "Top",
-                "value": "top"
-              },
-              {
-                "displayName": "Front",
-                "value": "front"
-              },
-              {
-                "displayName": "Left",
-                "value": "left"
-              },
-              {
-                "displayName": "Back",
-                "value": "back"
-              },
-              {
-                "displayName": "Right",
-                "value": "right"
-              }
-            ]
-          }
+          "type": { "text": true }
         },
         "allowCameraUnder": {
           "type": {

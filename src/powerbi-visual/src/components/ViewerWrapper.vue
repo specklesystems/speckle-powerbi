@@ -14,6 +14,7 @@
       :views="views"
       class="fixed bottom-6"
       @view-clicked="(view) => viewerHandler.setView(view)"
+      @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
     />
   </div>
 </template>
@@ -22,6 +23,7 @@
 import { inject, onBeforeUnmount, onMounted, Ref, ref } from 'vue'
 import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
+import ViewModeControls from 'src/components/ViewModeControls.vue'
 import { CanonicalView, SpeckleView } from '@speckle/viewer'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { ContextOption } from 'src/settings/colorSettings'
