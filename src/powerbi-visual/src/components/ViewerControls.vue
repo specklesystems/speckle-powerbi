@@ -18,7 +18,7 @@
         leave-to-class="opacity-0"
       >
         <MenuItems
-          class="absolute w-24 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
+          class="absolute w-20 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
         >
           <MenuItem
             v-for="view in canonicalViews"
@@ -30,7 +30,7 @@
               :class="{
                 'bg-primary text-foreground-on-primary': active,
                 'text-foreground': !active,
-                'text-sm py-2 transition': true
+                'text-sm py-1 transition': true
               }"
               @click="handleCameraViewChange(view.name.toLocaleLowerCase() as CanonicalView)"
             >
@@ -67,7 +67,7 @@
         leave-to-class="opacity-0"
       >
         <MenuItems
-          class="absolute w-32 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
+          class="absolute w-20 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
         >
           <MenuItem
             v-for="(label, mode) in viewModes"
@@ -79,7 +79,7 @@
               :class="{
                 'bg-primary text-foreground-on-primary': active,
                 'text-foreground': !active,
-                'text-sm py-2 transition': true
+                'text-sm py-1 transition': true
               }"
               @click="handleCameraViewModeChange(Number(mode))"
             >
