@@ -29,7 +29,8 @@ export class Tracker {
         ...tempProperties, // eslint-disable-next-line camelcase
         distinct_id: hashedEmail,
         // eslint-disable-next-line camelcase
-        server_id: hashedServer
+        server_id: hashedServer,
+        email: receiveInfo.userEmail
       }
     }
 

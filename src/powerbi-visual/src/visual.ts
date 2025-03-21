@@ -120,15 +120,15 @@ export class Visual implements IVisual {
                 )
               }
 
-              if (options.dataViews[0].metadata.objects.camera?.defaultView as string) {
-                console.log(
-                  `Default View: ${
-                    options.dataViews[0].metadata.objects.camera?.defaultView as string
-                  }`
-                )
-                visualStore.setDefaultCameraInFile(
-                  options.dataViews[0].metadata.objects.camera?.defaultView as string
-                )
+              if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
+                visualStore.setCameraPositionInFile([
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionX),
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionY),
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionZ),
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetX),
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetY),
+                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetZ)
+                ])
               }
               // get receive info from file for mixpanel
               try {

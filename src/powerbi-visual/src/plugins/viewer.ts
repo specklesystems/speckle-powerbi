@@ -5,13 +5,16 @@ import {
   IntersectionQuery,
   CameraController,
   CanonicalView,
-  ViewModes
+  ViewModes,
+  CameraEvent,
+  SpeckleView
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
+import { Vector3 } from 'three'
 
 export interface IViewer {
   /**
@@ -56,6 +59,7 @@ export interface IViewerEvents {
 export class ViewerHandler {
   public emitter: Emitter
   public viewer: LegacyViewer
+  private _needsRender = false
   private parent: HTMLElement
   private filteringState: FilteringState
 
@@ -76,6 +80,35 @@ export class ViewerHandler {
   async init(parent: HTMLElement) {
     this.viewer = await createViewer(parent)
     this.parent = parent
+    this.viewer.speckleRenderer.speckleCamera.on(
+      CameraEvent.FrameUpdate,
+      (needsUpdate: boolean) => {
+        this.needsRender = needsUpdate
+      }
+    )
+  }
+
+  get needsRender(): boolean {
+    return this._needsRender
+  }
+
+  set needsRender(value: boolean) {
+    if (this._needsRender !== value) {
+      this._needsRender = value
+      this.onNeedsRenderChanged(value)
+    }
+  }
+
+  private onNeedsRenderChanged(value: boolean) {
+    // whenever the render is settled means that user stopped interaction, so we will set the camera position
+    if (!value) {
+      console.log('🎬 Storing the camera position into file')
+      const cameraController = this.viewer.getExtension(CameraController)
+      const position = cameraController.getPosition()
+      const target = cameraController.getTarget()
+      const store = useVisualStore()
+      store.writeCameraPositionToFile(position, target)
+    }
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
@@ -162,14 +195,32 @@ export class ViewerHandler {
     //@ts-ignore
     const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
     const store = useVisualStore()
+
+    const speckleViews = objects.filter(
+      //@ts-ignore
+      (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
+    ) as SpeckleView[]
+
+    store.setSpeckleViews(speckleViews)
     if (store.defaultViewModeInFile) {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
     await this.viewer.loadObject(loader, true)
     Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
     // camera need to be set after objects loaded
-    if (store.defaultCameraInFile) {
-      this.setView(store.defaultCameraInFile as CanonicalView)
+    if (store.cameraPosition) {
+      const position = new Vector3(
+        store.cameraPosition[0],
+        store.cameraPosition[1],
+        store.cameraPosition[2]
+      )
+      const target = new Vector3(
+        store.cameraPosition[3],
+        store.cameraPosition[4],
+        store.cameraPosition[5]
+      )
+      const cameraController = this.viewer.getExtension(CameraController)
+      cameraController.setCameraView({ position, target }, true)
     }
   }
 
