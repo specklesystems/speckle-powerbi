@@ -6,7 +6,8 @@ import {
   CameraController,
   CanonicalView,
   ViewModes,
-  CameraEvent
+  CameraEvent,
+  SpeckleView
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -194,6 +195,13 @@ export class ViewerHandler {
     //@ts-ignore
     const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
     const store = useVisualStore()
+
+    const speckleViews = objects.filter(
+      //@ts-ignore
+      (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
+    ) as SpeckleView[]
+
+    store.setSpeckleViews(speckleViews)
     if (store.defaultViewModeInFile) {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }

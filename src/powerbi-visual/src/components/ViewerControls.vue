@@ -3,7 +3,8 @@
     <ButtonSimple flat secondary @click="onZoomExtentsClicked">
       <ArrowsPointingOutIcon class="h-5 w-5" />
     </ButtonSimple>
-    <Menu as="div" class="relative z-40">
+    <!-- Canonical Views -->
+    <Menu as="div" class="relative z-50">
       <MenuButton v-slot="{ open }" as="template">
         <ButtonToggle flat secondary :active="open">
           <VideoCameraIcon class="h-5 w-5" />
@@ -37,7 +38,7 @@
               {{ view.name }}
             </button>
           </MenuItem>
-          <!-- <MenuItem v-for="view in views" :key="view.name" v-slot="{ active }" as="template">
+          <MenuItem v-for="view in views" :key="view.name" v-slot="{ active }" as="template">
             <button
               :class="{
                 'bg-primary text-foreground-on-primary': active,
@@ -48,7 +49,45 @@
             >
               {{ view.view.name ?? view.name }}
             </button>
-          </MenuItem> -->
+          </MenuItem>
+        </MenuItems>
+      </Transition>
+    </Menu>
+    <!-- Speckle Custom Views -->
+    <Menu v-if="visualStore.speckleViews.length" as="div" class="relative z-40">
+      <MenuButton v-slot="{ open }" as="template">
+        <ButtonToggle flat secondary :active="open">
+          <ViewsIcon class="h-5 w-5" />
+        </ButtonToggle>
+      </MenuButton>
+      <Transition
+        enter-active-class="transform ease-out duration-300 transition"
+        enter-from-class="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+        enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+        leave-active-class="transition ease-in duration-100"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <MenuItems
+          class="absolute w-24 left-2 mb-8 bottom-2 bg-foundation max-h-64 simple-scrollbar overflow-y-auto outline outline-2 outline-primary-muted rounded-lg shadow-lg overflow-hidden flex flex-col"
+        >
+          <MenuItem
+            v-for="view in visualStore.speckleViews"
+            :key="view.id"
+            v-slot="{ active }"
+            as="template"
+          >
+            <button
+              :class="{
+                'bg-primary text-foreground-on-primary': active,
+                'text-foreground': !active,
+                'text-sm py-2 transition': true
+              }"
+              @click="handleCameraViewChange(view)"
+            >
+              {{ view.name }}
+            </button>
+          </MenuItem>
         </MenuItems>
       </Transition>
     </Menu>
@@ -112,6 +151,7 @@ import {
   PaintBrushIcon
 } from '@heroicons/vue/24/solid'
 import ViewModesIcon from 'src/components/icons/ViewModesIcon.vue'
+import ViewsIcon from 'src/components/icons/ViewsIcon.vue'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import ButtonToggle from 'src/components/controls/ButtonToggle.vue'
@@ -130,8 +170,7 @@ const emits = defineEmits([
   'view-mode-clicked'
 ])
 const props = withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
-  sectionBox: false,
-  views: () => []
+  sectionBox: false
 })
 
 const canonicalViews = [
@@ -151,9 +190,9 @@ const viewModes = {
   [ViewMode.COLORS]: 'Colors'
 }
 
-const handleCameraViewChange = (view: CanonicalView) => {
+const handleCameraViewChange = (view: CanonicalView | SpeckleView) => {
   emits('view-clicked', view)
-  visualStore.writeCameraViewToFile(view)
+  // visualStore.writeCameraViewToFile(view)
 }
 
 const handleCameraViewModeChange = (viewMode: ViewMode) => {

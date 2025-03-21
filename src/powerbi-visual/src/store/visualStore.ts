@@ -40,6 +40,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   const cameraPosition = ref<number[]>(undefined)
   const defaultViewModeInFile = ref<string>(undefined)
 
+  const speckleViews = ref<SpeckleView[]>([])
+
   // callback mechanism to viewer to be able to manage input data accordingly.
   // Note: storing whole viewer in store is not make sense and also pinia ts complains about it for serialization issues.
   // Error was and you can not/should not compress: 👇
@@ -213,6 +215,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
+  const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
+
   return {
     host,
     receiveInfo,
@@ -230,8 +234,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     isLoadingFromFile,
     cameraPosition,
     defaultViewModeInFile,
+    speckleViews,
     setCameraPositionInFile,
     setDefaultViewModeInFile,
+    setSpeckleViews,
     loadObjectsFromFile,
     setHost,
     setReceiveInfo,
