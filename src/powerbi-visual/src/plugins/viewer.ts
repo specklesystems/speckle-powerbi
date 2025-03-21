@@ -13,6 +13,7 @@ import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
+import { Vector3 } from 'three'
 
 export interface IViewer {
   /**
@@ -100,10 +101,12 @@ export class ViewerHandler {
   private onNeedsRenderChanged(value: boolean) {
     // whenever the render is settled means that user stopped interaction, so we will set the camera position
     if (!value) {
-      console.log(
-        '🎬 Setting the camera position:',
-        this.viewer.speckleRenderer.speckleCamera.renderingCamera
-      )
+      console.log('🎬 Storing the camera position into file')
+      const cameraController = this.viewer.getExtension(CameraController)
+      const position = cameraController.getPosition()
+      const target = cameraController.getTarget()
+      const store = useVisualStore()
+      store.writeCameraPositionToFile(position, target)
     }
   }
 
@@ -197,8 +200,19 @@ export class ViewerHandler {
     await this.viewer.loadObject(loader, true)
     Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
     // camera need to be set after objects loaded
-    if (store.defaultCameraInFile) {
-      this.setView(store.defaultCameraInFile as CanonicalView)
+    if (store.cameraPosition) {
+      const position = new Vector3(
+        store.cameraPosition[0],
+        store.cameraPosition[1],
+        store.cameraPosition[2]
+      )
+      const target = new Vector3(
+        store.cameraPosition[3],
+        store.cameraPosition[4],
+        store.cameraPosition[5]
+      )
+      const cameraController = this.viewer.getExtension(CameraController)
+      cameraController.setCameraView({ position, target }, true)
     }
   }
 

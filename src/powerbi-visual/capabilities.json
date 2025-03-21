@@ -115,6 +115,28 @@
         }
       }
     },
+    "cameraPosition": {
+      "properties": {
+        "positionX": {
+          "type": { "text": true }
+        },
+        "positionY": {
+          "type": { "text": true }
+        },
+        "positionZ": {
+          "type": { "text": true }
+        },
+        "targetX": {
+          "type": { "text": true }
+        },
+        "targetY": {
+          "type": { "text": true }
+        },
+        "targetZ": {
+          "type": { "text": true }
+        }
+      }
+    },
     "color": {
       "properties": {
         "enabled": {

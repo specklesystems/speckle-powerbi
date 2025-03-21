@@ -4,6 +4,7 @@ import { SpeckleDataInput } from '@src/types'
 import { zipJSONChunks } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
+import { Vector3 } from 'three'
 import { ref, shallowRef } from 'vue'
 
 export type InputState = 'valid' | 'incomplete' | 'invalid'
@@ -36,7 +37,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   })
   const lastLoadedRootObjectId = ref<string>()
 
-  const defaultCameraInFile = ref<string>(undefined)
+  const cameraPosition = ref<number[]>(undefined)
   const defaultViewModeInFile = ref<string>(undefined)
 
   // callback mechanism to viewer to be able to manage input data accordingly.
@@ -179,6 +180,25 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'cameraPosition',
+          properties: {
+            positionX: position.x,
+            positionY: position.y,
+            positionZ: position.z,
+            targetX: target.x,
+            targetY: target.y,
+            targetZ: target.z
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
     (fieldInputState.value = newFieldInputState)
 
@@ -190,7 +210,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
-  const setDefaultCameraInFile = (newValue: string) => (defaultCameraInFile.value = newValue)
+  const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
   return {
@@ -208,9 +228,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     lastLoadedRootObjectId,
     loadingProgress,
     isLoadingFromFile,
-    defaultCameraInFile,
+    cameraPosition,
     defaultViewModeInFile,
-    setDefaultCameraInFile,
+    setCameraPositionInFile,
     setDefaultViewModeInFile,
     loadObjectsFromFile,
     setHost,
@@ -220,6 +240,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     writeObjectsToFile,
     writeCameraViewToFile,
     writeViewModeToFile,
+    writeCameraPositionToFile,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
