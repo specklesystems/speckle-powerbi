@@ -26,7 +26,7 @@ in
             parsedUrl = Parser(url),
             server = parsedUrl[baseUrl],
             
-            apiKey = Extension.CurrentCredential(),
+            apiKey = try Extension.CurrentCredential()[Key] otherwise "",
             
             query = "query {
                     activeUser {
@@ -45,7 +45,7 @@ in
                     Headers = [
                         #"Method" = "POST",
                         #"Content-Type" = "application/json",
-                        #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
+                        #"Authorization" = if apiKey = "" then "" else Text.Format("Bearer #{0}", {apiKey})
                     ],
                     ManualStatusHandling = {400},
                     Content = Json.FromValue([query = query])
@@ -57,10 +57,10 @@ in
                 error JsonResponse[errors]{0}[message]
             else
                 [
-                    UserEmail = JsonResponse[data][activeUser][email],
-                    UserName = JsonResponse[data][activeUser][name],
+                    UserEmail = try JsonResponse[data][activeUser][email] otherwise "",
+                    UserName = try JsonResponse[data][activeUser][name] otherwise "",
                     ServerName = JsonResponse[data][serverInfo][name],
                     ServerCompany = JsonResponse[data][serverInfo][company],
                     ServerVersion = JsonResponse[data][serverInfo][version],
-                    Token = apiKey[access_token]
+                    Token = if apiKey = "" then null else apiKey[access_token]
                 ]
