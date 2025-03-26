@@ -30,7 +30,8 @@ export class Tracker {
         distinct_id: hashedEmail,
         // eslint-disable-next-line camelcase
         server_id: hashedServer,
-        email: receiveInfo.userEmail
+        email: receiveInfo.userEmail,
+        isAnonymous: receiveInfo.userEmail === ''
       }
     }
 
