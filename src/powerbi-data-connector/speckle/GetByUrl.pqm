@@ -4,6 +4,7 @@
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         SendToServer = Extension.LoadFunction("SendToServer.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -22,15 +23,90 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        // get model name
-        modelInfo = GetModel(url),
-        modelName = modelInfo[modelName],
+        // parse the URL to determine if it's a federated model
+        parsedUrl = Parser(url),
         
-        // get structured data
-        StructuredData = GetStructuredData(url),
+        // function to process a single model and get its data
+        ProcessSingleModel = (baseUrl, projectId, modelId, versionId) => 
+            let
+                // construct a standard URL for the model
+                singleModelUrl = Text.Combine({
+                    baseUrl, 
+                    "/projects/", 
+                    projectId, 
+                    "/models/", 
+                    modelId,
+                    if versionId <> null then Text.Combine({"@", versionId}) else ""
+                }),
+                
+                // get model info
+                modelInfo = GetModel(singleModelUrl),
+                rootObjectId = modelInfo[rootObjectId],
+                modelName = modelInfo[modelName],
+                
+                // get structured data
+                structuredData = GetStructuredData(singleModelUrl),
+                
+                // add the model name as context
+                result = Table.AddColumn(
+                    structuredData, 
+                    "Source Model", 
+                    each modelName,
+                    type text
+                )
+            in
+                [
+                    Data = result,
+                    RootObjectId = rootObjectId
+                ],
+                
+        // check if this is a federated model
+        results = if parsedUrl[isFederated] = true then
+            // process each model in the federation
+            let
+                modelsData = List.Transform(
+                    parsedUrl[federatedModels],
+                    each ProcessSingleModel(
+                        parsedUrl[baseUrl], 
+                        parsedUrl[projectId], 
+                        [modelId], 
+                        [versionId]
+                    )
+                ),
+                
+                // extract all data tables
+                allTables = List.Transform(modelsData, each [Data]),
+                
+                // extract all root object IDs
+                allRootIds = List.Transform(modelsData, each [RootObjectId]),
+                
+                // combine all root object IDs into a comma-separated string
+                combinedRootIds = Text.Combine(allRootIds, ","),
+                
+                // combine all data tables
+                combinedData = Table.Combine(allTables),
+                
+                // replace the "Version Object ID" column with the combined root IDs
+                finalData = Table.TransformColumns(
+                    combinedData, 
+                    {"Version Object ID", each combinedRootIds}
+                )
+            in
+                finalData
+        else
+            // use existing functionality for single models
+            let
+                // get model name
+                modelInfo = GetModel(url),
+                modelName = modelInfo[modelName],
+                
+                // get structured data
+                structuredData = GetStructuredData(url),
 
-        // rename column based on send status
-        NewColumnName = "Version Object ID",
-        Result = Table.RenameColumns(StructuredData, {{"Version Object ID", NewColumnName}})
+                // rename column based on send status
+                newColumnName = "Version Object ID",
+                result = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}})
+            in
+                result
     in
-        Result
+        results
