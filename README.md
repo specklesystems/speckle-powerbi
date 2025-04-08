@@ -32,7 +32,7 @@ This repo is home to our Power BI connector. The Speckle Server provides all the
 
 # Installation
 
-Speckle connector can be installed directly from [Manager for Speckle](https://speckle.systems/download/). Full instructions for [installation](https://speckle.guide/user/powerbi/installation.html) and [configuration](https://speckle.guide/user/powerbi/configuration.html) can be found on our docs.
+Speckle connector can be installed directly from [Manager for Speckle](https://app.speckle.systems/connectors/). Full instructions for [installation](https://speckle.guide/user/powerbi/installation.html) and [configuration](https://speckle.guide/user/powerbi/configuration.html) can be found on our docs.
 
 # Using 3D Visual
 
