@@ -1,7 +1,7 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
-import { zipJSONChunks } from '@src/utils/compression'
+import { zipJSONChunks, zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
@@ -101,7 +101,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const loadObjectsFromFile = async (objects: object[]) => {
-    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id
+    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id // TODO fix
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjects', objects)
@@ -120,13 +120,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     dataInput.value = newValue
 
     if (viewerReloadNeeded.value) {
-      lastLoadedRootObjectId.value = (dataInput.value.objects[0] as SpeckleObject).id
+      const modelIds = dataInput.value.modelObjects.map((o) => (o[0] as SpeckleObject).id).join(',')
+      lastLoadedRootObjectId.value = modelIds
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
-      await viewerEmit.value('loadObjects', dataInput.value.objects)
+      await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
       clearLoadingProgress()
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
-      writeObjectsToFile(dataInput.value.objects)
+      writeObjectsToFile(dataInput.value.modelObjects)
     }
 
     if (dataInput.value.selectedIds.length > 0) {
@@ -137,8 +138,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
-  const writeObjectsToFile = (objects: object[]) => {
-    const compressedChunks = zipJSONChunks(objects, 10000) // Compress in chunks
+  const writeObjectsToFile = (modelObjects: object[][]) => {
+    const compressedChunks = zipModelObjects(modelObjects, 10000) // Compress in chunks
 
     host.value.persistProperties({
       merge: [

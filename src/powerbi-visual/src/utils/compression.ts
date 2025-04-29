@@ -29,11 +29,15 @@ function chunkArray(array, chunkSize) {
   return chunks
 }
 
+export function zipModelObjects(modelObjects: object[][], chunkSize = 1000) {
+  return modelObjects.map((objects) => zipJSONChunks(objects, chunkSize)).join('>')
+}
+
 /**
  * Compresses JSON objects in chunks properly.
  */
-export function zipJSONChunks(objects, chunkSize = 1000) {
-  const chunks = chunkArray(objects, chunkSize)
+export function zipJSONChunks(objectsInModel: object[], chunkSize = 1000) {
+  const chunks = chunkArray(objectsInModel, chunkSize)
   return chunks.map((chunk, index) => {
     const jsonString = JSON.stringify(chunk)
     const originalSize = new TextEncoder().encode(jsonString).length / (1024 * 1024) // Original size in bytes
@@ -50,6 +54,14 @@ export function zipJSONChunks(objects, chunkSize = 1000) {
 
     return compressedBase64
   })
+}
+
+export function unzipModelObjects(compressedChunk: string) {
+  const compressedModelObjects = compressedChunk.split('>')
+  console.log(compressedModelObjects)
+  return compressedModelObjects.map((compressedModelObjs) =>
+    unzipJSONChunk(compressedModelObjs.split(','))
+  )
 }
 
 /**

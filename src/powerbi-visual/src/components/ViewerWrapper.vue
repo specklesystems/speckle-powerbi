@@ -23,8 +23,7 @@
 import { inject, onBeforeUnmount, onMounted, Ref, ref } from 'vue'
 import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
-import ViewModeControls from 'src/components/ViewModeControls.vue'
-import { CanonicalView, SpeckleView } from '@speckle/viewer'
+import { SpeckleView } from '@speckle/viewer'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { ContextOption } from 'src/settings/colorSettings'
 import { useVisualStore } from '@src/store/visualStore'
@@ -62,6 +61,9 @@ function isMultiSelect(e: MouseEvent) {
 
 async function onCanvasClick(ev: MouseEvent) {
   if (dragged.value) return
+
+  // eslint-disable-next-line no-debugger
+  debugger
 
   const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
 

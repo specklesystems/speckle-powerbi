@@ -11,7 +11,7 @@ import {
   Viewer,
   HybridCameraController,
   SelectionExtension,
-  FilteringExtension,
+  FilteringExtension
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -26,7 +26,6 @@ export interface IViewer {
    */
   on: <E extends keyof IViewerEvents>(event: E, callback: IViewerEvents[E]) => void
 }
-
 
 export interface Hit {
   guid: string
@@ -99,7 +98,7 @@ export class ViewerHandler {
   }
 
   public zoomExtends = () => this.cameraControls.setCameraView(undefined, false)
-  
+
   public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
@@ -145,7 +144,7 @@ export class ViewerHandler {
 
   public intersect = (coords: { x: number; y: number }) => {
     const point = this.viewer.Utils.screenToNDC(coords.x, coords.y)
-      
+
     const intQuery: IntersectionQuery = {
       operation: 'Pick',
       point
@@ -163,24 +162,32 @@ export class ViewerHandler {
     }
   }
 
-  public loadObjects = async (objects: object[]) => {
+  public loadObjects = async (modelObjects: object[][]) => {
     await this.viewer.unloadAll()
     // const stringifiedObject = JSON.stringify(objects)
-    //@ts-ignore
-    const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
-    const store = useVisualStore()
 
-    const speckleViews = objects.filter(
+    const store = useVisualStore()
+    const speckleViews = []
+
+    modelObjects.forEach(async (objects) => {
       //@ts-ignore
-      (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
-    ) as SpeckleView[]
+      const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
+
+      const speckleViewsInModel = objects.filter(
+        //@ts-ignore
+        (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
+      ) as SpeckleView[]
+      speckleViews.concat(speckleViewsInModel)
+
+      // Since you are setting another camera position, maybe you want the second argument to false
+      await this.viewer.loadObject(loader, true)
+    })
 
     store.setSpeckleViews(speckleViews)
     if (store.defaultViewModeInFile) {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
-    // Since you are setting another camera position, maybe you want the second argument to false
-    await this.viewer.loadObject(loader, true)
+
     Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
     // camera need to be set after objects loaded
     if (store.cameraPosition) {
@@ -204,26 +211,28 @@ export class ViewerHandler {
 
   private pickViewableHit(hits: Hit[]): Hit | null {
     // The current filtering state
-    const filteringState = this.filtering.filteringState;
+    const filteringState = this.filtering.filteringState
     // Are there any objects isolated?
     const hasIsolatedObjects =
-      !!filteringState.isolatedObjects &&
-      filteringState.isolatedObjects.length !== 0;
+      !!filteringState.isolatedObjects && filteringState.isolatedObjects.length !== 0
     // Are there any objects hidden?
-    const hasHiddenObjects = 
-    !!filteringState.hiddenObjects &&
-      filteringState.hiddenObjects.length !== 0;
+    const hasHiddenObjects =
+      !!filteringState.hiddenObjects && filteringState.hiddenObjects.length !== 0
     // No isolated or hidden objects? Return the first hit
-    if(!hasIsolatedObjects && !hasHiddenObjects)
-        return hits[0]
+    if (hasIsolatedObjects && !hasHiddenObjects) {
+      return hits.find((h) => filteringState.isolatedObjects.includes(h.guid))
+    }
 
-    for(let k = 0 ; k < hits.length ; k++){
+    for (let k = 0; k < hits.length; k++) {
       /** Return the first one that's not hidden or isolated. */
-      if((hasIsolatedObjects && filteringState.isolatedObjects?.includes(hits[k].guid)) && 
-        (hasHiddenObjects && filteringState.hiddenObjects?.includes(hits[k].guid)))
+      if (
+        hasIsolatedObjects &&
+        filteringState.isolatedObjects?.includes(hits[k].guid) &&
+        hasHiddenObjects &&
+        filteringState.hiddenObjects?.includes(hits[k].guid)
+      )
         return hits[k]
     }
-    
   }
 
   public dispose() {
@@ -239,7 +248,7 @@ const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   viewerSettings.verbose = true // Turning this on so we can see logs for now
   const viewer = new Viewer(parent, viewerSettings)
   await viewer.init()
-  
+
   viewer.createExtension(HybridCameraController) // camera controller
   viewer.createExtension(SelectionExtension) // selection helper
   // viewer.createExtension(SectionTool) // section tool, possibly not needed for now?

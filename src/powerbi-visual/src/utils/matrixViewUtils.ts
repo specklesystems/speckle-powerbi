@@ -149,7 +149,8 @@ export type ReceiveInfo = {
 
 async function getReceiveInfo(id) {
   try {
-    const response = await fetch(`http://localhost:29364/user-info/${id}`)
+    const ids = (id as string).split(',')
+    const response = await fetch(`http://localhost:29364/user-info/${ids[0]}`)
     if (!response.body) {
       console.error('No response body')
       return
@@ -162,7 +163,18 @@ async function getReceiveInfo(id) {
   }
 }
 
-async function fetchStreamedData(id) {
+async function fetchStreamedData(commaSeparatedModelIds: string) {
+  const modelIds = (commaSeparatedModelIds as string).split(',')
+  const modelObjects = []
+
+  for await (const id of modelIds) {
+    const objects = await fetchStreamedDataForModel(id)
+    modelObjects.push(objects)
+  }
+  return modelObjects
+}
+
+async function fetchStreamedDataForModel(id) {
   try {
     const response = await fetch(`http://localhost:29364/get-objects/${id}`)
 
@@ -263,7 +275,7 @@ export async function processMatrixView(
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
-  let objects: object[] = undefined
+  let modelObjects: object[][] = undefined
 
   if (visualStore.isLoadingFromFile) {
     console.log('The data is loading from file, skipping the streaming it.')
@@ -275,7 +287,7 @@ export async function processMatrixView(
     visualStore.setLoadingProgress('Loading', null)
 
     // stream data
-    objects = await fetchStreamedData(id)
+    modelObjects = await fetchStreamedData(id)
 
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
@@ -352,7 +364,7 @@ export async function processMatrixView(
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    objects,
+    modelObjects,
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,

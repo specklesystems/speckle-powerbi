@@ -10,7 +10,7 @@ export interface IViewerTooltip {
 }
 
 export interface SpeckleDataInput {
-  objects: object[]
+  modelObjects: object[][]
   objectIds: string[]
   selectedIds: string[]
   colorByIds: { objectIds: string[]; slice: fs.ColorPicker; color: string }[]
