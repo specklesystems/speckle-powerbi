@@ -4,10 +4,8 @@ import '../style/visual.css'
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel'
 import { createApp } from 'vue'
 import App from './App.vue'
-// import { store } from 'src/store'
 import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
-import { Tracker } from './utils/mixpanel'
 import { SpeckleDataInput } from './types'
 import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
@@ -19,15 +17,10 @@ import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructor
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import IVisual = powerbi.extensibility.visual.IVisual
 import ITooltipService = powerbi.extensibility.ITooltipService
-import {
-  createDataViewWildcardSelector,
-  DataViewWildcardMatchingOption
-} from 'powerbi-visuals-utils-dataviewutils/lib/dataViewWildcard'
-import { ColorSelectorSettings } from 'src/settings/colorSettings'
 
 import { pinia } from './plugins/pinia'
-import { FieldInputState, useVisualStore } from './store/visualStore'
-import { unzipJSONChunk, unzipJSONChunks, zipJSONChunks } from './utils/compression'
+import { useVisualStore } from './store/visualStore'
+import { unzipModelObjects } from './utils/compression'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -103,10 +96,9 @@ export class Visual implements IVisual {
               this.isFirstViewerLoad &&
               options.dataViews[0].metadata.objects
             ) {
-              const chunks = (
-                options.dataViews[0].metadata.objects.storedData?.speckleObjects as string
-              ).split(',')
-              const objectsFromFile = unzipJSONChunks(chunks)
+              const chunks = options.dataViews[0].metadata.objects.storedData
+                ?.speckleObjects as string
+              const objectsFromFile = unzipModelObjects(chunks)
 
               if (options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string) {
                 console.log(
