@@ -1,4 +1,4 @@
-name: build_powerbi
+name: Depoly Connector and Visual
 on:
   push:
     branches: ["installer-test/**"]

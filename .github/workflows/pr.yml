@@ -1,4 +1,4 @@
-name: build_powerbi
+name: Build Connector and Visual
 on: pull_request
 
 jobs:
