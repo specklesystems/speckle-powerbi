@@ -1,5 +1,4 @@
 import {
-  LegacyViewer,
   DefaultViewerParams,
   FilteringState,
   IntersectionQuery,
@@ -7,7 +6,12 @@ import {
   CanonicalView,
   ViewModes,
   CameraEvent,
-  SpeckleView
+  SpeckleView,
+  ViewMode,
+  Viewer,
+  HybridCameraController,
+  SelectionExtension,
+  FilteringExtension,
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -23,14 +27,6 @@ export interface IViewer {
   on: <E extends keyof IViewerEvents>(event: E, callback: IViewerEvents[E]) => void
 }
 
-export declare enum ViewMode {
-  DEFAULT = 0,
-  DEFAULT_EDGES = 1,
-  SHADED = 2,
-  PEN = 3,
-  ARCTIC = 4,
-  COLORS = 5
-}
 
 export interface Hit {
   guid: string
@@ -50,7 +46,6 @@ export interface IViewerEvents {
     }[]
   ) => void
   isolateObjects: (objectIds: string[]) => void
-  forceViewerUpdate: () => void
   unIsolateObjects: () => void
   zoomExtends: () => void
   loadObjects: (objects: object[]) => void
@@ -58,9 +53,10 @@ export interface IViewerEvents {
 
 export class ViewerHandler {
   public emitter: Emitter
-  public viewer: LegacyViewer
-  private _needsRender = false
-  private parent: HTMLElement
+  public viewer: Viewer
+  public cameraControls: CameraController
+  public filtering: FilteringExtension
+  public selection: SelectionExtension
   private filteringState: FilteringState
 
   constructor() {
@@ -79,49 +75,32 @@ export class ViewerHandler {
 
   async init(parent: HTMLElement) {
     this.viewer = await createViewer(parent)
-    this.parent = parent
-    this.viewer.speckleRenderer.speckleCamera.on(
-      CameraEvent.FrameUpdate,
-      (needsUpdate: boolean) => {
-        this.needsRender = needsUpdate
-      }
-    )
-  }
+    this.cameraControls = this.viewer.getExtension(CameraController)
+    this.filtering = this.viewer.getExtension(FilteringExtension)
+    this.selection = this.viewer.getExtension(SelectionExtension)
 
-  get needsRender(): boolean {
-    return this._needsRender
-  }
-
-  set needsRender(value: boolean) {
-    if (this._needsRender !== value) {
-      this._needsRender = value
-      this.onNeedsRenderChanged(value)
-    }
-  }
-
-  private onNeedsRenderChanged(value: boolean) {
-    // whenever the render is settled means that user stopped interaction, so we will set the camera position
-    if (!value) {
+    this.cameraControls.on(CameraEvent.Stationary, () => {
       console.log('🎬 Storing the camera position into file')
       const cameraController = this.viewer.getExtension(CameraController)
       const position = cameraController.getPosition()
       const target = cameraController.getTarget()
       const store = useVisualStore()
       store.writeCameraPositionToFile(position, target)
-    }
+    })
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
     this.emitter.emit(event, ...payload)
   }
 
-  public zoomObjects = (objectIds: string[]) => {
-    this.viewer.zoom(objectIds)
+  public zoomObjects = (objectIds: string[], animate = false) => {
+    /** Second argument here is for animating the camera movement. Default is false */
+    this.cameraControls.setCameraView(objectIds, animate)
   }
 
-  public zoomExtends = () => this.viewer.zoom()
-
-  public setView = (view: CanonicalView) => this.viewer.setView(view)
+  public zoomExtends = () => this.cameraControls.setCameraView(undefined, false)
+  
+  public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
@@ -133,30 +112,30 @@ export class ViewerHandler {
     viewModes.setViewMode(viewMode)
   }
 
-  public selectObjects = async (objectIds: string[]) => {
+  public selectObjects = (objectIds: string[]) => {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
     if (objectIds) {
-      await this.viewer.selectObjects(objectIds)
+      this.selection.selectObjects(objectIds)
     }
   }
 
-  public colorObjectsByGroup = async (
+  public colorObjectsByGroup = (
     colorByIds: {
       objectIds: string[]
       color: string
     }[]
   ) => {
-    this.filteringState = await this.viewer.setUserObjectColors(colorByIds ?? [])
+    this.filteringState = this.filtering.setUserObjectColors(colorByIds ?? [])
   }
 
-  public isolateObjects = async (objectIds: string[], ghost: boolean) => {
-    await this.unIsolateObjects()
-    this.filteringState = await this.viewer.isolateObjects(objectIds, 'powerbi', true, ghost)
+  public isolateObjects = (objectIds: string[], ghost: boolean) => {
+    this.unIsolateObjects()
+    this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
   }
 
-  public unIsolateObjects = async () => {
+  public unIsolateObjects = () => {
     if (this.filteringState && this.filteringState.isolatedObjects) {
-      this.filteringState = await this.viewer.unIsolateObjects(
+      this.filteringState = this.filtering.unIsolateObjects(
         this.filteringState.isolatedObjects,
         'powerbi',
         true
@@ -165,22 +144,17 @@ export class ViewerHandler {
   }
 
   public intersect = (coords: { x: number; y: number }) => {
-    const point = this.viewer.Utils.screenToNDC(
-      coords.x,
-      coords.y,
-      this.parent.clientWidth,
-      this.parent.clientHeight
-    )
+    const point = this.viewer.Utils.screenToNDC(coords.x, coords.y)
+      
     const intQuery: IntersectionQuery = {
       operation: 'Pick',
       point
     }
 
     const res = this.viewer.query(intQuery)
-    // console.log(res, 'pick objects')
 
     if (!res) {
-      this.viewer.selectObjects([])
+      this.selection.clearSelection()
       return
     }
     return {
@@ -205,6 +179,7 @@ export class ViewerHandler {
     if (store.defaultViewModeInFile) {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
+    // Since you are setting another camera position, maybe you want the second argument to false
     await this.viewer.loadObject(loader, true)
     Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
     // camera need to be set after objects loaded
@@ -219,8 +194,7 @@ export class ViewerHandler {
         store.cameraPosition[4],
         store.cameraPosition[5]
       )
-      const cameraController = this.viewer.getExtension(CameraController)
-      cameraController.setCameraView({ position, target }, true)
+      this.cameraControls.setCameraView({ position, target }, true)
     }
   }
 
@@ -229,16 +203,27 @@ export class ViewerHandler {
   }
 
   private pickViewableHit(hits: Hit[]): Hit | null {
-    // let hit = null
-    // if (this.filteringState.isolatedObjects) {
-    //   // Find the first hit contained in the isolated objects
-    //   hit = hits.find((hit) => {
-    //     const hitId = hit.object.id as string
-    //     return this.filteringState.isolatedObjects.includes(hitId)
-    //   })
-    // }
-    const hit = hits.find((h) => this.filteringState.isolatedObjects.includes(h.guid))
-    return hit
+    // The current filtering state
+    const filteringState = this.filtering.filteringState;
+    // Are there any objects isolated?
+    const hasIsolatedObjects =
+      !!filteringState.isolatedObjects &&
+      filteringState.isolatedObjects.length !== 0;
+    // Are there any objects hidden?
+    const hasHiddenObjects = 
+    !!filteringState.hiddenObjects &&
+      filteringState.hiddenObjects.length !== 0;
+    // No isolated or hidden objects? Return the first hit
+    if(!hasIsolatedObjects && !hasHiddenObjects)
+        return hits[0]
+
+    for(let k = 0 ; k < hits.length ; k++){
+      /** Return the first one that's not hidden or isolated. */
+      if((hasIsolatedObjects && filteringState.isolatedObjects?.includes(hits[k].guid)) && 
+        (hasHiddenObjects && filteringState.hiddenObjects?.includes(hits[k].guid)))
+        return hits[k]
+    }
+    
   }
 
   public dispose() {
@@ -248,12 +233,21 @@ export class ViewerHandler {
   }
 }
 
-const createViewer = async (parent: HTMLElement): Promise<LegacyViewer> => {
+const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   const viewerSettings = DefaultViewerParams
   viewerSettings.showStats = false
-  viewerSettings.verbose = false
-  const viewer = new LegacyViewer(parent, viewerSettings)
+  viewerSettings.verbose = true // Turning this on so we can see logs for now
+  const viewer = new Viewer(parent, viewerSettings)
   await viewer.init()
+  
+  viewer.createExtension(HybridCameraController) // camera controller
+  viewer.createExtension(SelectionExtension) // selection helper
+  // viewer.createExtension(SectionTool) // section tool, possibly not needed for now?
+  // viewer.createExtension(SectionOutlines) // section tool, possibly not needed for now?
+  // viewer.createExtension(MeasurementsExtension) // measurements, possibly not needed for now?
+  viewer.createExtension(FilteringExtension) // filtering
+  viewer.createExtension(ViewModes) // view modes
+
   console.log('🎥 Viewer is created!')
   return viewer
 }

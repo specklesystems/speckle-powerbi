@@ -20,7 +20,7 @@
     "@speckle/objectloader": "^2.23.8",
     "@speckle/tailwind-theme": "2.23.2",
     "@speckle/ui-components": "2.23.2",
-    "@speckle/viewer": "2.23.8",
+    "@speckle/viewer": "2.23.23",
     "color-interpolate": "^1.0.5",
     "core-js": "^3.30.2",
     "lodash": "^4.17.21",
