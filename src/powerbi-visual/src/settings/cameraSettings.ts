@@ -13,12 +13,6 @@ export class CameraSettings extends fs.SimpleCard {
     value: 'perspective'
   })
 
-  public allowCameraUnder = new fs.ToggleSwitch({
-    name: 'allowCameraUnder',
-    displayName: 'Allow under model',
-    value: false
-  })
-
   public zoomOnDataChange = new fs.ToggleSwitch({
     name: 'zoomOnDataChange',
     displayName: 'Zoom extent on change',
@@ -29,7 +23,6 @@ export class CameraSettings extends fs.SimpleCard {
   slices: fs.Slice[] = [
     this.defaultView,
     this.projection,
-    this.allowCameraUnder,
     this.zoomOnDataChange
   ]
 }
