@@ -172,10 +172,11 @@ export class Visual implements IVisual {
   }
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
-    console.log('Showing Formatting settings', this.formattingSettings)
-    const model = this.formattingSettingsService.buildFormattingModel(this.formattingSettings)
-    console.log('Formatting model was created', model)
-    return model
+    // Return an empty model for custom settings
+    // This will still maintain the General tab that's added automatically by PowerBI
+    return {
+      cards: []
+    }
   }
 
   private updateViewer(input: SpeckleDataInput) {
