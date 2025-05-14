@@ -58,10 +58,10 @@ export function zipJSONChunks(objectsInModel: object[], chunkSize = 1000) {
 
 export function unzipModelObjects(compressedChunk: string) {
   const compressedModelObjects = compressedChunk.split('>')
-  console.log(compressedModelObjects)
-  return compressedModelObjects.map((compressedModelObjs) =>
-    unzipJSONChunk(compressedModelObjs.split(','))
-  )
+  return compressedModelObjects.map((compressedModelObjs) => {
+    const chunksInModel = compressedModelObjs.split(',')
+    return unzipJSONChunks(chunksInModel)
+  })
 }
 
 /**
