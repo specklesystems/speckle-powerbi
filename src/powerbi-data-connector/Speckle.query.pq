@@ -3,7 +3,7 @@
 // NOTE! for tests, be make sure you put here a model that in private project to make sure all good.
 let
     result = Speckle.GetByUrl(
-        "https://app.speckle.systems/projects/fddfc547ee/models/57d9436086"
+        "https://latest.speckle.systems/projects/126cd4b7bb/models/85c44d39c6"
     )
 in
     result
