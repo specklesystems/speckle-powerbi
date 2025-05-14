@@ -35,6 +35,12 @@ shared Speckle.Api.Fetch = Value.ReplaceType(
 );
 
 [DataSource.Kind = "Speckle"]
+shared Speckle.CheckPermissions = Value.ReplaceType(
+    Speckle.LoadFunction("CheckPermissions.pqm"),
+    type function (url as Uri.Type) as record
+);
+
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetUser = Value.ReplaceType(
     Speckle.LoadFunction("GetUser.pqm"), 
     type function (url as Uri.Type) as record

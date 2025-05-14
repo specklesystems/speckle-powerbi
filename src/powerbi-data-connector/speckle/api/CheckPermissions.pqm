@@ -1,0 +1,66 @@
+(url as text) as record =>
+    let
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        // parse the URL to extract project id
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        projectId = parsedUrl[projectId],
+        
+        // GraphQL query to check permissions
+        query = "query Project($projectId: String!) {
+            data:project(id: $projectId) {
+                data:permissions {
+                    canLoad {
+                        authorized
+                        code
+                        message
+                    }
+                }
+            }
+        }",
+        
+        // variables variable for api fetch (i know)
+        variables = [
+            projectId = projectId
+        ],
+        
+        result = ApiFetch(server, query, variables),
+        
+        // check that the result contains the expected structure
+        // this will throw an error if the structure is not as expected
+        structureCheck = if not (Record.HasFields(result, {"data"}) and 
+                  Record.HasFields(result[data], {"data"}) and 
+                  Record.HasFields(result[data][data], {"canLoad"}) and
+                  Record.HasFields(result[data][data][canLoad], {"authorized", "code", "message"})) then
+            error "Invalid response structure from permission check"
+        else
+            null,
+        
+        canLoad = result[data][data][canLoad],
+        
+        // return the permission result
+        permissionResult = [
+            authorized = canLoad[authorized],
+            code = canLoad[code],
+            message = canLoad[message]
+        ]
+    in
+        permissionResult 
