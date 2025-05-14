@@ -26,7 +26,7 @@ in
             parsedUrl = Parser(url),
             server = parsedUrl[baseUrl],
             
-            apiKey = try Extension.CurrentCredential()[Key] otherwise "",
+            apiKey = try Extension.CurrentCredential()[Key] otherwise try Extension.CurrentCredential()[access_token] otherwise "",
             
             query = "query {
                     activeUser {
@@ -62,5 +62,5 @@ in
                     ServerName = JsonResponse[data][serverInfo][name],
                     ServerCompany = JsonResponse[data][serverInfo][company],
                     ServerVersion = JsonResponse[data][serverInfo][version],
-                    Token = if apiKey = "" then null else apiKey[access_token]
+                    Token = if apiKey = "" then null else apiKey
                 ]
