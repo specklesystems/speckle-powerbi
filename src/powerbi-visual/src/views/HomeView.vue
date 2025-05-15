@@ -40,14 +40,15 @@
       </div>
     </div>
     <div class="flex justify-end gap-1">
-      <button :class="buttonClass" @click="goToGuide">Getting started</button>
-      <button :class="buttonClass" @click="goToForum">Help</button>
+      <FormButton :class="buttonClass" @click="goToGuide">Getting started</FormButton>
+      <FormButton :class="buttonClass" @click="goToForum">Help</FormButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useVisualStore } from '../store/visualStore'
+import { FormButton } from '@speckle/ui-components'
 import {
   EyeIcon,
   ArrowRightIcon,

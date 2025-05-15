@@ -155,7 +155,8 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
         src: path.resolve(__dirname, 'src/'),
         assets: path.resolve(__dirname, 'assets/')
       },
-      plugins: [new TsconfigPathsPlugin()]
+      plugins: [new TsconfigPathsPlugin()],
+      mainFields: ['module', 'browser', 'main']
     },
     output: {
       publicPath: '/assets',
