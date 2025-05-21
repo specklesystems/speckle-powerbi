@@ -62,9 +62,6 @@ function isMultiSelect(e: MouseEvent) {
 async function onCanvasClick(ev: MouseEvent) {
   if (dragged.value) return
 
-  // eslint-disable-next-line no-debugger
-  debugger
-
   const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
 
   const multi = isMultiSelect(ev)
