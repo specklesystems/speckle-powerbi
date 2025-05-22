@@ -12,6 +12,7 @@ import fs from 'fs'
 import { WebpackConfiguration } from 'webpack-cli'
 import { VueLoaderPlugin } from 'vue-loader'
 import { TsconfigPathsPlugin } from 'tsconfig-paths-webpack-plugin'
+import HtmlWebpackPlugin from 'html-webpack-plugin'
 
 /**
  * MAIN CONSTS
@@ -60,6 +61,7 @@ const babelOptions = {
 
 export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
   const isProd = params.mode === 'prod'
+  const isDev = params.mode === 'dev'
 
   const loadCert = () => {
     const keyPath = path.resolve(__dirname, 'localhost-key.pem')
@@ -192,7 +194,17 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             headers: {
               'access-control-allow-origin': '*',
               'cache-control': 'public, max-age=0'
-            }
+            },
+            ...(isDev
+              ? {
+                  historyApiFallback: {
+                    // <-- Add/modify historyApiFallback
+                    rewrites: [
+                      { from: /^\/dev$/, to: '/assets/dev.html' } // Route /dev to the generated dev.html
+                    ]
+                  }
+                }
+              : {})
           }
         }),
     externals:
@@ -262,7 +274,44 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             window: 'realWindow',
             define: 'fakeDefine',
             powerbi: 'corePowerbiObject'
-          })
+          }),
+      ...(isDev
+        ? [
+            // Add HtmlWebpackPlugin for the /dev route
+            new HtmlWebpackPlugin({
+              filename: 'dev.html', // Output: .tmp/drop/dev.html
+              templateContent: `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <meta charset="utf-8">
+                    <title>Dev Component View</title>
+                  </head>
+                  <body>
+                    <div id="app"></div>
+                    <script>
+                      window.onload = function() {
+                        const visual = specklePowerBiVisual.default.create({
+                          element: document.getElementById('app'),
+                          host: {
+                            // Mock the host object
+                            createSelectionManager: () => ({
+                              select: () => Promise.resolve(),
+                              clear: () => {},
+                            }),
+                            refreshHostData: () => {},
+                            displayWarningIcon: () => {},
+                            launchUrl: () => {},
+                          }
+                        });
+                      };
+                    </script>
+                  </body>
+                </html>
+              `
+            })
+          ]
+        : [])
     ]
   }
 
