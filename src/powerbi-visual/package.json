@@ -57,6 +57,7 @@
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-vue": "^9.13.0",
     "extra-watch-webpack-plugin": "^1.0.3",
+    "html-webpack-plugin": "^5.6.3",
     "json-loader": "^0.5.7",
     "mini-css-extract-plugin": "^2.7.5",
     "postcss": "^8.4.23",
@@ -82,5 +83,6 @@
   "version": "3.0.0",
   "engines": {
     "node": "^20.17.0"
-  }
+  },
+  "packageManager": "yarn@4.9.1+sha512.f95ce356460e05be48d66401c1ae64ef84d163dd689964962c6888a9810865e39097a5e9de748876c2e0bf89b232d583c33982773e9903ae7a76257270986538"
 }

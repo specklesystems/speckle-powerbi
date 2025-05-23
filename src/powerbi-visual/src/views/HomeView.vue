@@ -48,6 +48,7 @@
 
 <script setup lang="ts">
 import { useVisualStore } from '../store/visualStore'
+// import { FormButton } from '@speckle/ui-components'
 import {
   EyeIcon,
   ArrowRightIcon,
