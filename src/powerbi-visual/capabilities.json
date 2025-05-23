@@ -2,7 +2,7 @@
   "dataRoles": [
     {
       "displayName": "Version Object ID",
-      "kind": "Grouping",
+      "kind": "Measure",
       "name": "rootObjectId"
     },
     {
@@ -11,14 +11,14 @@
       "name": "objectIds"
     },
     {
-      "displayName": "Color By",
-      "kind": "Grouping",
-      "name": "objectColorBy"
-    },
-    {
-      "displayName": "Tooltip Data",
+      "displayName": "Object Data (Tooltip)",
       "kind": "Measure",
       "name": "tooltipData"
+    },
+    {
+      "displayName": "Color By",
+      "kind": "Grouping",
+      "name": "colorBy"
     }
   ],
   "dataViewMappings": [
@@ -33,17 +33,7 @@
           "select": [
             {
               "bind": {
-                "to": "rootObjectId"
-              }
-            },
-            {
-              "bind": {
-                "to": "objectColorBy"
-              }
-            },
-            {
-              "for": {
-                "in": "objectIds"
+                "to": "colorBy"
               }
             }
           ]
@@ -51,8 +41,18 @@
         "values": {
           "select": [
             {
-              "bind": {
-                "to": "tooltipData"
+              "for": {
+                "in": "rootObjectId"
+              }
+            },
+            {
+              "for": {
+                "in": "objectIds"
+              }
+            },
+            {
+              "for": {
+                "in": "tooltipData"
               }
             }
           ]

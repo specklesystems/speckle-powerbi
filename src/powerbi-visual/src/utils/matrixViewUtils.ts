@@ -270,8 +270,8 @@ export async function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView)
 
-  const localMatrixView = matrixView.rows.root.children[0]
-  const id = localMatrixView.value as unknown as string
+  const localMatrixView = matrixView.rows.root.children
+  const id = localMatrixView[0].values[0].value as unknown as string
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
@@ -304,7 +304,7 @@ export async function processMatrixView(
   }
 
   // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  localMatrixView.children?.forEach((obj) => {
+  localMatrixView.forEach((obj) => {
     // otherwise there is no point to collect objects
     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
