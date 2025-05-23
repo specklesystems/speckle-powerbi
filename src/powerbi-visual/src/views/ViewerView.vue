@@ -33,18 +33,6 @@ import LoadingBar from '@src/components/loading/LoadingBar.vue'
 
 const visualStore = useVisualStore()
 
-const onlyObjectIdsMissing = computed(
-  () => !visualStore.fieldInputState.objectIds && visualStore.fieldInputState.tooltipData
-)
-
-const onlyTooltipDataMissing = computed(
-  () => visualStore.fieldInputState.objectIds && !visualStore.fieldInputState.tooltipData
-)
-
-const bothFieldsMissing = computed(
-  () => !visualStore.fieldInputState.objectIds && !visualStore.fieldInputState.tooltipData
-)
-
 const isInteractive = computed(
   () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds
 )
