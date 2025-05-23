@@ -33,20 +33,21 @@
         </div>
         <div class="flex flex-row space-x-2">
           <ChatBubbleLeftIcon class="w-6"></ChatBubbleLeftIcon>
-          <p><b>Tooltip Data</b></p>
+          <p><b>Object Data</b></p>
           <ArrowRightIcon class="w-4"></ArrowRightIcon>
-          <p>Tooltip and interactivity</p>
+          <p>Tooltips for selected object</p>
         </div>
       </div>
     </div>
     <div class="flex justify-end gap-1">
-      <button :class="buttonClass" @click="goToGuide">Getting started</button>
-      <button :class="buttonClass" @click="goToForum">Help</button>
+      <FormButton size="sm" @click="goToGuide">Getting started</FormButton>
+      <FormButton size="sm" @click="goToForum">Help</FormButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import FormButton from '@src/components/form/FormButton.vue'
 import { useVisualStore } from '../store/visualStore'
 // import { FormButton } from '@speckle/ui-components'
 import {
