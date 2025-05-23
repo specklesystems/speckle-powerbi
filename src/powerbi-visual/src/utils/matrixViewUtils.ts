@@ -337,10 +337,7 @@ export async function processMatrixView(
         .createSelectionId()
 
       const value = obj.levelValues[0].value as string
-
       const color = host.colorPalette.getColor(value)
-      console.log(obj.levelValues[0].value, color)
-
       const colorSlice = new fs.ColorPicker({
         name: 'selectorFill',
         displayName: value,
