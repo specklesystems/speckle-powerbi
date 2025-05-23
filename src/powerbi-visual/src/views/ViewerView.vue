@@ -7,23 +7,11 @@
     <div class="font-medium">Speckle</div>
   </div>
   <div
-    v-if="isInteractive"
+    v-if="!isInteractive"
     class="absolute top-2 left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-sm px-4 py-2 rounded shadow"
   >
-    <div v-if="bothFieldsMissing">
-      <strong>Object IDs</strong>
-      and
-      <strong>Tooltip Data</strong>
-      fields are needed for interactivity with other visuals.
-    </div>
-    <div v-else-if="onlyObjectIdsMissing">
-      <strong>Object IDs</strong>
-      field is needed for interactivity with other visuals.
-    </div>
-    <div v-else-if="onlyTooltipDataMissing">
-      <strong>Tooltip Data</strong>
-      field is needed for interactivity with other visuals.
-    </div>
+    <strong>Object IDs</strong>
+    field is needed for interactivity with other visuals.
   </div>
 
   <div
@@ -58,8 +46,10 @@ const bothFieldsMissing = computed(
 )
 
 const isInteractive = computed(
-  () => !visualStore.fieldInputState.objectIds || !visualStore.fieldInputState.tooltipData
+  () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds
 )
+
+console.log(isInteractive.value)
 
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
 </script>
