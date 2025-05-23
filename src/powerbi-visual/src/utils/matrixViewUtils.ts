@@ -43,7 +43,7 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
     level.sources.forEach((source) => {
       if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
-      if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
+      if (!hasColorFilter) hasColorFilter = source.roles['colorBy'] != undefined
     })
   })
 
@@ -90,7 +90,11 @@ function processObjectValues(
       }
       objectData.push(propData)
     })
-  return { data: objectData, shouldColor, shouldSelect }
+  return {
+    data: objectData.length > 1 ? objectData.slice(1) : objectData,
+    shouldColor,
+    shouldSelect
+  }
 }
 
 function processObjectNode(
@@ -317,49 +321,57 @@ export async function processMatrixView(
       selectionId: processedObjectIdLevels.selectionId,
       data: processedObjectIdLevels.data
     })
-
-    if (hasColorFilter) {
-      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-      obj.children.forEach((child) => {
-        const colorSelectionId = host
-          .createSelectionIdBuilder()
-          .withMatrixNode(child, matrixView.rows.levels)
-          .createSelectionId()
-
-        const color = host.colorPalette.getColor(child.values[0].value as string)
-
-        const colorSlice = new fs.ColorPicker({
-          name: 'selectorFill',
-          displayName: child.value?.toString(),
-          value: {
-            value: color.value
-          },
-          selector: colorSelectionId.getSelector()
-        })
-
-        const colorGroup = {
-          color: color.value,
-          slice: colorSlice,
-          objectIds: []
-        }
-
-        const processedObjectIdLevels = processObjectIdLevel(child, host, matrixView)
-
-        objectIds.push(processedObjectIdLevels.id)
-        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
-        if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
-        if (processedObjectIdLevels.shouldColor) {
-          colorGroup.objectIds.push(processedObjectIdLevels.id)
-        }
-        objectTooltipData.set(processedObjectIdLevels.id, {
-          selectionId: processedObjectIdLevels.selectionId,
-          data: processedObjectIdLevels.data
-        })
-
-        if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
-      })
-    }
   })
+
+  if (hasColorFilter) {
+    // powerbi sorts the objects alphabetically for color legends
+    const sortedMatrix = localMatrixView.sort((a, b) => {
+      return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+    })
+    sortedMatrix.forEach((obj) => {
+      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+
+      const colorSelectionId = host
+        .createSelectionIdBuilder()
+        .withMatrixNode(obj, matrixView.rows.levels)
+        .createSelectionId()
+
+      const value = obj.levelValues[0].value as string
+
+      const color = host.colorPalette.getColor(value)
+      console.log(obj.levelValues[0].value, color)
+
+      const colorSlice = new fs.ColorPicker({
+        name: 'selectorFill',
+        displayName: value,
+        value: {
+          value: color.value
+        },
+        selector: colorSelectionId.getSelector()
+      })
+
+      const colorGroup = {
+        color: color.value,
+        slice: colorSlice,
+        objectIds: []
+      }
+
+      const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+      objectIds.push(processedObjectIdLevels.id)
+      onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+      if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+      if (processedObjectIdLevels.shouldColor) {
+        colorGroup.objectIds.push(processedObjectIdLevels.id)
+      }
+      objectTooltipData.set(processedObjectIdLevels.id, {
+        selectionId: processedObjectIdLevels.selectionId,
+        data: processedObjectIdLevels.data
+      })
+
+      if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+    })
+  }
 
   previousPalette = host.colorPalette['colorPalette']
 

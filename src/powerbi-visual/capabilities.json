@@ -60,6 +60,7 @@
       },
       "conditions": [
         {
+          "color": { "max": 1 },
           "objectIds": { "max": 1 },
           "rootObjectId": { "max": 1 }
         }
