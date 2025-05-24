@@ -133,8 +133,6 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     if (dataInput.value.selectedIds.length > 0) {
       viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
-    } else {
-      viewerEmit.value('isolateObjects', dataInput.value.objectIds)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
