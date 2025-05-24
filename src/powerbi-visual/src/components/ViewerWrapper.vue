@@ -2,12 +2,12 @@
   <transition name="slide-fade">
     <nav
       v-show="!isNavbarCollapsed"
-      class="fixed top-0 h-9 flex items-center bg-foundation border-b border-outline-2 w-full transition z-20 hover:shadow cursor-default"
+      class="fixed top-0 h-9 flex items-center bg-foundation border-b border-outline-2 w-full transition z-20 shadow-sm hover:shadow cursor-default"
     >
       <div class="flex items-center transition-all justify-between w-full">
         <div class="flex items-center hover:cursor-pointer" @click="goToSpeckleWebsite">
           <div class="max-[200px]:hidden block ml-2">
-            <img class="w-6 h-auto mx-2 my-1" src="@assets/logo-big.png" />
+            <img class="w-6 h-auto ml-1 mr-2 my-1" src="@assets/logo-big.png" />
           </div>
           <div class="font-sans font-medium">Speckle</div>
         </div>
