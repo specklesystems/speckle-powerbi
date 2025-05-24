@@ -75,6 +75,7 @@ const { start: startCloseTimer, stop: cancelCloseTimer } = useTimeoutFn(
 const handleViewModeChange = (mode: ViewMode) => {
   open.value = false
   visualStore.setDefaultViewModeInFile(mode.toString())
+  visualStore.writeViewModeToFile(mode)
   emit('view-mode-clicked', mode)
 }
 
