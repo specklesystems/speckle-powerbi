@@ -132,7 +132,9 @@ export class Visual implements IVisual {
                 console.warn(error)
                 console.log('missing mixpanel info')
               }
-              if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
+              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
+
+              if (visualStore.lastLoadedRootObjectId !== savedVersionObjectId) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }
             }
@@ -195,7 +197,9 @@ export class Visual implements IVisual {
     }
   }
 
-  private tryReadFromFile(objectsFromFile: object[], visualStore) {
+  private tryReadFromFile(objectsFromFile: object[][], visualStore) {
+    console.log('tryReadFromFile')
+
     visualStore.setViewerReadyToLoad()
     visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
     setTimeout(() => {

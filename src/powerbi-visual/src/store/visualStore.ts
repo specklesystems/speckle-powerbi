@@ -100,8 +100,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
-  const loadObjectsFromFile = async (objects: object[]) => {
-    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id // TODO fix
+  const loadObjectsFromFile = async (objects: object[][]) => {
+    const savedVersionObjectId = objects.map((o) => (o[0] as SpeckleObject).id).join(',')
+    lastLoadedRootObjectId.value = savedVersionObjectId
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjects', objects)

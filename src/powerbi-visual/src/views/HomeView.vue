@@ -1,7 +1,7 @@
 <template>
   <div
     id="speckle-home-view"
-    class="flex flex-col justify-center items-center h-full w-full text-center space-y-4 p-2"
+    class="flex flex-col justify-center items-center h-full w-full text-center space-y-4 p-2 cursor-default"
   >
     <div class="flex flex-col justify-center items-center h-full w-full text-center space-y-4">
       <div class="flex flex-row justify-center items-center space-x-3">
