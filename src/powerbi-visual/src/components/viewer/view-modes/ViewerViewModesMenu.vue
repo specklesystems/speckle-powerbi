@@ -78,9 +78,6 @@ const handleViewModeChange = (mode: ViewMode) => {
   emit('view-mode-clicked', mode)
 }
 
-onMounted(() => {
-  console.log('asdhujdadskjdsak', visualStore.defaultViewModeInFile)
-})
 onUnmounted(() => {
   cancelCloseTimer()
 })
