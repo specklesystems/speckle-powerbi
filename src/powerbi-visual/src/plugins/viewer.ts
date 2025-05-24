@@ -47,6 +47,7 @@ export interface IViewerEvents {
   isolateObjects: (objectIds: string[]) => void
   unIsolateObjects: () => void
   zoomExtends: () => void
+  toggleProjection: () => void
   loadObjects: (objects: object[]) => void
 }
 
@@ -70,6 +71,7 @@ export class ViewerHandler {
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
+    this.emitter.on('toggleProjection', this.toggleProjection)
   }
 
   async init(parent: HTMLElement) {
@@ -98,6 +100,7 @@ export class ViewerHandler {
   }
 
   public zoomExtends = () => this.cameraControls.setCameraView(undefined, false)
+  public toggleProjection = () => this.cameraControls.toggleCameras()
 
   public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
 
