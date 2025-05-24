@@ -9,10 +9,10 @@
     <!-- <div class="z-30 w-1/2 px-10">
       <common-loading-bar :loading="isLoading" />
     </div> -->
-    <viewer-controls
+    <ViewerControls
       v-model:section-box="bboxActive"
       :views="views"
-      class="fixed bottom-6"
+      class="fixed top-11 left-1 z-30"
       @view-clicked="(view) => viewerHandler.setView(view)"
       @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
     />
