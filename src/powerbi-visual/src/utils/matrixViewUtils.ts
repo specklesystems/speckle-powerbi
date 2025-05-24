@@ -324,10 +324,15 @@ export async function processMatrixView(
   })
 
   if (hasColorFilter) {
+    const start = performance.now()
+    console.log('Sorting the colors started...')
     // powerbi sorts the objects alphabetically for color legends
     const sortedMatrix = localMatrixView.sort((a, b) => {
       return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
     })
+    const end = performance.now()
+    console.log(`Sorted in: ${(end - start) / 1000} s`)
+
     sortedMatrix.forEach((obj) => {
       if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
 
