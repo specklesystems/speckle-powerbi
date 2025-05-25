@@ -275,7 +275,15 @@ export async function processMatrixView(
   console.log('🪜 Processing Matrix View', matrixView)
 
   const localMatrixView = matrixView.rows.root.children
-  const id = localMatrixView[0].values[0].value as unknown as string
+  let id = null
+
+  if (hasColorFilter) {
+    id = localMatrixView[0].children[0].values[0].value as unknown as string
+  } else {
+    id = localMatrixView[0].values[0].value as unknown as string
+  }
+
+  // const id = localMatrixView[0].values[0].value as unknown as string
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
@@ -307,73 +315,126 @@ export async function processMatrixView(
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 
-  // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  localMatrixView.forEach((obj) => {
-    // otherwise there is no point to collect objects
-    const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
-
-    objectIds.push(processedObjectIdLevels.id)
-    onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
-    if (processedObjectIdLevels.shouldSelect) {
-      selectedIds.push(processedObjectIdLevels.id)
-    }
-    objectTooltipData.set(processedObjectIdLevels.id, {
-      selectionId: processedObjectIdLevels.selectionId,
-      data: processedObjectIdLevels.data
-    })
-  })
-
+  // If colors assigned, data arrives nested
   if (hasColorFilter) {
-    const start = performance.now()
-    console.log('Sorting the colors started...')
-    // powerbi sorts the objects alphabetically for color legends
-    const sortedMatrix = localMatrixView.sort((a, b) => {
-      return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
-    })
-    const end = performance.now()
-    console.log(`Sorted in: ${(end - start) / 1000} s`)
+    // const start = performance.now()
+    // console.log('Sorting the colors started...')
+    // // powerbi sorts the objects alphabetically for color legends
+    // const sortedMatrix = localMatrixView.sort((a, b) => {
+    //   return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+    // })
+    // const end = performance.now()
+    // console.log(`Sorted in: ${(end - start) / 1000} s`)
 
-    sortedMatrix.forEach((obj) => {
-      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+    if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
 
-      const colorSelectionId = host
-        .createSelectionIdBuilder()
-        .withMatrixNode(obj, matrixView.rows.levels)
-        .createSelectionId()
+    localMatrixView.forEach((colorObjects) => {
+      colorObjects.children.forEach((obj) => {
+        const colorSelectionId = host
+          .createSelectionIdBuilder()
+          .withMatrixNode(obj, matrixView.rows.levels)
+          .createSelectionId()
 
-      const value = obj.levelValues[0].value as string
-      const color = host.colorPalette.getColor(value)
-      const colorSlice = new fs.ColorPicker({
-        name: 'selectorFill',
-        displayName: value,
-        value: {
-          value: color.value
-        },
-        selector: colorSelectionId.getSelector()
+        const value = colorObjects.value as string
+        const color = host.colorPalette.getColor(value)
+        const colorSlice = new fs.ColorPicker({
+          name: 'selectorFill',
+          displayName: value,
+          value: {
+            value: color.value
+          },
+          selector: colorSelectionId.getSelector()
+        })
+
+        const colorGroup = {
+          color: color.value,
+          slice: colorSlice,
+          objectIds: []
+        }
+
+        const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+        objectIds.push(processedObjectIdLevels.id)
+        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+        if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+        if (processedObjectIdLevels.shouldColor) {
+          colorGroup.objectIds.push(processedObjectIdLevels.id)
+        }
+        objectTooltipData.set(processedObjectIdLevels.id, {
+          selectionId: processedObjectIdLevels.selectionId,
+          data: processedObjectIdLevels.data
+        })
+
+        if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
-
-      const colorGroup = {
-        color: color.value,
-        slice: colorSlice,
-        objectIds: []
-      }
-
+    })
+  } else {
+    localMatrixView.forEach((obj) => {
       const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
       objectIds.push(processedObjectIdLevels.id)
       onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
-      if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
-      if (processedObjectIdLevels.shouldColor) {
-        colorGroup.objectIds.push(processedObjectIdLevels.id)
+      if (processedObjectIdLevels.shouldSelect) {
+        selectedIds.push(processedObjectIdLevels.id)
       }
       objectTooltipData.set(processedObjectIdLevels.id, {
         selectionId: processedObjectIdLevels.selectionId,
         data: processedObjectIdLevels.data
       })
-
-      if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
     })
   }
+
+  // if (hasColorFilter) {
+  //   const start = performance.now()
+  //   console.log('Sorting the colors started...')
+  //   // powerbi sorts the objects alphabetically for color legends
+  //   const sortedMatrix = localMatrixView.sort((a, b) => {
+  //     return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+  //   })
+  //   const end = performance.now()
+  //   console.log(`Sorted in: ${(end - start) / 1000} s`)
+
+  //   sortedMatrix.forEach((obj) => {
+  //     if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+
+  //     const colorSelectionId = host
+  //       .createSelectionIdBuilder()
+  //       .withMatrixNode(obj, matrixView.rows.levels)
+  //       .createSelectionId()
+
+  //     const value = obj.levelValues[0].value as string
+  //     const color = host.colorPalette.getColor(value)
+  //     const colorSlice = new fs.ColorPicker({
+  //       name: 'selectorFill',
+  //       displayName: value,
+  //       value: {
+  //         value: color.value
+  //       },
+  //       selector: colorSelectionId.getSelector()
+  //     })
+
+  //     const colorGroup = {
+  //       color: color.value,
+  //       slice: colorSlice,
+  //       objectIds: []
+  //     }
+
+  //     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+  //     objectIds.push(processedObjectIdLevels.id)
+  //     onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+  //     if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+  //     if (processedObjectIdLevels.shouldColor) {
+  //       colorGroup.objectIds.push(processedObjectIdLevels.id)
+  //     }
+  //     objectTooltipData.set(processedObjectIdLevels.id, {
+  //       selectionId: processedObjectIdLevels.selectionId,
+  //       data: processedObjectIdLevels.data
+  //     })
+
+  //     if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+  //   })
+  // }
 
   previousPalette = host.colorPalette['colorPalette']
 

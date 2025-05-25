@@ -32,24 +32,24 @@
           },
           "select": [
             {
-              "bind": {
-                "to": "colorBy"
-              }
-            }
-          ]
-        },
-        "values": {
-          "select": [
-            {
               "for": {
                 "in": "rootObjectId"
+              }
+            },
+            {
+              "bind": {
+                "to": "colorBy"
               }
             },
             {
               "for": {
                 "in": "objectIds"
               }
-            },
+            }
+          ]
+        },
+        "values": {
+          "select": [
             {
               "for": {
                 "in": "tooltipData"
