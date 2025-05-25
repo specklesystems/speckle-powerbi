@@ -21,6 +21,9 @@ export const useVisualStore = defineStore('visualStore', () => {
   const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
 
+  const postFileSaveSkipNeeded = ref<boolean>(false)
+  const postClickSkipNeeded = ref<boolean>(false)
+
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
   const isViewerInitialized = ref<boolean>(false)
@@ -131,15 +134,19 @@ export const useVisualStore = defineStore('visualStore', () => {
       writeObjectsToFile(dataInput.value.modelObjects)
     }
 
+    console.log(dataInput.value)
+
     if (dataInput.value.selectedIds.length > 0) {
-      viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, true)
     } else {
-      viewerEmit.value('isolateObjects', dataInput.value.objectIds)
+      viewerEmit.value('resetFilter', dataInput.value.objectIds)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
   const writeObjectsToFile = (modelObjects: object[][]) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     const compressedChunks = zipModelObjects(modelObjects, 10000) // Compress in chunks
 
     host.value.persistProperties({
@@ -157,6 +164,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeCameraViewToFile = (view: CanonicalView) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -171,6 +180,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeViewModeToFile = (viewMode: ViewMode) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -185,6 +196,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -214,6 +227,9 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
+  const setPostFileSaveSkipNeeded = (newValue: boolean) => (postFileSaveSkipNeeded.value = newValue)
+  const setPostClickSkipNeeded = (newValue: boolean) => (postClickSkipNeeded.value = newValue)
+
   const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
@@ -237,6 +253,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     cameraPosition,
     defaultViewModeInFile,
     speckleViews,
+    postFileSaveSkipNeeded,
+    postClickSkipNeeded,
+    setPostClickSkipNeeded,
+    setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
     setDefaultViewModeInFile,
     setSpeckleViews,

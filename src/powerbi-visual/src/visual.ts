@@ -63,6 +63,19 @@ export class Visual implements IVisual {
 
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
+
+    if (visualStore.postFileSaveSkipNeeded) {
+      visualStore.setPostFileSaveSkipNeeded(false)
+      console.log('Skipping unneccessary update function after file save.')
+      return
+    }
+
+    if (visualStore.postClickSkipNeeded) {
+      visualStore.setPostClickSkipNeeded(false)
+      console.log('Skipping unneccessary update function canvas click.')
+      return
+    }
+
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(

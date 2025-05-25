@@ -102,7 +102,7 @@ const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.sys
 onMounted(async () => {
   console.log('Viewer Wrapper mounted')
   viewerHandler = new ViewerHandler()
-  await viewerHandler.init(container.value)
+  await viewerHandler.init(container.value, selectionHandler)
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
 
@@ -124,6 +124,7 @@ async function onCanvasClick(ev: MouseEvent) {
   const multi = isMultiSelect(ev)
   const hit = intersectResult?.hit
   if (hit) {
+    visualStore.setPostClickSkipNeeded(true)
     const id = hit.object.id as string
     if (multi || !selectionHandler.isSelected(id)) {
       await selectionHandler.select(id, multi)
@@ -133,6 +134,7 @@ async function onCanvasClick(ev: MouseEvent) {
     const ids = selection.map((s) => s.id)
     await viewerHandler.selectObjects(ids)
   } else {
+    visualStore.setPostClickSkipNeeded(false)
     tooltipHandler.hide()
     if (!multi) {
       selectionHandler.clear()

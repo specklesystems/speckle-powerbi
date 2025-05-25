@@ -36,7 +36,7 @@ export default class TooltipHandler {
       tooltip: tooltipData
     }
 
-    this.tooltipService.show(tooltipData)
+    // this.tooltipService.show(tooltipData)
     if (Object.keys(tooltipData.dataItems).length > 0) this.tooltipService.show(tooltipData)
   }
 

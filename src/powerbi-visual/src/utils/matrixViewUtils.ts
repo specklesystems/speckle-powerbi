@@ -94,7 +94,7 @@ function processObjectValues(
       objectData.push(propData)
     })
   return {
-    data: objectData.length > 1 ? objectData.slice(1) : objectData,
+    data: objectData.length > 0 ? objectData.slice(1) : [],
     shouldColor,
     shouldSelect
   }

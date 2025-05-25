@@ -13,6 +13,7 @@ import {
   SelectionExtension,
   FilteringExtension
 } from '@speckle/viewer'
+import SelectionHandler from '@src/handlers/selectionHandler'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
@@ -36,6 +37,8 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
+  resetFilter: (objectIds: string[]) => void
+  filterSelection: (objectIds: string[], ghost: boolean) => void
   setViewMode: (viewMode: ViewMode) => void
   colorObjectsByGroup: (
     colorById: {
@@ -52,6 +55,7 @@ export interface IViewerEvents {
 }
 
 export class ViewerHandler {
+  public isFilterActive: boolean
   public emitter: Emitter
   public viewer: Viewer
   public cameraControls: CameraController
@@ -59,10 +63,14 @@ export class ViewerHandler {
   public selection: SelectionExtension
   private filteringState: FilteringState
 
+  private selectionHandler: SelectionHandler
+
   constructor() {
     this.emitter = createNanoEvents()
     this.emit = this.emit.bind(this)
     this.emitter.on('ping', this.handlePing)
+    this.emitter.on('filterSelection', this.filterSelection)
+    this.emitter.on('resetFilter', this.resetFilter)
     this.emitter.on('setSelection', this.selectObjects)
     this.emitter.on('setViewMode', this.setViewMode)
     this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
@@ -74,8 +82,9 @@ export class ViewerHandler {
     this.emitter.on('toggleProjection', this.toggleProjection)
   }
 
-  async init(parent: HTMLElement) {
+  async init(parent: HTMLElement, selectionHandler: SelectionHandler) {
     this.viewer = await createViewer(parent)
+    this.selectionHandler = selectionHandler
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
@@ -118,6 +127,25 @@ export class ViewerHandler {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
     if (objectIds) {
       this.selection.selectObjects(objectIds)
+    }
+  }
+
+  public filterSelection = (objectIds: string[], ghost: boolean) => {
+    this.isFilterActive = true
+    console.log('🔗 Handling filterSelection inside ViewerHandler')
+    if (objectIds) {
+      this.unIsolateObjects()
+      this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+      this.zoomObjects(objectIds, true)
+    }
+  }
+
+  public resetFilter = (objectIds: string[]) => {
+    this.isFilterActive = false
+    console.log('🔗 Handling filterSelection inside ViewerHandler')
+    if (objectIds) {
+      this.isolateObjects(objectIds, true)
+      this.zoomObjects(objectIds, true)
     }
   }
 
