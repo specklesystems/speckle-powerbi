@@ -59,6 +59,12 @@
     />
   </transition>
 
+  <div v-if="visualStore.isFilterActive" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
+    <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
+      Reset filters
+    </FormButton>
+  </div>
+
   <div
     ref="container"
     class="fixed h-full w-full z-0"
@@ -68,6 +74,7 @@
 </template>
 
 <script async setup lang="ts">
+import FormButton from '@src/components/form/FormButton.vue'
 import { computed, inject, onBeforeUnmount, onMounted, Ref, ref } from 'vue'
 import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
@@ -102,7 +109,7 @@ const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.sys
 onMounted(async () => {
   console.log('Viewer Wrapper mounted')
   viewerHandler = new ViewerHandler()
-  await viewerHandler.init(container.value, selectionHandler)
+  await viewerHandler.init(container.value)
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
 

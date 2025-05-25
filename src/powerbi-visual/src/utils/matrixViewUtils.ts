@@ -447,7 +447,6 @@ export async function processMatrixView(
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
-    view: matrixView,
     isFromStore: false
   }
 }

@@ -43,7 +43,6 @@ export interface IViewerEvents {
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
-      slice: ColorPicker
       color: string
     }[]
   ) => void
@@ -54,16 +53,18 @@ export interface IViewerEvents {
   loadObjects: (objects: object[]) => void
 }
 
+export type ColorBy = {
+  objectIds: string[]
+  color: string
+}
+
 export class ViewerHandler {
-  public isFilterActive: boolean
   public emitter: Emitter
   public viewer: Viewer
   public cameraControls: CameraController
   public filtering: FilteringExtension
   public selection: SelectionExtension
   private filteringState: FilteringState
-
-  private selectionHandler: SelectionHandler
 
   constructor() {
     this.emitter = createNanoEvents()
@@ -82,9 +83,8 @@ export class ViewerHandler {
     this.emitter.on('toggleProjection', this.toggleProjection)
   }
 
-  async init(parent: HTMLElement, selectionHandler: SelectionHandler) {
+  async init(parent: HTMLElement) {
     this.viewer = await createViewer(parent)
-    this.selectionHandler = selectionHandler
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
@@ -131,7 +131,6 @@ export class ViewerHandler {
   }
 
   public filterSelection = (objectIds: string[], ghost: boolean) => {
-    this.isFilterActive = true
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.unIsolateObjects()
@@ -141,7 +140,6 @@ export class ViewerHandler {
   }
 
   public resetFilter = (objectIds: string[]) => {
-    this.isFilterActive = false
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.isolateObjects(objectIds, true)
@@ -149,12 +147,7 @@ export class ViewerHandler {
     }
   }
 
-  public colorObjectsByGroup = (
-    colorByIds: {
-      objectIds: string[]
-      color: string
-    }[]
-  ) => {
+  public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
     this.filteringState = this.filtering.setUserObjectColors(colorByIds ?? [])
   }
 

@@ -1,7 +1,7 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
-import { IViewerEvents } from '@src/plugins/viewer'
+import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleDataInput } from '@src/types'
-import { zipJSONChunks, zipModelObjects } from '@src/utils/compression'
+import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
@@ -23,6 +23,8 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
   const postClickSkipNeeded = ref<boolean>(false)
+
+  const isFilterActive = ref<boolean>(false)
 
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
@@ -57,6 +59,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   // TODO: investigate about shallow ref? https://vuejs.org/api/reactivity-advanced.html#shallowref
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
+  const latestColorBy = ref<ColorBy[] | null | undefined>([])
 
   /**
    * Ideally one time setup on initialization.
@@ -134,11 +137,11 @@ export const useVisualStore = defineStore('visualStore', () => {
       writeObjectsToFile(dataInput.value.modelObjects)
     }
 
-    console.log(dataInput.value)
-
     if (dataInput.value.selectedIds.length > 0) {
+      isFilterActive.value = true
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, true)
     } else {
+      latestColorBy.value = dataInput.value.colorByIds
       viewerEmit.value('resetFilter', dataInput.value.objectIds)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
@@ -235,6 +238,14 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
 
+  const resetFilters = () => {
+    viewerEmit.value('resetFilter', dataInput.value.objectIds)
+    if (latestColorBy.value !== null) {
+      viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
+    }
+    isFilterActive.value = false
+  }
+
   return {
     host,
     receiveInfo,
@@ -255,6 +266,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     speckleViews,
     postFileSaveSkipNeeded,
     postClickSkipNeeded,
+    isFilterActive,
+    latestColorBy,
     setPostClickSkipNeeded,
     setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
@@ -276,6 +289,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setViewerReadyToLoad,
     setLoadingProgress,
     clearLoadingProgress,
-    setIsLoadingFromFile
+    setIsLoadingFromFile,
+    resetFilters
   }
 })
