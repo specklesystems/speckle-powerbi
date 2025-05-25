@@ -88,8 +88,8 @@ function processObjectValues(
         shouldColor = true
       }
       const propData: IViewerTooltipData = {
-        displayName: colInfo.displayName,
-        value: value.value.toString()
+        displayName: colInfo.displayName.replace('First ', ''),
+        value: value.value === null ? '<not set>' : value.value.toString()
       }
       objectData.push(propData)
     })
