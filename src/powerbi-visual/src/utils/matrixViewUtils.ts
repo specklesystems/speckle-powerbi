@@ -39,6 +39,10 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
     hasColorFilter = false,
     hasTooltipData = false
 
+  matrixVew.valueSources.forEach((level) => {
+    if (!hasRootObjectId) hasRootObjectId = level.roles['rootObjectId'] != undefined
+  })
+
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
@@ -48,7 +52,6 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
 
   matrixVew.columns.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasTooltipData) hasTooltipData = source.roles['tooltipData'] != undefined
     })
   })
