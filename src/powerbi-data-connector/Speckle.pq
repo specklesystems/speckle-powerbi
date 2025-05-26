@@ -70,8 +70,8 @@ shared Speckle.SendToServer = Value.ReplaceType(
 );
 
 [DataSource.Kind = "Speckle"]
-shared Speckle.CheckHideBranding = Value.ReplaceType(
-    Speckle.LoadFunction("CheckHideBranding.pqm"),
+shared Speckle.GetWorkspace = Value.ReplaceType(
+    Speckle.LoadFunction("GetWorkspace.pqm"),
     type function (url as Uri.Type) as record
 );
 

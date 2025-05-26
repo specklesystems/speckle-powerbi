@@ -1,3 +1,4 @@
+// function for getting workspace information
 (url as text) as record =>
     let
         ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
@@ -20,37 +21,47 @@
                             Detail = [File = fileName, Error = e]
                         ],
         
-        // parse the URL to extract project id
         parsedUrl = Parser(url),
         server = parsedUrl[baseUrl],
         projectId = parsedUrl[projectId],
         
-        // query to get hide branding option from project level
-        query = "query Project($projectId: String!) {
+        // query to get workspace ID from project
+        projectQuery = "query Project($projectId: String!) {
             data:project(id: $projectId) {
-                embedOptions {
-                    hideSpeckleBranding
-                }
+                workspaceId
             }
         }",
         
-        variables = [
+        projectVariables = [
             projectId = projectId
         ],
         
-        result = ApiFetch(server, query, variables),
+        projectResult = ApiFetch(server, projectQuery, projectVariables),
+        workspaceId = projectResult[data][workspaceId],
         
-        structureCheck = if not (Record.HasFields(result, {"data"}) and 
-                  Record.HasFields(result[data], {"embedOptions"}) and
-                  Record.HasFields(result[data][embedOptions], {"hideSpeckleBranding"})) then
-            error "Invalid response structure from project query"
-        else
-            null,
+        // query to get workspace
+        workspaceQuery = "query Workspace($workspaceId: String!, $featureName: WorkspaceFeatureName!) {
+            data:workspace(id: $workspaceId) {
+                logo
+                name
+                hasAccessToFeature(featureName: $featureName)
+            }
+        }",
         
-        embedOptions = result[data][embedOptions],
+        workspaceVariables = [
+            workspaceId = workspaceId,
+            featureName = "hideSpeckleBranding"
+        ],
         
-        hideBranding = [
-            hideSpeckleBranding = embedOptions[hideSpeckleBranding]
+        workspaceResult = ApiFetch(server, workspaceQuery, workspaceVariables),
+                
+        workspace = workspaceResult[data],
+        
+        workspaceInfo = [
+            workspaceId = workspaceId,
+            workspaceLogo = workspace[logo],
+            workspaceName = workspace[name],
+            canHideBranding = workspace[hasAccessToFeature]
         ]
     in
-        hideBranding
+        workspaceInfo
