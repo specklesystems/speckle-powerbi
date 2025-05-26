@@ -69,6 +69,12 @@ shared Speckle.SendToServer = Value.ReplaceType(
     type function (url as Uri.Type) as table
 );
 
+[DataSource.Kind = "Speckle"]
+shared Speckle.GetWorkspace = Value.ReplaceType(
+    Speckle.LoadFunction("GetWorkspace.pqm"),
+    type function (url as Uri.Type) as record
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),

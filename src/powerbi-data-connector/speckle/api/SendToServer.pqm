@@ -5,6 +5,7 @@
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetUser = Extension.LoadFunction("GetUser.pqm"),
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
 
          // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -26,6 +27,8 @@
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
         userInfo = GetUser(url),
+
+        workspaceInfo = GetWorkspace(url),
         
         apiKey = userInfo[Token],
         
@@ -43,7 +46,11 @@
             ObjectId = modelInfo[rootObjectId],
             SourceApplication = modelInfo[sourceApplication],
             Token = apiKey,
-            Version = connectorVersion 
+            Version = connectorVersion,
+            WorkspaceId = workspaceInfo[workspaceId],
+            WorkspaceName = workspaceInfo[workspaceName],
+            WorkspaceLogo = workspaceInfo[workspaceLogo],
+            HideSpeckleBranding = workspaceInfo[hideSpeckleBranding]
         ]),
         
         // Send request to local server
