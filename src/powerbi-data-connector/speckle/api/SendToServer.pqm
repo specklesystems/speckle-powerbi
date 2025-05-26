@@ -5,7 +5,7 @@
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetUser = Extension.LoadFunction("GetUser.pqm"),
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
-        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        CheckHideBranding = Extension.LoadFunction("CheckHideBranding.pqm"),
 
          // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -28,15 +28,15 @@
         parsedUrl = Parser(url),
         userInfo = GetUser(url),
 
-        workspaceInfo = GetWorkspace(url),
-        
         apiKey = userInfo[Token],
         
         userEmail = userInfo[UserEmail],
 
         // get version from Speckle.pq - look GetVersion.pqm
         connectorVersion = GetVersion(),
-        
+
+        hideBranding = CheckHideBranding(url),
+
         // Prepare request data
         requestData = Json.FromValue([
             Url = url,
@@ -47,10 +47,7 @@
             SourceApplication = modelInfo[sourceApplication],
             Token = apiKey,
             Version = connectorVersion,
-            WorkspaceId = workspaceInfo[workspaceId],
-            WorkspaceName = workspaceInfo[workspaceName],
-            WorkspaceLogo = workspaceInfo[workspaceLogo],
-            HideSpeckleBranding = workspaceInfo[hideSpeckleBranding]
+            HideSpeckleBranding = hideBranding[hideSpeckleBranding]
         ]),
         
         // Send request to local server

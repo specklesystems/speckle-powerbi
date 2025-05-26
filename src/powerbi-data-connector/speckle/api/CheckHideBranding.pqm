@@ -1,0 +1,56 @@
+(url as text) as record =>
+    let
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        // parse the URL to extract project id
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        projectId = parsedUrl[projectId],
+        
+        // query to get hide branding option from project level
+        query = "query Project($projectId: String!) {
+            data:project(id: $projectId) {
+                embedOptions {
+                    hideSpeckleBranding
+                }
+            }
+        }",
+        
+        variables = [
+            projectId = projectId
+        ],
+        
+        result = ApiFetch(server, query, variables),
+        
+        structureCheck = if not (Record.HasFields(result, {"data"}) and 
+                  Record.HasFields(result[data], {"embedOptions"}) and
+                  Record.HasFields(result[data][embedOptions], {"hideSpeckleBranding"})) then
+            error "Invalid response structure from project query"
+        else
+            null,
+        
+        embedOptions = result[data][embedOptions],
+        
+        hideBranding = [
+            hideSpeckleBranding = embedOptions[hideSpeckleBranding]
+        ]
+    in
+        hideBranding
