@@ -1,11 +1,17 @@
 <template>
-  <div>
+  <div class="space-y-2">
     <ViewerControlsButtonGroup>
       <!-- Zoom extend -->
       <ViewerControlsButtonToggle v-tippy="'Zoom extends'" flat @click="onZoomExtentsClicked">
         <ArrowsPointingOutIcon class="h-4 w-4 md:h-5 md:w-5" />
       </ViewerControlsButtonToggle>
-
+      <!-- Ghost / Hidden -->
+      <ViewerControlsButtonToggle flat @click="toggleGhostHidden">
+        <Ghost v-if="isGhost" class="h-5 w-5" />
+        <Ghost v-else class="h-5 w-5 opacity-30" />
+      </ViewerControlsButtonToggle>
+    </ViewerControlsButtonGroup>
+    <ViewerControlsButtonGroup>
       <!-- View Modes -->
       <ViewerViewModesMenu
         :open="viewModesOpen"
@@ -39,7 +45,6 @@
 import { ArrowsPointingOutIcon } from '@heroicons/vue/24/solid'
 import { SpeckleView } from '@speckle/viewer'
 import { computed, ref } from 'vue'
-import { resetPalette } from 'src/utils/matrixViewUtils'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerControlsButtonGroup from './viewer/controls/ViewerControlsButtonGroup.vue'
 import ViewerControlsButtonToggle from './viewer/controls/ViewerControlsButtonToggle.vue'
@@ -49,6 +54,8 @@ import ViewerViewsMenu from './viewer/views/ViewerViewsMenu.vue'
 
 import Perspective from '../components/global/icon/Perspective.vue'
 import PerspectiveMore from '../components/global/icon/PerspectiveMore.vue'
+
+import Ghost from '../components/global/icon/Ghost.vue'
 
 const visualStore = useVisualStore()
 
@@ -64,6 +71,7 @@ withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
 })
 
 const isOrthoProjection = ref(false)
+const isGhost = ref(true)
 
 type ActiveControl =
   | 'none'
@@ -88,6 +96,11 @@ const toggleActiveControl = (control: ActiveControl) => {
 const toggleProjection = () => {
   isOrthoProjection.value = !isOrthoProjection.value
   visualStore.viewerEmit('toggleProjection')
+}
+
+const toggleGhostHidden = () => {
+  isGhost.value = !isGhost.value
+  visualStore.viewerEmit('toggleGhostHidden', isGhost.value)
 }
 
 const viewModesOpen = computed({

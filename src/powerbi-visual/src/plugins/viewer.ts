@@ -13,12 +13,10 @@ import {
   SelectionExtension,
   FilteringExtension
 } from '@speckle/viewer'
-import SelectionHandler from '@src/handlers/selectionHandler'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
 import { Vector3 } from 'three'
 
 export interface IViewer {
@@ -50,6 +48,7 @@ export interface IViewerEvents {
   unIsolateObjects: () => void
   zoomExtends: () => void
   toggleProjection: () => void
+  toggleGhostHidden: (ghost: boolean) => void
   loadObjects: (objects: object[]) => void
 }
 
@@ -81,6 +80,7 @@ export class ViewerHandler {
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
     this.emitter.on('toggleProjection', this.toggleProjection)
+    this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
   }
 
   async init(parent: HTMLElement) {
@@ -154,6 +154,15 @@ export class ViewerHandler {
   public isolateObjects = (objectIds: string[], ghost: boolean) => {
     this.unIsolateObjects()
     this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+  }
+
+  public toggleGhostHidden = (ghost: boolean) => {
+    this.filteringState = this.filtering.isolateObjects(
+      this.filteringState.isolatedObjects,
+      'powerbi',
+      true,
+      ghost
+    )
   }
 
   public unIsolateObjects = () => {

@@ -1,5 +1,6 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
+import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
 import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
@@ -18,6 +19,7 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
 
@@ -238,6 +240,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
   const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
+  const setFormattingSettings = (newFormattingSettings: SpeckleVisualSettingsModel) =>
+    (formattingSettings.value = newFormattingSettings)
 
   const resetFilters = () => {
     viewerEmit.value('resetFilter', dataInput.value.objectIds)
@@ -269,6 +273,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     postClickSkipNeeded,
     isFilterActive,
     latestColorBy,
+    formattingSettings,
+    setFormattingSettings,
     setPostClickSkipNeeded,
     setPostFileSaveSkipNeeded,
     setCameraPositionInFile,

@@ -9,9 +9,9 @@ export class SpeckleVisualSettingsModel extends fs.Model {
 
   public colorSelector: ColorSelectorSettings = new ColorSelectorSettings()
 
-  public camera: CameraSettings = new CameraSettings()
+  // public camera: CameraSettings = new CameraSettings()
 
-  public lighting: LightingSettings = new LightingSettings()
+  // public lighting: LightingSettings = new LightingSettings()
 
-  cards = [this.color, this.camera, this.lighting]
+  cards = [this.color]
 }
