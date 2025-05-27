@@ -1,7 +1,8 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
-import { IViewerEvents } from '@src/plugins/viewer'
+import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
+import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
-import { zipJSONChunks, zipModelObjects } from '@src/utils/compression'
+import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
@@ -18,8 +19,14 @@ export type FieldInputState = {
 
 export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
+  const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
+
+  const postFileSaveSkipNeeded = ref<boolean>(false)
+  const postClickSkipNeeded = ref<boolean>(false)
+
+  const isFilterActive = ref<boolean>(false)
 
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
@@ -54,6 +61,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   // TODO: investigate about shallow ref? https://vuejs.org/api/reactivity-advanced.html#shallowref
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
+  const latestColorBy = ref<ColorBy[] | null | undefined>([])
 
   /**
    * Ideally one time setup on initialization.
@@ -100,8 +108,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
-  const loadObjectsFromFile = async (objects: object[]) => {
-    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id // TODO fix
+  const loadObjectsFromFile = async (objects: object[][]) => {
+    const savedVersionObjectId = objects.map((o) => (o[0] as SpeckleObject).id).join(',')
+    lastLoadedRootObjectId.value = savedVersionObjectId
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjects', objects)
@@ -131,14 +140,19 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
 
     if (dataInput.value.selectedIds.length > 0) {
-      viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
+      isFilterActive.value = true
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, true)
     } else {
-      viewerEmit.value('isolateObjects', dataInput.value.objectIds)
+      isFilterActive.value = false
+      latestColorBy.value = dataInput.value.colorByIds
+      viewerEmit.value('resetFilter', dataInput.value.objectIds)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
   const writeObjectsToFile = (modelObjects: object[][]) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     const compressedChunks = zipModelObjects(modelObjects, 10000) // Compress in chunks
 
     host.value.persistProperties({
@@ -156,6 +170,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeCameraViewToFile = (view: CanonicalView) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -170,6 +186,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeViewModeToFile = (viewMode: ViewMode) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -184,22 +202,24 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
-    host.value.persistProperties({
-      merge: [
-        {
-          objectName: 'cameraPosition',
-          properties: {
-            positionX: position.x,
-            positionY: position.y,
-            positionZ: position.z,
-            targetX: target.x,
-            targetY: target.y,
-            targetZ: target.z
-          },
-          selector: null
-        }
-      ]
-    })
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    // postFileSaveSkipNeeded.value = true
+    // host.value.persistProperties({
+    //   merge: [
+    //     {
+    //       objectName: 'cameraPosition',
+    //       properties: {
+    //         positionX: position.x,
+    //         positionY: position.y,
+    //         positionZ: position.z,
+    //         targetX: target.x,
+    //         targetY: target.y,
+    //         targetZ: target.z
+    //       },
+    //       selector: null
+    //     }
+    //   ]
+    // })
   }
 
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
@@ -213,10 +233,23 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
+  const setPostFileSaveSkipNeeded = (newValue: boolean) => (postFileSaveSkipNeeded.value = newValue)
+  const setPostClickSkipNeeded = (newValue: boolean) => (postClickSkipNeeded.value = newValue)
+
   const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
   const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
+  const setFormattingSettings = (newFormattingSettings: SpeckleVisualSettingsModel) =>
+    (formattingSettings.value = newFormattingSettings)
+
+  const resetFilters = () => {
+    viewerEmit.value('resetFilter', dataInput.value.objectIds)
+    if (latestColorBy.value !== null) {
+      viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
+    }
+    isFilterActive.value = false
+  }
 
   return {
     host,
@@ -236,6 +269,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     cameraPosition,
     defaultViewModeInFile,
     speckleViews,
+    postFileSaveSkipNeeded,
+    postClickSkipNeeded,
+    isFilterActive,
+    latestColorBy,
+    formattingSettings,
+    setFormattingSettings,
+    setPostClickSkipNeeded,
+    setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
     setDefaultViewModeInFile,
     setSpeckleViews,
@@ -255,6 +296,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setViewerReadyToLoad,
     setLoadingProgress,
     clearLoadingProgress,
-    setIsLoadingFromFile
+    setIsLoadingFromFile,
+    resetFilters
   }
 })

@@ -39,11 +39,14 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
     hasColorFilter = false,
     hasTooltipData = false
 
+  matrixVew.valueSources.forEach((level) => {
+    if (!hasRootObjectId) hasRootObjectId = level.roles['rootObjectId'] != undefined
+  })
+
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
-      if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
+      if (!hasColorFilter) hasColorFilter = source.roles['colorBy'] != undefined
     })
   })
 
@@ -85,12 +88,16 @@ function processObjectValues(
         shouldColor = true
       }
       const propData: IViewerTooltipData = {
-        displayName: colInfo.displayName,
-        value: value.value.toString()
+        displayName: colInfo.displayName.replace('First ', ''),
+        value: value.value === null ? '<not set>' : value.value.toString()
       }
       objectData.push(propData)
     })
-  return { data: objectData, shouldColor, shouldSelect }
+  return {
+    data: objectData.length > 0 ? objectData.slice(1) : [],
+    shouldColor,
+    shouldSelect
+  }
 }
 
 function processObjectNode(
@@ -270,8 +277,16 @@ export async function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView)
 
-  const localMatrixView = matrixView.rows.root.children[0]
-  const id = localMatrixView.value as unknown as string
+  const localMatrixView = matrixView.rows.root.children
+  let id = null
+
+  if (hasColorFilter) {
+    id = localMatrixView[0].children[0].values[0].value as unknown as string
+  } else {
+    id = localMatrixView[0].values[0].value as unknown as string
+  }
+
+  // const id = localMatrixView[0].values[0].value as unknown as string
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
@@ -303,34 +318,31 @@ export async function processMatrixView(
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 
-  // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  localMatrixView.children?.forEach((obj) => {
-    // otherwise there is no point to collect objects
-    const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+  // If colors assigned, data arrives nested
+  if (hasColorFilter) {
+    // const start = performance.now()
+    // console.log('Sorting the colors started...')
+    // // powerbi sorts the objects alphabetically for color legends
+    // const sortedMatrix = localMatrixView.sort((a, b) => {
+    //   return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+    // })
+    // const end = performance.now()
+    // console.log(`Sorted in: ${(end - start) / 1000} s`)
 
-    objectIds.push(processedObjectIdLevels.id)
-    onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
-    if (processedObjectIdLevels.shouldSelect) {
-      selectedIds.push(processedObjectIdLevels.id)
-    }
-    objectTooltipData.set(processedObjectIdLevels.id, {
-      selectionId: processedObjectIdLevels.selectionId,
-      data: processedObjectIdLevels.data
-    })
+    if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
 
-    if (hasColorFilter) {
-      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-      obj.children.forEach((child) => {
+    localMatrixView.forEach((colorObjects) => {
+      colorObjects.children.forEach((obj) => {
         const colorSelectionId = host
           .createSelectionIdBuilder()
-          .withMatrixNode(child, matrixView.rows.levels)
+          .withMatrixNode(obj, matrixView.rows.levels)
           .createSelectionId()
 
-        const color = host.colorPalette.getColor(child.values[0].value as string)
-
+        const value = colorObjects.value as string
+        const color = host.colorPalette.getColor(value)
         const colorSlice = new fs.ColorPicker({
           name: 'selectorFill',
-          displayName: child.value?.toString(),
+          displayName: value,
           value: {
             value: color.value
           },
@@ -343,7 +355,7 @@ export async function processMatrixView(
           objectIds: []
         }
 
-        const processedObjectIdLevels = processObjectIdLevel(child, host, matrixView)
+        const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
         objectIds.push(processedObjectIdLevels.id)
         onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
@@ -358,8 +370,86 @@ export async function processMatrixView(
 
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
-    }
-  })
+    })
+  } else {
+    localMatrixView.forEach((obj) => {
+      const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+      if (processedObjectIdLevels.color) {
+        let group = colorByIds.find((g) => g.color === processedObjectIdLevels.color)
+        if (!group) {
+          group = {
+            color: processedObjectIdLevels.color,
+            objectIds: []
+          }
+          colorByIds.push(group)
+        }
+        group.objectIds.push(processedObjectIdLevels.id)
+      }
+
+      objectIds.push(processedObjectIdLevels.id)
+      onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+      if (processedObjectIdLevels.shouldSelect) {
+        selectedIds.push(processedObjectIdLevels.id)
+      }
+      objectTooltipData.set(processedObjectIdLevels.id, {
+        selectionId: processedObjectIdLevels.selectionId,
+        data: processedObjectIdLevels.data
+      })
+    })
+  }
+
+  // if (hasColorFilter) {
+  //   const start = performance.now()
+  //   console.log('Sorting the colors started...')
+  //   // powerbi sorts the objects alphabetically for color legends
+  //   const sortedMatrix = localMatrixView.sort((a, b) => {
+  //     return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+  //   })
+  //   const end = performance.now()
+  //   console.log(`Sorted in: ${(end - start) / 1000} s`)
+
+  //   sortedMatrix.forEach((obj) => {
+  //     if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+
+  //     const colorSelectionId = host
+  //       .createSelectionIdBuilder()
+  //       .withMatrixNode(obj, matrixView.rows.levels)
+  //       .createSelectionId()
+
+  //     const value = obj.levelValues[0].value as string
+  //     const color = host.colorPalette.getColor(value)
+  //     const colorSlice = new fs.ColorPicker({
+  //       name: 'selectorFill',
+  //       displayName: value,
+  //       value: {
+  //         value: color.value
+  //       },
+  //       selector: colorSelectionId.getSelector()
+  //     })
+
+  //     const colorGroup = {
+  //       color: color.value,
+  //       slice: colorSlice,
+  //       objectIds: []
+  //     }
+
+  //     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+  //     objectIds.push(processedObjectIdLevels.id)
+  //     onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+  //     if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+  //     if (processedObjectIdLevels.shouldColor) {
+  //       colorGroup.objectIds.push(processedObjectIdLevels.id)
+  //     }
+  //     objectTooltipData.set(processedObjectIdLevels.id, {
+  //       selectionId: processedObjectIdLevels.selectionId,
+  //       data: processedObjectIdLevels.data
+  //     })
+
+  //     if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+  //   })
+  // }
 
   previousPalette = host.colorPalette['colorPalette']
 
@@ -369,7 +459,6 @@ export async function processMatrixView(
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
-    view: matrixView,
     isFromStore: false
   }
 }

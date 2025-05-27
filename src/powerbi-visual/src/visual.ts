@@ -63,6 +63,19 @@ export class Visual implements IVisual {
 
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
+
+    if (visualStore.postFileSaveSkipNeeded) {
+      visualStore.setPostFileSaveSkipNeeded(false)
+      console.log('Skipping unneccessary update function after file save.')
+      return
+    }
+
+    if (visualStore.postClickSkipNeeded) {
+      visualStore.setPostClickSkipNeeded(false)
+      console.log('Skipping unneccessary update function canvas click.')
+      return
+    }
+
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
@@ -70,6 +83,7 @@ export class Visual implements IVisual {
       options.dataViews[0]
     )
 
+    visualStore.setFormattingSettings(this.formattingSettings)
     console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
@@ -132,7 +146,9 @@ export class Visual implements IVisual {
                 console.warn(error)
                 console.log('missing mixpanel info')
               }
-              if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
+              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
+
+              if (visualStore.lastLoadedRootObjectId !== savedVersionObjectId) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }
             }
@@ -195,7 +211,7 @@ export class Visual implements IVisual {
     }
   }
 
-  private tryReadFromFile(objectsFromFile: object[], visualStore) {
+  private tryReadFromFile(objectsFromFile: object[][], visualStore) {
     visualStore.setViewerReadyToLoad()
     visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
     setTimeout(() => {
