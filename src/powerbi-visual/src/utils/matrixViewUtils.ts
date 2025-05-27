@@ -375,6 +375,18 @@ export async function processMatrixView(
     localMatrixView.forEach((obj) => {
       const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
+      if (processedObjectIdLevels.color) {
+        let group = colorByIds.find((g) => g.color === processedObjectIdLevels.color)
+        if (!group) {
+          group = {
+            color: processedObjectIdLevels.color,
+            objectIds: []
+          }
+          colorByIds.push(group)
+        }
+        group.objectIds.push(processedObjectIdLevels.id)
+      }
+
       objectIds.push(processedObjectIdLevels.id)
       onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
       if (processedObjectIdLevels.shouldSelect) {

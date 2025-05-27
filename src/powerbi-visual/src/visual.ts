@@ -76,17 +76,15 @@ export class Visual implements IVisual {
       return
     }
 
-    // // @ts-ignore
-    // console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
-    // this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
-    //   SpeckleVisualSettingsModel,
-    //   options.dataViews[0]
-    // )
+    // @ts-ignore
+    console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
+    this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
+      SpeckleVisualSettingsModel,
+      options.dataViews[0]
+    )
 
-    // console.log(this.formattingSettings)
-
-    // visualStore.setFormattingSettings(this.formattingSettings)
-    // console.log('Selector colors', this.formattingSettings.colorSelector)
+    visualStore.setFormattingSettings(this.formattingSettings)
+    console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
       const matrixView = options.dataViews[0].matrix
