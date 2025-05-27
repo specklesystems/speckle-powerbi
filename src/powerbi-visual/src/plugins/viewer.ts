@@ -214,6 +214,7 @@ export class ViewerHandler {
 
       // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
+      this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after loadObjects
     })
 
     store.setSpeckleViews(speckleViews)
