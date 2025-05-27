@@ -89,14 +89,15 @@ export class ViewerHandler {
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
 
-    this.cameraControls.on(CameraEvent.Stationary, () => {
-      console.log('🎬 Storing the camera position into file')
-      const cameraController = this.viewer.getExtension(CameraController)
-      const position = cameraController.getPosition()
-      const target = cameraController.getTarget()
-      const store = useVisualStore()
-      store.writeCameraPositionToFile(position, target)
-    })
+    // NOTE: storing camera position into file triggers `update` function. even if I early return according to flag - it slows down the usage a lot.
+    // this.cameraControls.on(CameraEvent.Stationary, () => {
+    //   console.log('🎬 Storing the camera position into file')
+    //   const cameraController = this.viewer.getExtension(CameraController)
+    //   const position = cameraController.getPosition()
+    //   const target = cameraController.getTarget()
+    //   const store = useVisualStore()
+    //   store.writeCameraPositionToFile(position, target)
+    // })
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {

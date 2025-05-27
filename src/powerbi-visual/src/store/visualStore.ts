@@ -203,23 +203,23 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
-    postFileSaveSkipNeeded.value = true
-    host.value.persistProperties({
-      merge: [
-        {
-          objectName: 'cameraPosition',
-          properties: {
-            positionX: position.x,
-            positionY: position.y,
-            positionZ: position.z,
-            targetX: target.x,
-            targetY: target.y,
-            targetZ: target.z
-          },
-          selector: null
-        }
-      ]
-    })
+    // postFileSaveSkipNeeded.value = true
+    // host.value.persistProperties({
+    //   merge: [
+    //     {
+    //       objectName: 'cameraPosition',
+    //       properties: {
+    //         positionX: position.x,
+    //         positionY: position.y,
+    //         positionZ: position.z,
+    //         targetX: target.x,
+    //         targetY: target.y,
+    //         targetZ: target.z
+    //       },
+    //       selector: null
+    //     }
+    //   ]
+    // })
   }
 
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
