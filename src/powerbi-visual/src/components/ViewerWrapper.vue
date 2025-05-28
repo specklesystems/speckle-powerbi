@@ -80,14 +80,30 @@
     </div>
 
     <div
-      class="absolute bottom-2 right-2 z-10 flex items-center text-xs cursor-pointer"
-      @click="goToSpeckleWebsite"
+      class="absolute z-10 flex items-center text-xs cursor-pointer"
+      :class="visualStore.isBrandingHidden ? 'bottom-0 right-0' : 'bottom-2 right-2'"
+      @click.stop="goToSpeckleWebsite"
     >
-      <div class="flex items-center justify-center font-thin">
-        <div class="">Powered by</div>
-        <img class="w-4 h-auto mx-1" src="@assets/logo-big.png" />
-        <div class="font-medium">Speckle</div>
-      </div>
+      <!-- TODO: fade bottom here as transition -->
+      <transition name="fade-bottom">
+        <div
+          v-if="!visualStore.isBrandingHidden"
+          class="flex items-center justify-center font-thin"
+        >
+          <div class="">Powered by</div>
+          <img class="w-4 h-auto mx-1" src="@assets/logo-big.png" />
+          <div class="font-medium">Speckle</div>
+        </div>
+      </transition>
+      <button
+        v-if="visualStore.receiveInfo.canHideBranding"
+        class="transition opacity-50 hover:opacity-100 ml-1"
+        title="Show navbar"
+        @click.stop="visualStore.toggleBranding()"
+      >
+        <ChevronUpIcon v-if="visualStore.isBrandingHidden" class="w-4 h-4 text-gray-400" />
+        <ChevronDownIcon v-else class="w-4 h-4" />
+      </button>
     </div>
 
     <div
@@ -207,5 +223,20 @@ async function onCanvasAuxClick(ev: MouseEvent) {
 .slide-left-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+
+.fade-bottom-enter-active,
+.fade-bottom-leave-active {
+  transition: all 0.3s ease;
+}
+.fade-bottom-enter-from,
+.fade-bottom-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-bottom-enter-to,
+.fade-bottom-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>

@@ -126,6 +126,18 @@ export class Visual implements IVisual {
                 )
               }
 
+              if (options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean) {
+                console.log(
+                  `Branding Hidden: ${
+                    options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
+                  }`
+                )
+
+                visualStore.setBrandingHidden(
+                  options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
+                )
+              }
+
               if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
                 visualStore.setCameraPositionInFile([
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.positionX),

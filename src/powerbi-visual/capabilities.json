@@ -78,6 +78,13 @@
         }
       }
     },
+    "workspace": {
+      "properties": {
+        "brandingHidden": {
+          "type": { "bool": false }
+        }
+      }
+    },
     "viewMode": {
       "properties": {
         "defaultViewMode": {
