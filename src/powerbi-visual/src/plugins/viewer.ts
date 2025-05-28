@@ -11,7 +11,8 @@ import {
   Viewer,
   HybridCameraController,
   SelectionExtension,
-  FilteringExtension
+  FilteringExtension,
+  UpdateFlags
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -109,7 +110,10 @@ export class ViewerHandler {
     this.cameraControls.setCameraView(objectIds, animate)
   }
 
-  public zoomExtends = () => this.cameraControls.setCameraView(undefined, false)
+  public zoomExtends = () => {
+    this.cameraControls.setCameraView(undefined, true)
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+  }
   public toggleProjection = () => this.cameraControls.toggleCameras()
 
   public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
