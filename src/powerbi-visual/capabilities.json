@@ -81,7 +81,7 @@
     "workspace": {
       "properties": {
         "brandingHidden": {
-          "type": { "bool": false }
+          "type": { "bool": true }
         }
       }
     },
