@@ -98,7 +98,7 @@
       <button
         v-if="visualStore.receiveInfo.canHideBranding"
         class="transition opacity-50 hover:opacity-100 ml-1"
-        title="Show navbar"
+        :title="visualStore.isBrandingHidden ? '' : 'Hide branding'"
         @click.stop="visualStore.toggleBranding()"
       >
         <ChevronUpIcon v-if="visualStore.isBrandingHidden" class="w-4 h-4 text-gray-400" />
