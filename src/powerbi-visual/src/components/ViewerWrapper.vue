@@ -1,78 +1,102 @@
 <template>
-  <transition name="slide-fade">
-    <nav
-      v-show="!isNavbarCollapsed"
-      class="fixed top-0 h-9 flex items-center bg-foundation border-b border-outline-2 w-full transition z-20 shadow-sm hover:shadow cursor-default"
-    >
-      <div class="flex items-center transition-all justify-between w-full">
-        <div class="flex items-center hover:cursor-pointer" @click="goToSpeckleWebsite">
-          <div class="max-[200px]:hidden block ml-2">
-            <img class="w-6 h-auto ml-1 mr-2 my-1" src="@assets/logo-big.png" />
-          </div>
-          <div class="font-sans font-medium">Speckle</div>
-        </div>
-
-        <div class="flex items-center">
-          <div class="font-thin text-xs mr-2 text-gray-400">
-            v{{ visualStore.receiveInfo.version }}
-          </div>
-          <button
-            class="text-gray-400 hover:text-gray-700 transition"
-            title="Hide navbar"
-            @click="isNavbarCollapsed = true"
+  <div class="border">
+    <transition name="slide-fade">
+      <nav
+        v-show="!isNavbarCollapsed"
+        class="fixed top-0 h-9 flex items-center bg-foundation border-b border-outline-2 w-full transition z-20 shadow-sm cursor-default"
+      >
+        <div class="flex items-center transition-all justify-between w-full">
+          <div
+            v-if="visualStore.receiveInfo.workspaceName"
+            class="flex items-center gap-2 p-0.5 pr-1.5 hover:bg-highlight-2 rounded ml-2"
           >
-            <ChevronUpIcon class="w-4 h-4" />
-          </button>
+            <WorkspaceAvatar
+              :name="visualStore.receiveInfo.workspaceName"
+              :logo="visualStore.receiveInfo.workspaceLogo"
+            ></WorkspaceAvatar>
+            <div class="min-w-0 truncate flex-grow text-left text-xs">
+              <span>{{ visualStore.receiveInfo.workspaceName }}</span>
+            </div>
+          </div>
+          <div v-else>
+            <div class="flex items-center hover:cursor-pointer" @click="goToSpeckleWebsite">
+              <div class="max-[200px]:hidden block ml-2">
+                <img class="w-6 h-auto ml-1 mr-2 my-1" src="@assets/logo-big.png" />
+              </div>
+              <div class="font-sans font-medium">Speckle</div>
+            </div>
+          </div>
+
+          <div class="flex items-center">
+            <div class="font-thin text-xs mr-2 text-gray-400">
+              v{{ visualStore.receiveInfo.version }}
+            </div>
+            <button
+              class="text-gray-400 hover:text-gray-700 transition"
+              title="Hide navbar"
+              @click="isNavbarCollapsed = true"
+            >
+              <ChevronUpIcon class="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
-    </nav>
-  </transition>
+      </nav>
+    </transition>
 
-  <!-- TODO: another transition here needed that below components - but this time it will move to left -->
-
-  <div
-    v-if="!isInteractive"
-    class="absolute top-11 left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default"
-  >
-    <strong>Object IDs</strong>
-    field is needed for interactivity with other visuals.
-  </div>
-
-  <div v-if="isNavbarCollapsed" class="fixed top-2 right-0 z-20">
-    <button
-      class="transition opacity-50 hover:opacity-100"
-      title="Show navbar"
-      @click="isNavbarCollapsed = false"
+    <div
+      v-if="!isInteractive"
+      class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
+      :class="isNavbarCollapsed ? 'top-1' : 'top-11'"
     >
-      <ChevronDownIcon class="w-4 h-4 text-gray-400" />
-    </button>
-  </div>
+      <strong>Object IDs</strong>
+      field is needed for interactivity with other visuals.
+    </div>
 
-  <!-- till here -->
+    <div v-if="isNavbarCollapsed" class="fixed top-0 right-0 z-20">
+      <button
+        class="transition opacity-50 hover:opacity-100"
+        title="Show navbar"
+        @click="isNavbarCollapsed = false"
+      >
+        <ChevronDownIcon class="w-4 h-4 text-gray-400" />
+      </button>
+    </div>
 
-  <transition name="slide-left">
-    <ViewerControls
-      v-show="!isNavbarCollapsed"
-      v-model:section-box="bboxActive"
-      :views="views"
-      class="fixed top-11 left-1 z-30"
-      @view-clicked="(view) => viewerHandler.setView(view)"
-      @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
+    <transition name="slide-left">
+      <ViewerControls
+        v-show="!isNavbarCollapsed"
+        v-model:section-box="bboxActive"
+        :views="views"
+        class="fixed top-11 left-2 z-30"
+        @view-clicked="(view) => viewerHandler.setView(view)"
+        @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
+      />
+    </transition>
+
+    <div v-if="visualStore.isFilterActive" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
+      <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
+        Reset filters
+      </FormButton>
+    </div>
+
+    <div
+      class="absolute bottom-2 right-2 z-10 flex items-center text-xs cursor-pointer"
+      @click="goToSpeckleWebsite"
+    >
+      <div class="flex items-center justify-center font-thin">
+        <div class="">Powered by</div>
+        <img class="w-4 h-auto mx-1" src="@assets/logo-big.png" />
+        <div class="font-medium">Speckle</div>
+      </div>
+    </div>
+
+    <div
+      ref="container"
+      class="fixed h-full w-full z-0 cursor-default"
+      @click="onCanvasClick"
+      @auxclick="onCanvasAuxClick"
     />
-  </transition>
-
-  <div v-if="visualStore.isFilterActive" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
-    <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
-      Reset filters
-    </FormButton>
   </div>
-
-  <div
-    ref="container"
-    class="fixed h-full w-full z-0 cursor-default"
-    @click="onCanvasClick"
-    @auxclick="onCanvasAuxClick"
-  />
 </template>
 
 <script async setup lang="ts">
@@ -86,6 +110,7 @@ import { useVisualStore } from '@src/store/visualStore'
 import { ViewerHandler } from '@src/plugins/viewer'
 import { selectionHandlerKey, tooltipHandlerKey } from '@src/injectionKeys'
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/vue/24/outline'
+import WorkspaceAvatar from './workspace/WorkspaceAvatar.vue'
 
 const visualStore = useVisualStore()
 const { dragged } = useClickDragged()
