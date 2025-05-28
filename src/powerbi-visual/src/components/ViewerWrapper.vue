@@ -13,7 +13,9 @@
         </div>
 
         <div class="flex items-center">
-          <div class="font-thin text-xs mr-2 text-gray-400">v1.0.0</div>
+          <div class="font-thin text-xs mr-2 text-gray-400">
+            v{{ visualStore.receiveInfo.version }}
+          </div>
           <button
             class="text-gray-400 hover:text-gray-700 transition"
             title="Hide navbar"
@@ -30,7 +32,7 @@
 
   <div
     v-if="!isInteractive"
-    class="absolute top-1 left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium"
+    class="absolute top-11 left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default"
   >
     <strong>Object IDs</strong>
     field is needed for interactivity with other visuals.
@@ -67,7 +69,7 @@
 
   <div
     ref="container"
-    class="fixed h-full w-full z-0"
+    class="fixed h-full w-full z-0 cursor-default"
     @click="onCanvasClick"
     @auxclick="onCanvasAuxClick"
   />
