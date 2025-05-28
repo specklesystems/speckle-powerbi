@@ -5,7 +5,7 @@ import os
 
 def patch_connector(tag):
     """Patches the connector version within the data connector file"""
-    pq_file = os.path.join(os.path.dirname(__file__), "powerbi-data-connector", "Speckle.pq")
+    pq_file = os.path.join(os.path.dirname(__file__), "src", "powerbi-data-connector", "Speckle.pq")
 
     with open(pq_file, "r") as file:
         lines = file.readlines()
