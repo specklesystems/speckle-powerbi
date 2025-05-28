@@ -223,7 +223,10 @@ export class ViewerHandler {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
 
-    Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
+    Tracker.dataLoaded({
+      sourceHostApp: store.receiveInfo.sourceApplication,
+      workspace_id: store.receiveInfo.workspaceId
+    })
     // camera need to be set after objects loaded
     if (store.cameraPosition) {
       const position = new Vector3(

@@ -152,6 +152,11 @@ export type ReceiveInfo = {
   userEmail: string
   serverUrl: string
   sourceApplication?: string
+  workspaceId?: string
+  workspaceLogo?: string
+  workspaceName?: string
+  canHideBranding: boolean
+  version?: string
 }
 
 async function getReceiveInfo(id) {
@@ -309,7 +314,12 @@ export async function processMatrixView(
       visualStore.setReceiveInfo({
         userEmail: receiveInfo.email,
         serverUrl: receiveInfo.server,
-        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication)
+        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication),
+        workspaceId: receiveInfo.workspaceId,
+        workspaceName: receiveInfo.workspaceName,
+        workspaceLogo: receiveInfo.workspaceLogo,
+        version: receiveInfo.version,
+        canHideBranding: receiveInfo.canHideBranding
       })
     }
 
