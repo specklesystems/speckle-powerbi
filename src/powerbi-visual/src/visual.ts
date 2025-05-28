@@ -139,6 +139,7 @@ export class Visual implements IVisual {
               }
 
               if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
+                console.log(`Stored camera position is found`)
                 visualStore.setCameraPositionInFile([
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.positionX),
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.positionY),

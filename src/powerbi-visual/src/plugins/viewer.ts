@@ -94,16 +94,6 @@ export class ViewerHandler {
     if (store.isOrthoProjection) {
       this.cameraControls.toggleCameras()
     }
-
-    // NOTE: storing camera position into file triggers `update` function. even if I early return according to flag - it slows down the usage a lot.
-    // this.cameraControls.on(CameraEvent.Stationary, () => {
-    //   console.log('🎬 Storing the camera position into file')
-    //   const cameraController = this.viewer.getExtension(CameraController)
-    //   const position = cameraController.getPosition()
-    //   const target = cameraController.getTarget()
-    //   const store = useVisualStore()
-    //   store.writeCameraPositionToFile(position, target)
-    // })
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
@@ -121,7 +111,10 @@ export class ViewerHandler {
   }
   public toggleProjection = () => this.cameraControls.toggleCameras()
 
-  public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
+  public setView = (view: CanonicalView) => {
+    this.cameraControls.setCameraView(view, false)
+    this.snapshotCameraPositionAndStore()
+  }
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
@@ -131,6 +124,15 @@ export class ViewerHandler {
   public setViewMode(viewMode: ViewMode) {
     const viewModes = this.viewer.getExtension(ViewModes)
     viewModes.setViewMode(viewMode)
+  }
+
+  public snapshotCameraPositionAndStore = () => {
+    console.log('🎬 Storing the camera position into file')
+    const cameraController = this.viewer.getExtension(CameraController)
+    const position = cameraController.getPosition()
+    const target = cameraController.getTarget()
+    const store = useVisualStore()
+    store.writeCameraPositionToFile(position, target)
   }
 
   public selectObjects = (objectIds: string[]) => {
@@ -236,7 +238,6 @@ export class ViewerHandler {
       sourceHostApp: store.receiveInfo.sourceApplication,
       workspace_id: store.receiveInfo.workspaceId
     })
-    // camera need to be set after objects loaded
     if (store.cameraPosition) {
       const position = new Vector3(
         store.cameraPosition[0],
