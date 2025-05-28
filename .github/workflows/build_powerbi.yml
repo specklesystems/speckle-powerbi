@@ -17,6 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
       - name: Install GitVersion
         uses: gittools/actions/gitversion/setup@v3.0.0
         with:
@@ -25,6 +30,10 @@ jobs:
       - name: Determine Version
         id: gitversion
         uses: gittools/actions/gitversion/execute@v3.0.0
+
+      - name: Set connector version
+        run: |
+          python patch_version.py ${{steps.gitversion.outputs.semVer}}
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
