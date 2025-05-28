@@ -33,7 +33,7 @@ jobs:
 
       - name: Set connector version
         run: |
-          python patch_version.py ${{steps.gitversion.outputs.semVer}}
+          python patch_version.py ${{steps.gitversion.outputs.file-version}}
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
