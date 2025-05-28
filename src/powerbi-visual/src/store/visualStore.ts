@@ -104,7 +104,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
-  const clearLoadingProgress = () => (loadingProgress.value = undefined)
+  const clearLoadingProgress = () => {
+    loadingProgress.value = undefined
+  }
 
   // MAKE TS HAPPY
   type SpeckleObject = {
@@ -117,7 +119,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjects', objects)
-    clearLoadingProgress()
     objectsFromStore.value = objects
     isViewerObjectsLoaded.value = true
     viewerReloadNeeded.value = false
@@ -136,7 +137,6 @@ export const useVisualStore = defineStore('visualStore', () => {
       lastLoadedRootObjectId.value = modelIds
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
       await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
-      clearLoadingProgress()
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
       writeObjectsToFile(dataInput.value.modelObjects)

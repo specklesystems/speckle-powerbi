@@ -12,7 +12,8 @@ import {
   HybridCameraController,
   SelectionExtension,
   FilteringExtension,
-  UpdateFlags
+  UpdateFlags,
+  ViewerEvent
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
@@ -94,6 +95,10 @@ export class ViewerHandler {
     if (store.isOrthoProjection) {
       this.cameraControls.toggleCameras()
     }
+
+    this.viewer.on(ViewerEvent.LoadComplete, (arg: string) => {
+      store.clearLoadingProgress()
+    })
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {

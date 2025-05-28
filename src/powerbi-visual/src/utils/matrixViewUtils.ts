@@ -306,9 +306,6 @@ export async function processMatrixView(
     visualStore.setViewerReadyToLoad()
     visualStore.setLoadingProgress('Loading', null)
 
-    // stream data
-    modelObjects = await fetchStreamedData(id)
-
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
       visualStore.setReceiveInfo({
@@ -321,7 +318,11 @@ export async function processMatrixView(
         version: receiveInfo.version,
         canHideBranding: receiveInfo.canHideBranding
       })
+      console.log(`Receive info retrieved from desktop service`, receiveInfo)
     }
+
+    // stream data
+    modelObjects = await fetchStreamedData(id)
 
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
 

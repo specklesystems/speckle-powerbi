@@ -1,5 +1,12 @@
 <template>
   <div class="border">
+    <div
+      v-if="visualStore.loadingProgress"
+      class="absolute top-1/2 left-1/2 w-1/2 -translate-x-1/2 z-50 text-center text-sm"
+    >
+      <!-- Progress Bar -->
+      <LoadingBar :loading="!!visualStore.loadingProgress"></LoadingBar>
+    </div>
     <transition name="slide-fade">
       <nav
         v-show="!isNavbarCollapsed"
@@ -96,7 +103,7 @@
         </div>
       </transition>
       <button
-        v-if="visualStore.receiveInfo.canHideBranding"
+        v-if="visualStore.receiveInfo && visualStore.receiveInfo.canHideBranding"
         class="transition opacity-50 hover:opacity-100 ml-1"
         :title="visualStore.isBrandingHidden ? '' : 'Hide branding'"
         @click.stop="visualStore.toggleBranding()"
@@ -127,6 +134,7 @@ import { ViewerHandler } from '@src/plugins/viewer'
 import { selectionHandlerKey, tooltipHandlerKey } from '@src/injectionKeys'
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/vue/24/outline'
 import WorkspaceAvatar from './workspace/WorkspaceAvatar.vue'
+import LoadingBar from '@src/components/loading/LoadingBar.vue'
 
 const visualStore = useVisualStore()
 const { dragged } = useClickDragged()
