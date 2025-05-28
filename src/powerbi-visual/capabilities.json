@@ -97,29 +97,8 @@
         "defaultView": {
           "type": { "text": true }
         },
-        "allowCameraUnder": {
-          "type": {
-            "bool": true
-          }
-        },
-        "zoomOnDataChange": {
-          "type": {
-            "bool": true
-          }
-        },
-        "projection": {
-          "type": {
-            "enumeration": [
-              {
-                "displayName": "Perspective",
-                "value": "perspective"
-              },
-              {
-                "displayName": "Orthographic",
-                "value": "orthographic"
-              }
-            ]
-          }
+        "isOrtho": {
+          "type": { "bool": true }
         }
       }
     },

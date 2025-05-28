@@ -28,6 +28,8 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const isFilterActive = ref<boolean>(false)
   const isBrandingHidden = ref<boolean>(false)
+  const isOrthoProjection = ref<boolean>(false)
+  const isGhostActive = ref<boolean>(true)
 
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
@@ -186,6 +188,22 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeIsOrthoToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            isOrtho: isOrthoProjection.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeViewModeToFile = (viewMode: ViewMode) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
@@ -259,6 +277,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     isBrandingHidden.value = val
   }
 
+  const setIsOrthoProjection = (val: boolean) => {
+    isOrthoProjection.value = val
+  }
+
+  const setIsGhost = (val: boolean) => {
+    isGhostActive.value = val
+  }
+
   const setPostFileSaveSkipNeeded = (newValue: boolean) => (postFileSaveSkipNeeded.value = newValue)
   const setPostClickSkipNeeded = (newValue: boolean) => (postClickSkipNeeded.value = newValue)
 
@@ -301,6 +327,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     latestColorBy,
     formattingSettings,
     isBrandingHidden,
+    isOrthoProjection,
+    isGhostActive,
+    setIsOrthoProjection,
+    setIsGhost,
     setFormattingSettings,
     setBrandingHidden,
     setPostClickSkipNeeded,
@@ -315,6 +345,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setObjectsFromStore,
     writeObjectsToFile,
     writeCameraViewToFile,
+    writeIsOrthoToFile,
     writeViewModeToFile,
     writeCameraPositionToFile,
     writeHideBrandingToFile,

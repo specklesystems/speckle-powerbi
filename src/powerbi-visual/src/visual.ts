@@ -148,6 +148,19 @@ export class Visual implements IVisual {
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.targetZ)
                 ])
               }
+
+              if (options.dataViews[0].metadata.objects.camera?.isOrtho as boolean) {
+                console.log(
+                  `Projection is ortho?: ${
+                    options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                  }`
+                )
+
+                visualStore.setIsOrthoProjection(
+                  options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                )
+              }
+
               // get receive info from file for mixpanel
               try {
                 const receiveInfoFromFile = JSON.parse(
@@ -158,8 +171,8 @@ export class Visual implements IVisual {
                 console.warn(error)
                 console.log('missing mixpanel info')
               }
-              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
 
+              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
               if (visualStore.lastLoadedRootObjectId !== savedVersionObjectId) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }

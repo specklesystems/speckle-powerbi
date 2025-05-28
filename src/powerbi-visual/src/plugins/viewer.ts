@@ -90,6 +90,11 @@ export class ViewerHandler {
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
 
+    const store = useVisualStore()
+    if (store.isOrthoProjection) {
+      this.cameraControls.toggleCameras()
+    }
+
     // NOTE: storing camera position into file triggers `update` function. even if I early return according to flag - it slows down the usage a lot.
     // this.cameraControls.on(CameraEvent.Stationary, () => {
     //   console.log('🎬 Storing the camera position into file')

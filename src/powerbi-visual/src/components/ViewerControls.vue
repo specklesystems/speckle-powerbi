@@ -7,11 +7,15 @@
       </ViewerControlsButtonToggle>
       <!-- Ghost / Hidden -->
       <ViewerControlsButtonToggle
-        :tooltip="isGhost ? 'Hide ghosted objects on filter' : 'Show ghosted objects on filter'"
+        :tooltip="
+          visualStore.isGhostActive
+            ? 'Hide ghosted objects on filter'
+            : 'Show ghosted objects on filter'
+        "
         flat
         @click="toggleGhostHidden"
       >
-        <Ghost v-if="isGhost" class="h-5 w-5" />
+        <Ghost v-if="visualStore.isGhostActive" class="h-5 w-5" />
         <Ghost v-else class="h-5 w-5 opacity-30" />
       </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
@@ -36,10 +40,10 @@
         flat
         secondary
         tooltip="Projection"
-        :active="isOrthoProjection"
+        :active="visualStore.isOrthoProjection"
         @click="toggleProjection"
       >
-        <Perspective v-if="isOrthoProjection" class="h-3.5 md:h-4 w-4" />
+        <Perspective v-if="visualStore.isOrthoProjection" class="h-3.5 md:h-4 w-4" />
         <PerspectiveMore v-else class="h-3.5 md:h-4 w-4" />
       </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
@@ -75,9 +79,6 @@ withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
   sectionBox: false
 })
 
-const isOrthoProjection = ref(false)
-const isGhost = ref(true)
-
 type ActiveControl =
   | 'none'
   | 'viewModes'
@@ -99,13 +100,14 @@ const toggleActiveControl = (control: ActiveControl) => {
 }
 
 const toggleProjection = () => {
-  isOrthoProjection.value = !isOrthoProjection.value
   visualStore.viewerEmit('toggleProjection')
+  visualStore.setIsOrthoProjection(!visualStore.isOrthoProjection)
+  visualStore.writeIsOrthoToFile()
 }
 
 const toggleGhostHidden = () => {
-  isGhost.value = !isGhost.value
-  visualStore.viewerEmit('toggleGhostHidden', isGhost.value)
+  visualStore.setIsGhost(!visualStore.isGhostActive)
+  visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
 }
 
 const viewModesOpen = computed({
