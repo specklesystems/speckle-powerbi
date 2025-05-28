@@ -1,6 +1,6 @@
 <!-- eslint-disable vuejs-accessibility/no-static-element-interactions -->
 <template>
-  <ViewerMenu v-model:open="open" tooltip="Views">
+  <ViewerMenu v-model:open="open" title="Views">
     <template #trigger-icon>
       <Views class="w-5 h-5" />
     </template>

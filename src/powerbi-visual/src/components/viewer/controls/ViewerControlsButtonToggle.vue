@@ -1,5 +1,6 @@
 <template>
   <button
+    :title="tooltip"
     :class="`transition rounded-lg w-8 md:w-10 h-8 md:h-10 shrink-0 flex items-center justify-center ${colorClasses} outline-none ${
       props.flat ? '!w-7 md:!w-9' : 'border border-outline-2 w-8 md:w-10 shadow'
     }`"
@@ -15,6 +16,7 @@ const props = defineProps<{
   active?: boolean
   flat?: boolean
   secondary?: boolean
+  tooltip?: string
 }>()
 
 const colorClasses = computed(() => {

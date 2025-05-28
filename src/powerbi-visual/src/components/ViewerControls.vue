@@ -2,11 +2,15 @@
   <div class="space-y-2">
     <ViewerControlsButtonGroup>
       <!-- Zoom extend -->
-      <ViewerControlsButtonToggle v-tippy="'Zoom extends'" flat @click="onZoomExtentsClicked">
+      <ViewerControlsButtonToggle flat tooltip="Zoom extends" @click="onZoomExtentsClicked">
         <ArrowsPointingOutIcon class="h-4 w-4 md:h-5 md:w-5" />
       </ViewerControlsButtonToggle>
       <!-- Ghost / Hidden -->
-      <ViewerControlsButtonToggle flat @click="toggleGhostHidden">
+      <ViewerControlsButtonToggle
+        :tooltip="isGhost ? 'Hide ghosted objects on filter' : 'Show ghosted objects on filter'"
+        flat
+        @click="toggleGhostHidden"
+      >
         <Ghost v-if="isGhost" class="h-5 w-5" />
         <Ghost v-else class="h-5 w-5 opacity-30" />
       </ViewerControlsButtonToggle>
@@ -31,6 +35,7 @@
       <ViewerControlsButtonToggle
         flat
         secondary
+        tooltip="Projection"
         :active="isOrthoProjection"
         @click="toggleProjection"
       >
