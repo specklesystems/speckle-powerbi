@@ -15,3 +15,12 @@ onMounted(() => {
   console.log('App mounted')
 })
 </script>
+
+<style>
+.tippy-box[data-theme~='custom'] {
+  font-size: 10px;
+  padding: 0px 0px;
+  border-radius: 4px;
+  text-align: center;
+}
+</style>

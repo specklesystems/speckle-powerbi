@@ -10,7 +10,7 @@
     <transition name="slide-fade">
       <nav
         v-show="!isNavbarCollapsed"
-        class="fixed top-0 h-9 flex items-center bg-foundation border-b border-outline-2 w-full transition z-20 shadow-sm cursor-default"
+        class="fixed top-0 h-9 flex items-center bg-foundation border border-outline-2 w-full transition z-20 cursor-default"
       >
         <div class="flex items-center transition-all justify-between w-full">
           <div
@@ -34,8 +34,20 @@
             </div>
           </div>
 
-          <div class="flex items-center">
-            <div class="font-thin text-xs mr-2 text-gray-400">
+          <div class="flex items-center space-x-2">
+            <FormButton
+              v-if="visualStore.latestAvailableVersion && !visualStore.isConnectorUpToDate"
+              v-tippy="{
+                content: 'New connector version is available.<br>Click to download.',
+                allowHTML: true
+              }"
+              color="outline"
+              size="sm"
+              @click="visualStore.downloadLatestVersion"
+            >
+              Update
+            </FormButton>
+            <div class="font-thin text-xs text-gray-400">
               v{{ visualStore.receiveInfo.version }}
             </div>
             <button

@@ -1,4 +1,5 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
+import { Version } from '@src/composables/useUpdateConnector'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
@@ -6,7 +7,7 @@ import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
-import { ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
@@ -18,6 +19,8 @@ export type FieldInputState = {
 }
 
 export const useVisualStore = defineStore('visualStore', () => {
+  const latestAvailableVersion = ref<Version | null>(null)
+
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
@@ -75,6 +78,17 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => (receiveInfo.value = newReceiveInfo)
+
+  const setLatestAvailableVersion = (version: Version | null) => {
+    latestAvailableVersion.value = version
+  }
+
+  const isConnectorUpToDate = computed(() => {
+    if (receiveInfo.value && receiveInfo.value.version) {
+      return receiveInfo.value.version === latestAvailableVersion.value?.Number
+    }
+    return false
+  })
 
   /**
    * Ideally one time set when onMounted of `ViewerWrapper.vue` component
@@ -303,6 +317,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     isFilterActive.value = false
   }
 
+  const downloadLatestVersion = () => {
+    host.value.launchUrl(latestAvailableVersion.value?.Url as string)
+  }
+
   return {
     host,
     receiveInfo,
@@ -329,6 +347,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     isBrandingHidden,
     isOrthoProjection,
     isGhostActive,
+    latestAvailableVersion,
+    isConnectorUpToDate,
+    setLatestAvailableVersion,
     setIsOrthoProjection,
     setIsGhost,
     setFormattingSettings,
@@ -358,6 +379,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setLoadingProgress,
     clearLoadingProgress,
     setIsLoadingFromFile,
-    resetFilters
+    resetFilters,
+    downloadLatestVersion
   }
 })

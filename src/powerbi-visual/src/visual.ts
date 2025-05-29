@@ -4,6 +4,7 @@ import '../style/visual.css'
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel'
 import { createApp } from 'vue'
 import App from './App.vue'
+import VueTippy from 'vue-tippy'
 import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { SpeckleDataInput } from './types'
@@ -46,6 +47,11 @@ export class Visual implements IVisual {
     console.log('🚀 Init Vue App')
     createApp(App)
       .use(pinia)
+      .use(VueTippy, {
+        defaultProps: {
+          theme: 'custom'
+        }
+      })
       // .use(store, storeKey)
       .provide(selectionHandlerKey, this.selectionHandler)
       .provide(tooltipHandlerKey, this.tooltipHandler)

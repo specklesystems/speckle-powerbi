@@ -10,6 +10,7 @@ import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { delay } from 'lodash'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
+import { useUpdateConnector } from '@src/composables/useUpdateConnector'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -327,6 +328,11 @@ export async function processMatrixView(
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
 
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
+  }
+
+  if (visualStore.receiveInfo && visualStore.receiveInfo.version) {
+    const { checkUpdate } = useUpdateConnector()
+    await checkUpdate()
   }
 
   // If colors assigned, data arrives nested
