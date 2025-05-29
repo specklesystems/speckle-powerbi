@@ -326,7 +326,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     (formattingSettings.value = newFormattingSettings)
 
   const resetFilters = () => {
-    viewerEmit.value('resetFilter', dataInput.value.objectIds)
+    viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }

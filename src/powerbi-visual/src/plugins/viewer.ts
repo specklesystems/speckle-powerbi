@@ -37,7 +37,7 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
-  resetFilter: (objectIds: string[]) => void
+  resetFilter: (objectIds: string[], ghost: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean) => void
   setViewMode: (viewMode: ViewMode) => void
   colorObjectsByGroup: (
@@ -156,10 +156,10 @@ export class ViewerHandler {
     }
   }
 
-  public resetFilter = (objectIds: string[]) => {
+  public resetFilter = (objectIds: string[], ghost: boolean) => {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
-      this.isolateObjects(objectIds, true)
+      this.isolateObjects(objectIds, ghost)
       this.zoomObjects(objectIds, true)
     }
   }
