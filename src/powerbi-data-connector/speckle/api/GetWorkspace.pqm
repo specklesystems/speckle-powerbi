@@ -39,29 +39,38 @@
         projectResult = ApiFetch(server, projectQuery, projectVariables),
         workspaceId = projectResult[data][workspaceId],
         
-        // query to get workspace
-        workspaceQuery = "query Workspace($workspaceId: String!, $featureName: WorkspaceFeatureName!) {
-            data:workspace(id: $workspaceId) {
-                logo
-                name
-                hasAccessToFeature(featureName: $featureName)
-            }
-        }",
-        
-        workspaceVariables = [
-            workspaceId = workspaceId,
-            featureName = "hideSpeckleBranding"
-        ],
-        
-        workspaceResult = ApiFetch(server, workspaceQuery, workspaceVariables),
+        // check if workspaceId is null (personal project)
+        workspaceInfo = if workspaceId = null then
+            [
+                workspaceId = null,
+                workspaceLogo = null,
+                workspaceName = null,
+                canHideBranding = false
+            ]
+        else
+            // query workspace only if workspaceId exists
+            let
+                workspaceQuery = "query Workspace($workspaceId: String!, $featureName: WorkspaceFeatureName!) {
+                    data:workspace(id: $workspaceId) {
+                        logo
+                        name
+                        hasAccessToFeature(featureName: $featureName)
+                    }
+                }",
                 
-        workspace = workspaceResult[data],
-        
-        workspaceInfo = [
-            workspaceId = workspaceId,
-            workspaceLogo = workspace[logo],
-            workspaceName = workspace[name],
-            canHideBranding = workspace[hasAccessToFeature]
-        ]
+                workspaceVariables = [
+                    workspaceId = workspaceId,
+                    featureName = "hideSpeckleBranding"
+                ],
+                
+                workspaceResult = ApiFetch(server, workspaceQuery, workspaceVariables),
+                workspace = workspaceResult[data]
+            in
+                [
+                    workspaceId = workspaceId,
+                    workspaceLogo = workspace[logo],
+                    workspaceName = workspace[name],
+                    canHideBranding = workspace[hasAccessToFeature]
+                ]
     in
         workspaceInfo
