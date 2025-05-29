@@ -158,7 +158,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     if (dataInput.value.selectedIds.length > 0) {
       isFilterActive.value = true
-      viewerEmit.value('filterSelection', dataInput.value.selectedIds, true)
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
