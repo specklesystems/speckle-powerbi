@@ -99,6 +99,9 @@
         },
         "isOrtho": {
           "type": { "bool": true }
+        },
+        "isGhost": {
+          "type": { "bool": true }
         }
       }
     },

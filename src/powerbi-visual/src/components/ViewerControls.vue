@@ -108,6 +108,7 @@ const toggleProjection = () => {
 const toggleGhostHidden = () => {
   visualStore.setIsGhost(!visualStore.isGhostActive)
   visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
+  visualStore.writeIsGhostToFile()
 }
 
 const viewModesOpen = computed({

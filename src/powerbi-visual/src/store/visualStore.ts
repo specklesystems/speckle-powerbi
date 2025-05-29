@@ -218,6 +218,22 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeIsGhostToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            isGhost: isGhostActive.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeViewModeToFile = (viewMode: ViewMode) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
@@ -366,6 +382,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setObjectsFromStore,
     writeObjectsToFile,
     writeCameraViewToFile,
+    writeIsGhostToFile,
     writeIsOrthoToFile,
     writeViewModeToFile,
     writeCameraPositionToFile,

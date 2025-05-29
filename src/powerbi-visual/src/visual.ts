@@ -156,7 +156,9 @@ export class Visual implements IVisual {
                 ])
               }
 
-              if (options.dataViews[0].metadata.objects.camera?.isOrtho as boolean) {
+              const camera = options.dataViews[0].metadata.objects.camera
+
+              if (camera && 'isOrtho' in camera) {
                 console.log(
                   `Projection is ortho?: ${
                     options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
@@ -165,6 +167,16 @@ export class Visual implements IVisual {
 
                 visualStore.setIsOrthoProjection(
                   options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                )
+              }
+
+              if (camera && 'isGhost' in camera) {
+                console.log(
+                  `Is ghost?: ${options.dataViews[0].metadata.objects.camera?.isGhost as boolean}`
+                )
+
+                visualStore.setIsGhost(
+                  options.dataViews[0].metadata.objects.camera?.isGhost as boolean
                 )
               }
 
