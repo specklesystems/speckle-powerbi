@@ -74,10 +74,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.0.0
-
       - id: set-version
         name: Set version to output
         run: |
