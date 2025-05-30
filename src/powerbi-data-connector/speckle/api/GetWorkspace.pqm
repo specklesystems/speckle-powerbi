@@ -1,0 +1,76 @@
+// function for getting workspace information
+(url as text) as record =>
+    let
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        projectId = parsedUrl[projectId],
+        
+        // query to get workspace ID from project
+        projectQuery = "query Project($projectId: String!) {
+            data:project(id: $projectId) {
+                workspaceId
+            }
+        }",
+        
+        projectVariables = [
+            projectId = projectId
+        ],
+        
+        projectResult = ApiFetch(server, projectQuery, projectVariables),
+        workspaceId = projectResult[data][workspaceId],
+        
+        // check if workspaceId is null (personal project)
+        workspaceInfo = if workspaceId = null then
+            [
+                workspaceId = null,
+                workspaceLogo = null,
+                workspaceName = null,
+                canHideBranding = false
+            ]
+        else
+            // query workspace only if workspaceId exists
+            let
+                workspaceQuery = "query Workspace($workspaceId: String!, $featureName: WorkspaceFeatureName!) {
+                    data:workspace(id: $workspaceId) {
+                        logo
+                        name
+                        hasAccessToFeature(featureName: $featureName)
+                    }
+                }",
+                
+                workspaceVariables = [
+                    workspaceId = workspaceId,
+                    featureName = "hideSpeckleBranding"
+                ],
+                
+                workspaceResult = ApiFetch(server, workspaceQuery, workspaceVariables),
+                workspace = workspaceResult[data]
+            in
+                [
+                    workspaceId = workspaceId,
+                    workspaceLogo = workspace[logo],
+                    workspaceName = workspace[name],
+                    canHideBranding = workspace[hasAccessToFeature]
+                ]
+    in
+        workspaceInfo

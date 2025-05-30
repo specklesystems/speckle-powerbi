@@ -4,6 +4,7 @@ import '../style/visual.css'
 import { FormattingSettingsService } from 'powerbi-visuals-utils-formattingmodel'
 import { createApp } from 'vue'
 import App from './App.vue'
+import VueTippy from 'vue-tippy'
 import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { SpeckleDataInput } from './types'
@@ -46,6 +47,11 @@ export class Visual implements IVisual {
     console.log('🚀 Init Vue App')
     createApp(App)
       .use(pinia)
+      .use(VueTippy, {
+        defaultProps: {
+          theme: 'custom'
+        }
+      })
       // .use(store, storeKey)
       .provide(selectionHandlerKey, this.selectionHandler)
       .provide(tooltipHandlerKey, this.tooltipHandler)
@@ -63,6 +69,23 @@ export class Visual implements IVisual {
 
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
+    if (visualStore.commonError) {
+      visualStore.setCommonError(undefined)
+      visualStore.setViewerReadyToLoad(false)
+    }
+
+    if (visualStore.postFileSaveSkipNeeded) {
+      visualStore.setPostFileSaveSkipNeeded(false)
+      console.log('Skipping unneccessary update function after file save.')
+      return
+    }
+
+    if (visualStore.postClickSkipNeeded) {
+      visualStore.setPostClickSkipNeeded(false)
+      console.log('Skipping unneccessary update function canvas click.')
+      return
+    }
+
     // @ts-ignore
     console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
@@ -70,6 +93,7 @@ export class Visual implements IVisual {
       options.dataViews[0]
     )
 
+    visualStore.setFormattingSettings(this.formattingSettings)
     console.log('Selector colors', this.formattingSettings.colorSelector)
 
     try {
@@ -112,7 +136,20 @@ export class Visual implements IVisual {
                 )
               }
 
+              if (options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean) {
+                console.log(
+                  `Branding Hidden: ${
+                    options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
+                  }`
+                )
+
+                visualStore.setBrandingHidden(
+                  options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
+                )
+              }
+
               if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
+                console.log(`Stored camera position is found`)
                 visualStore.setCameraPositionInFile([
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.positionX),
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.positionY),
@@ -122,6 +159,31 @@ export class Visual implements IVisual {
                   Number(options.dataViews[0].metadata.objects.cameraPosition?.targetZ)
                 ])
               }
+
+              const camera = options.dataViews[0].metadata.objects.camera
+
+              if (camera && 'isOrtho' in camera) {
+                console.log(
+                  `Projection is ortho?: ${
+                    options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                  }`
+                )
+
+                visualStore.setIsOrthoProjection(
+                  options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                )
+              }
+
+              if (camera && 'isGhost' in camera) {
+                console.log(
+                  `Is ghost?: ${options.dataViews[0].metadata.objects.camera?.isGhost as boolean}`
+                )
+
+                visualStore.setIsGhost(
+                  options.dataViews[0].metadata.objects.camera?.isGhost as boolean
+                )
+              }
+
               // get receive info from file for mixpanel
               try {
                 const receiveInfoFromFile = JSON.parse(
@@ -132,7 +194,9 @@ export class Visual implements IVisual {
                 console.warn(error)
                 console.log('missing mixpanel info')
               }
-              if (visualStore.lastLoadedRootObjectId !== objectsFromFile[0].id) {
+
+              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
+              if (visualStore.lastLoadedRootObjectId !== savedVersionObjectId) {
                 this.tryReadFromFile(objectsFromFile, visualStore)
               }
             }
@@ -182,7 +246,7 @@ export class Visual implements IVisual {
     const visualStore = useVisualStore()
 
     this.tooltipHandler.setup(input.objectTooltipData)
-    visualStore.setViewerReadyToLoad()
+    visualStore.setViewerReadyToLoad(true)
 
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
       visualStore.setDataInput(input)
@@ -195,8 +259,8 @@ export class Visual implements IVisual {
     }
   }
 
-  private tryReadFromFile(objectsFromFile: object[], visualStore) {
-    visualStore.setViewerReadyToLoad()
+  private tryReadFromFile(objectsFromFile: object[][], visualStore) {
+    visualStore.setViewerReadyToLoad(true)
     visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
     setTimeout(() => {
       visualStore.loadObjectsFromFile(objectsFromFile)

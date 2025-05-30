@@ -11,13 +11,14 @@ import {
   Viewer,
   HybridCameraController,
   SelectionExtension,
-  FilteringExtension
+  FilteringExtension,
+  UpdateFlags,
+  ViewerEvent
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { ColorPicker } from 'powerbi-visuals-utils-formattingmodel/lib/FormattingSettingsComponents'
 import { Vector3 } from 'three'
 
 export interface IViewer {
@@ -36,18 +37,26 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
+  resetFilter: (objectIds: string[], ghost: boolean) => void
+  filterSelection: (objectIds: string[], ghost: boolean) => void
   setViewMode: (viewMode: ViewMode) => void
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
-      slice: ColorPicker
       color: string
     }[]
   ) => void
   isolateObjects: (objectIds: string[]) => void
   unIsolateObjects: () => void
   zoomExtends: () => void
+  toggleProjection: () => void
+  toggleGhostHidden: (ghost: boolean) => void
   loadObjects: (objects: object[]) => void
+}
+
+export type ColorBy = {
+  objectIds: string[]
+  color: string
 }
 
 export class ViewerHandler {
@@ -62,6 +71,8 @@ export class ViewerHandler {
     this.emitter = createNanoEvents()
     this.emit = this.emit.bind(this)
     this.emitter.on('ping', this.handlePing)
+    this.emitter.on('filterSelection', this.filterSelection)
+    this.emitter.on('resetFilter', this.resetFilter)
     this.emitter.on('setSelection', this.selectObjects)
     this.emitter.on('setViewMode', this.setViewMode)
     this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
@@ -70,6 +81,8 @@ export class ViewerHandler {
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
+    this.emitter.on('toggleProjection', this.toggleProjection)
+    this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
   }
 
   async init(parent: HTMLElement) {
@@ -78,13 +91,13 @@ export class ViewerHandler {
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
 
-    this.cameraControls.on(CameraEvent.Stationary, () => {
-      console.log('🎬 Storing the camera position into file')
-      const cameraController = this.viewer.getExtension(CameraController)
-      const position = cameraController.getPosition()
-      const target = cameraController.getTarget()
-      const store = useVisualStore()
-      store.writeCameraPositionToFile(position, target)
+    const store = useVisualStore()
+    if (store.isOrthoProjection) {
+      this.cameraControls.toggleCameras()
+    }
+
+    this.viewer.on(ViewerEvent.LoadComplete, (arg: string) => {
+      store.clearLoadingProgress()
     })
   }
 
@@ -97,9 +110,16 @@ export class ViewerHandler {
     this.cameraControls.setCameraView(objectIds, animate)
   }
 
-  public zoomExtends = () => this.cameraControls.setCameraView(undefined, false)
+  public zoomExtends = () => {
+    this.cameraControls.setCameraView(undefined, true)
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+  }
+  public toggleProjection = () => this.cameraControls.toggleCameras()
 
-  public setView = (view: CanonicalView) => this.cameraControls.setCameraView(view, false)
+  public setView = (view: CanonicalView) => {
+    this.cameraControls.setCameraView(view, false)
+    this.snapshotCameraPositionAndStore()
+  }
 
   public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
     // TODO
@@ -111,6 +131,15 @@ export class ViewerHandler {
     viewModes.setViewMode(viewMode)
   }
 
+  public snapshotCameraPositionAndStore = () => {
+    console.log('🎬 Storing the camera position into file')
+    const cameraController = this.viewer.getExtension(CameraController)
+    const position = cameraController.getPosition()
+    const target = cameraController.getTarget()
+    const store = useVisualStore()
+    store.writeCameraPositionToFile(position, target)
+  }
+
   public selectObjects = (objectIds: string[]) => {
     console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
     if (objectIds) {
@@ -118,18 +147,39 @@ export class ViewerHandler {
     }
   }
 
-  public colorObjectsByGroup = (
-    colorByIds: {
-      objectIds: string[]
-      color: string
-    }[]
-  ) => {
+  public filterSelection = (objectIds: string[], ghost: boolean) => {
+    console.log('🔗 Handling filterSelection inside ViewerHandler')
+    if (objectIds) {
+      this.unIsolateObjects()
+      this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+      this.zoomObjects(objectIds, true)
+    }
+  }
+
+  public resetFilter = (objectIds: string[], ghost: boolean) => {
+    console.log('🔗 Handling filterSelection inside ViewerHandler')
+    if (objectIds) {
+      this.isolateObjects(objectIds, ghost)
+      this.zoomObjects(objectIds, true)
+    }
+  }
+
+  public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
     this.filteringState = this.filtering.setUserObjectColors(colorByIds ?? [])
   }
 
   public isolateObjects = (objectIds: string[], ghost: boolean) => {
     this.unIsolateObjects()
     this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+  }
+
+  public toggleGhostHidden = (ghost: boolean) => {
+    this.filteringState = this.filtering.isolateObjects(
+      this.filteringState.isolatedObjects,
+      'powerbi',
+      true,
+      ghost
+    )
   }
 
   public unIsolateObjects = () => {
@@ -181,6 +231,7 @@ export class ViewerHandler {
 
       // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
+      this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after loadObjects
     })
 
     store.setSpeckleViews(speckleViews)
@@ -188,8 +239,10 @@ export class ViewerHandler {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
 
-    Tracker.dataLoaded({ sourceHostApp: store.receiveInfo.sourceApplication })
-    // camera need to be set after objects loaded
+    Tracker.dataLoaded({
+      sourceHostApp: store.receiveInfo.sourceApplication,
+      workspace_id: store.receiveInfo.workspaceId
+    })
     if (store.cameraPosition) {
       const position = new Vector3(
         store.cameraPosition[0],

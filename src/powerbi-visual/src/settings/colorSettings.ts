@@ -40,7 +40,7 @@ export class ColorSettings extends fs.SimpleCard {
 
   name = 'color'
   displayName = 'Object Display'
-  slices: fs.Slice[] = [this.context, this.fill]
+  slices: fs.Slice[] = [this.fill]
 }
 
 export class ColorSelectorSettings extends fs.SimpleCard {

@@ -1,11 +1,13 @@
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
-import { IViewerEvents } from '@src/plugins/viewer'
+import { Version } from '@src/composables/useUpdateConnector'
+import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
+import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
-import { zipJSONChunks, zipModelObjects } from '@src/utils/compression'
+import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
-import { ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 
 export type InputState = 'valid' | 'incomplete' | 'invalid'
 
@@ -16,10 +18,25 @@ export type FieldInputState = {
   tooltipData: boolean
 }
 
+export type LoadingProgress = { summary: string; progress: number; step?: string }
+
 export const useVisualStore = defineStore('visualStore', () => {
+  const latestAvailableVersion = ref<Version | null>(null)
+
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
-  const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
+  const formattingSettings = ref<SpeckleVisualSettingsModel>()
+  const loadingProgress = ref<LoadingProgress>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
+
+  const postFileSaveSkipNeeded = ref<boolean>(false)
+  const postClickSkipNeeded = ref<boolean>(false)
+
+  const isFilterActive = ref<boolean>(false)
+  const isBrandingHidden = ref<boolean>(false)
+  const isOrthoProjection = ref<boolean>(false)
+  const isGhostActive = ref<boolean>(true)
+
+  const commonError = ref<string>(undefined)
 
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
@@ -54,6 +71,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   // TODO: investigate about shallow ref? https://vuejs.org/api/reactivity-advanced.html#shallowref
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
+  const latestColorBy = ref<ColorBy[] | null | undefined>([])
 
   /**
    * Ideally one time setup on initialization.
@@ -64,6 +82,17 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => (receiveInfo.value = newReceiveInfo)
+
+  const setLatestAvailableVersion = (version: Version | null) => {
+    latestAvailableVersion.value = version
+  }
+
+  const isConnectorUpToDate = computed(() => {
+    if (receiveInfo.value && receiveInfo.value.version) {
+      return receiveInfo.value.version === latestAvailableVersion.value?.Number
+    }
+    return false
+  })
 
   /**
    * Ideally one time set when onMounted of `ViewerWrapper.vue` component
@@ -93,19 +122,21 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
-  const clearLoadingProgress = () => (loadingProgress.value = undefined)
+  const clearLoadingProgress = () => {
+    loadingProgress.value = undefined
+  }
 
   // MAKE TS HAPPY
   type SpeckleObject = {
     id: string
   }
 
-  const loadObjectsFromFile = async (objects: object[]) => {
-    lastLoadedRootObjectId.value = (objects[0] as SpeckleObject).id // TODO fix
+  const loadObjectsFromFile = async (objects: object[][]) => {
+    const savedVersionObjectId = objects.map((o) => (o[0] as SpeckleObject).id).join(',')
+    lastLoadedRootObjectId.value = savedVersionObjectId
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
     await viewerEmit.value('loadObjects', objects)
-    clearLoadingProgress()
     objectsFromStore.value = objects
     isViewerObjectsLoaded.value = true
     viewerReloadNeeded.value = false
@@ -124,21 +155,27 @@ export const useVisualStore = defineStore('visualStore', () => {
       lastLoadedRootObjectId.value = modelIds
       console.log(`🔄 Forcing viewer re-render for new root object id.`)
       await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
-      clearLoadingProgress()
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
+      setLoadingProgress('Storing objects into file', null)
       writeObjectsToFile(dataInput.value.modelObjects)
+      loadingProgress.value = undefined
     }
 
     if (dataInput.value.selectedIds.length > 0) {
-      viewerEmit.value('isolateObjects', dataInput.value.selectedIds)
+      isFilterActive.value = true
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
     } else {
-      viewerEmit.value('isolateObjects', dataInput.value.objectIds)
+      isFilterActive.value = false
+      latestColorBy.value = dataInput.value.colorByIds
+      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
   const writeObjectsToFile = (modelObjects: object[][]) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     const compressedChunks = zipModelObjects(modelObjects, 10000) // Compress in chunks
 
     host.value.persistProperties({
@@ -156,6 +193,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const writeCameraViewToFile = (view: CanonicalView) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -169,7 +208,41 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeIsOrthoToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            isOrtho: isOrthoProjection.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
+  const writeIsGhostToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            isGhost: isGhostActive.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeViewModeToFile = (viewMode: ViewMode) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -183,7 +256,25 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeHideBrandingToFile = (brandingHidden: boolean) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'workspace',
+          properties: {
+            brandingHidden: brandingHidden
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
       merge: [
         {
@@ -209,14 +300,52 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
 
-  const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
+  const setViewerReadyToLoad = (newValue: boolean) => (isViewerReadyToLoad.value = newValue)
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
+
+  const toggleBranding = () => {
+    isBrandingHidden.value = !isBrandingHidden.value
+    writeHideBrandingToFile(isBrandingHidden.value)
+  }
+
+  const setBrandingHidden = (val: boolean) => {
+    isBrandingHidden.value = val
+  }
+
+  const setIsOrthoProjection = (val: boolean) => {
+    isOrthoProjection.value = val
+  }
+
+  const setIsGhost = (val: boolean) => {
+    isGhostActive.value = val
+  }
+
+  const setPostFileSaveSkipNeeded = (newValue: boolean) => (postFileSaveSkipNeeded.value = newValue)
+  const setPostClickSkipNeeded = (newValue: boolean) => (postClickSkipNeeded.value = newValue)
 
   const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
   const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
+  const setFormattingSettings = (newFormattingSettings: SpeckleVisualSettingsModel) =>
+    (formattingSettings.value = newFormattingSettings)
+
+  const resetFilters = () => {
+    viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+    if (latestColorBy.value !== null) {
+      viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
+    }
+    isFilterActive.value = false
+  }
+
+  const downloadLatestVersion = () => {
+    host.value.launchUrl(latestAvailableVersion.value?.Url as string)
+  }
+
+  const setCommonError = (error: string) => {
+    commonError.value = error
+  }
 
   return {
     host,
@@ -236,6 +365,25 @@ export const useVisualStore = defineStore('visualStore', () => {
     cameraPosition,
     defaultViewModeInFile,
     speckleViews,
+    postFileSaveSkipNeeded,
+    postClickSkipNeeded,
+    isFilterActive,
+    latestColorBy,
+    formattingSettings,
+    isBrandingHidden,
+    isOrthoProjection,
+    isGhostActive,
+    latestAvailableVersion,
+    isConnectorUpToDate,
+    commonError,
+    setCommonError,
+    setLatestAvailableVersion,
+    setIsOrthoProjection,
+    setIsGhost,
+    setFormattingSettings,
+    setBrandingHidden,
+    setPostClickSkipNeeded,
+    setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
     setDefaultViewModeInFile,
     setSpeckleViews,
@@ -246,8 +394,12 @@ export const useVisualStore = defineStore('visualStore', () => {
     setObjectsFromStore,
     writeObjectsToFile,
     writeCameraViewToFile,
+    writeIsGhostToFile,
+    writeIsOrthoToFile,
     writeViewModeToFile,
     writeCameraPositionToFile,
+    writeHideBrandingToFile,
+    toggleBranding,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
@@ -255,6 +407,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     setViewerReadyToLoad,
     setLoadingProgress,
     clearLoadingProgress,
-    setIsLoadingFromFile
+    setIsLoadingFromFile,
+    resetFilters,
+    downloadLatestVersion
   }
 })

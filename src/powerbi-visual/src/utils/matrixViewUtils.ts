@@ -10,6 +10,7 @@ import { SpeckleVisualSettingsModel } from 'src/settings/visualSettingsModel'
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { delay } from 'lodash'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
+import { useUpdateConnector } from '@src/composables/useUpdateConnector'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -39,11 +40,14 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
     hasColorFilter = false,
     hasTooltipData = false
 
+  matrixVew.valueSources.forEach((level) => {
+    if (!hasRootObjectId) hasRootObjectId = level.roles['rootObjectId'] != undefined
+  })
+
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
-      if (!hasRootObjectId) hasRootObjectId = source.roles['rootObjectId'] != undefined
       if (!hasObjectIds) hasObjectIds = source.roles['objectIds'] != undefined
-      if (!hasColorFilter) hasColorFilter = source.roles['objectColorBy'] != undefined
+      if (!hasColorFilter) hasColorFilter = source.roles['colorBy'] != undefined
     })
   })
 
@@ -85,12 +89,16 @@ function processObjectValues(
         shouldColor = true
       }
       const propData: IViewerTooltipData = {
-        displayName: colInfo.displayName,
-        value: value.value.toString()
+        displayName: colInfo.displayName.replace('First ', ''),
+        value: value.value === null ? '<not set>' : value.value.toString()
       }
       objectData.push(propData)
     })
-  return { data: objectData, shouldColor, shouldSelect }
+  return {
+    data: objectData.length > 0 ? objectData.slice(1) : [],
+    shouldColor,
+    shouldSelect
+  }
 }
 
 function processObjectNode(
@@ -145,6 +153,45 @@ export type ReceiveInfo = {
   userEmail: string
   serverUrl: string
   sourceApplication?: string
+  workspaceId?: string
+  workspaceLogo?: string
+  workspaceName?: string
+  canHideBranding: boolean
+  version?: string
+}
+
+export type PreGetObjects = {
+  modelExists: boolean
+  objectCount?: number
+}
+
+async function getPreGetObjects(commaSeparatedModelIds: string): Promise<PreGetObjects[]> {
+  const modelIds = (commaSeparatedModelIds as string).split(',')
+  const preGetObjects = []
+
+  for await (const id of modelIds) {
+    const res = await getPreGetObjectsForModel(id)
+    preGetObjects.push(res)
+  }
+  return preGetObjects
+}
+
+async function getPreGetObjectsForModel(id: string): Promise<PreGetObjects> {
+  try {
+    const preGetObjectsRes = await fetch(`http://localhost:29364/pre-get-objects/${id}`)
+
+    if (!preGetObjectsRes.body) {
+      console.log('No response body for pre get objects')
+      return {
+        modelExists: false,
+        objectCount: null
+      } as PreGetObjects
+    }
+
+    return (await preGetObjectsRes.json()) as PreGetObjects
+  } catch (error) {
+    console.log(error)
+  }
 }
 
 async function getReceiveInfo(id) {
@@ -163,19 +210,29 @@ async function getReceiveInfo(id) {
   }
 }
 
-async function fetchStreamedData(commaSeparatedModelIds: string) {
+async function fetchStreamedData(commaSeparatedModelIds: string, totalObjectCount: number) {
   const modelIds = (commaSeparatedModelIds as string).split(',')
   const modelObjects = []
 
+  let loadedObjectCount = 0
+
   for await (const id of modelIds) {
-    const objects = await fetchStreamedDataForModel(id)
+    const objects = await fetchStreamedDataForModel(id, totalObjectCount, loadedObjectCount)
     modelObjects.push(objects)
+    loadedObjectCount += objects.length
   }
   return modelObjects
 }
 
-async function fetchStreamedDataForModel(id) {
+async function fetchStreamedDataForModel(
+  id: string,
+  totalObjectCount: number,
+  loadedObjectCount: number
+) {
+  console.log(loadedObjectCount, totalObjectCount)
+
   try {
+    const visualStore = useVisualStore()
     const response = await fetch(`http://localhost:29364/get-objects/${id}`)
 
     if (!response.body) {
@@ -202,6 +259,11 @@ async function fetchStreamedDataForModel(id) {
         try {
           const obj = JSON.parse(jsonString)
           objects.push(obj)
+          visualStore.setLoadingProgress(
+            'Loading objects from storage',
+            (objects.length + loadedObjectCount) / totalObjectCount
+          )
+          // console.log('Loading', (objects.length + loadedObjectCount) / totalObjectCount)
 
           // console.log('Received object:', jsonObject)
         } catch (e) {
@@ -270,8 +332,16 @@ export async function processMatrixView(
 
   console.log('🪜 Processing Matrix View', matrixView)
 
-  const localMatrixView = matrixView.rows.root.children[0]
-  const id = localMatrixView.value as unknown as string
+  const localMatrixView = matrixView.rows.root.children
+  let id = null
+
+  if (hasColorFilter) {
+    id = localMatrixView[0].children[0].values[0].value as unknown as string
+  } else {
+    id = localMatrixView[0].values[0].value as unknown as string
+  }
+
+  // const id = localMatrixView[0].values[0].value as unknown as string
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 
@@ -283,54 +353,75 @@ export async function processMatrixView(
 
   if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
     const start = performance.now()
-    visualStore.setViewerReadyToLoad()
-    visualStore.setLoadingProgress('Loading', null)
 
-    // stream data
-    modelObjects = await fetchStreamedData(id)
+    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
+
+    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
+      visualStore.setCommonError(
+        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return
+    }
 
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
       visualStore.setReceiveInfo({
         userEmail: receiveInfo.email,
         serverUrl: receiveInfo.server,
-        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication)
+        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication),
+        workspaceId: receiveInfo.workspaceId,
+        workspaceName: receiveInfo.workspaceName,
+        workspaceLogo: receiveInfo.workspaceLogo,
+        version: receiveInfo.version,
+        canHideBranding: receiveInfo.canHideBranding
       })
+      console.log(`Receive info retrieved from desktop service`, receiveInfo)
     }
 
-    visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
+    const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
+      return sum + (obj.objectCount ?? 0)
+    }, 0)
 
+    visualStore.setViewerReadyToLoad(true)
+    // stream data
+    modelObjects = await fetchStreamedData(id, totalObjectCount)
+
+    visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
+    visualStore.setLoadingProgress('Loading objects into viewer', null)
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 
-  // NOTE: matrix view gave us already filtered out rows from tooltip data if it is assigned
-  localMatrixView.children?.forEach((obj) => {
-    // otherwise there is no point to collect objects
-    const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+  if (visualStore.receiveInfo && visualStore.receiveInfo.version) {
+    const { checkUpdate } = useUpdateConnector()
+    await checkUpdate()
+  }
 
-    objectIds.push(processedObjectIdLevels.id)
-    onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
-    if (processedObjectIdLevels.shouldSelect) {
-      selectedIds.push(processedObjectIdLevels.id)
-    }
-    objectTooltipData.set(processedObjectIdLevels.id, {
-      selectionId: processedObjectIdLevels.selectionId,
-      data: processedObjectIdLevels.data
-    })
+  // If colors assigned, data arrives nested
+  if (hasColorFilter) {
+    // const start = performance.now()
+    // console.log('Sorting the colors started...')
+    // // powerbi sorts the objects alphabetically for color legends
+    // const sortedMatrix = localMatrixView.sort((a, b) => {
+    //   return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+    // })
+    // const end = performance.now()
+    // console.log(`Sorted in: ${(end - start) / 1000} s`)
 
-    if (hasColorFilter) {
-      if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
-      obj.children.forEach((child) => {
+    if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+
+    localMatrixView.forEach((colorObjects) => {
+      colorObjects.children.forEach((obj) => {
         const colorSelectionId = host
           .createSelectionIdBuilder()
-          .withMatrixNode(child, matrixView.rows.levels)
+          .withMatrixNode(obj, matrixView.rows.levels)
           .createSelectionId()
 
-        const color = host.colorPalette.getColor(child.values[0].value as string)
-
+        const value = colorObjects.value as string
+        const color = host.colorPalette.getColor(value)
         const colorSlice = new fs.ColorPicker({
           name: 'selectorFill',
-          displayName: child.value?.toString(),
+          displayName: value,
           value: {
             value: color.value
           },
@@ -343,7 +434,7 @@ export async function processMatrixView(
           objectIds: []
         }
 
-        const processedObjectIdLevels = processObjectIdLevel(child, host, matrixView)
+        const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
         objectIds.push(processedObjectIdLevels.id)
         onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
@@ -358,8 +449,86 @@ export async function processMatrixView(
 
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
-    }
-  })
+    })
+  } else {
+    localMatrixView.forEach((obj) => {
+      const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+      if (processedObjectIdLevels.color) {
+        let group = colorByIds.find((g) => g.color === processedObjectIdLevels.color)
+        if (!group) {
+          group = {
+            color: processedObjectIdLevels.color,
+            objectIds: []
+          }
+          colorByIds.push(group)
+        }
+        group.objectIds.push(processedObjectIdLevels.id)
+      }
+
+      objectIds.push(processedObjectIdLevels.id)
+      onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+      if (processedObjectIdLevels.shouldSelect) {
+        selectedIds.push(processedObjectIdLevels.id)
+      }
+      objectTooltipData.set(processedObjectIdLevels.id, {
+        selectionId: processedObjectIdLevels.selectionId,
+        data: processedObjectIdLevels.data
+      })
+    })
+  }
+
+  // if (hasColorFilter) {
+  //   const start = performance.now()
+  //   console.log('Sorting the colors started...')
+  //   // powerbi sorts the objects alphabetically for color legends
+  //   const sortedMatrix = localMatrixView.sort((a, b) => {
+  //     return (a.levelValues[0].value as string).localeCompare(b.levelValues[0].value as string)
+  //   })
+  //   const end = performance.now()
+  //   console.log(`Sorted in: ${(end - start) / 1000} s`)
+
+  //   sortedMatrix.forEach((obj) => {
+  //     if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
+
+  //     const colorSelectionId = host
+  //       .createSelectionIdBuilder()
+  //       .withMatrixNode(obj, matrixView.rows.levels)
+  //       .createSelectionId()
+
+  //     const value = obj.levelValues[0].value as string
+  //     const color = host.colorPalette.getColor(value)
+  //     const colorSlice = new fs.ColorPicker({
+  //       name: 'selectorFill',
+  //       displayName: value,
+  //       value: {
+  //         value: color.value
+  //       },
+  //       selector: colorSelectionId.getSelector()
+  //     })
+
+  //     const colorGroup = {
+  //       color: color.value,
+  //       slice: colorSlice,
+  //       objectIds: []
+  //     }
+
+  //     const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
+
+  //     objectIds.push(processedObjectIdLevels.id)
+  //     onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+  //     if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
+  //     if (processedObjectIdLevels.shouldColor) {
+  //       colorGroup.objectIds.push(processedObjectIdLevels.id)
+  //     }
+  //     objectTooltipData.set(processedObjectIdLevels.id, {
+  //       selectionId: processedObjectIdLevels.selectionId,
+  //       data: processedObjectIdLevels.data
+  //     })
+
+  //     if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+  //   })
+  // }
 
   previousPalette = host.colorPalette['colorPalette']
 
@@ -369,7 +538,6 @@ export async function processMatrixView(
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
-    view: matrixView,
     isFromStore: false
   }
 }

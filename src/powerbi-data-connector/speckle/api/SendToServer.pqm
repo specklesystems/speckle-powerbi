@@ -4,6 +4,9 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetUser = Extension.LoadFunction("GetUser.pqm"),
+        GetVersion = Extension.LoadFunction("GetVersion.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+
          // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -20,18 +23,20 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-        
-        // Get model info and parsed URL
+
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
         userInfo = GetUser(url),
-        
-        // Get API key if available
+
         apiKey = userInfo[Token],
         
-        // Get user email from credentials
         userEmail = userInfo[UserEmail],
-        
+
+        // get version from Speckle.pq - look GetVersion.pqm
+        connectorVersion = GetVersion(),
+
+        workspaceInfo = GetWorkspace(url),
+
         // Prepare request data
         requestData = Json.FromValue([
             Url = url,
@@ -40,7 +45,12 @@
             ProjectId = parsedUrl[projectId],
             ObjectId = modelInfo[rootObjectId],
             SourceApplication = modelInfo[sourceApplication],
-            Token = apiKey 
+            Token = apiKey,
+            Version = connectorVersion,
+            WorkspaceId = workspaceInfo[workspaceId],
+            WorkspaceName = workspaceInfo[workspaceName],
+            WorkspaceLogo = workspaceInfo[workspaceLogo],
+            CanHideBranding = workspaceInfo[canHideBranding]
         ]),
         
         // Send request to local server
