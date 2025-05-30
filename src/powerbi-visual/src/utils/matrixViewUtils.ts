@@ -354,6 +354,16 @@ export async function processMatrixView(
   if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
     const start = performance.now()
 
+    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
+
+    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
+      visualStore.setCommonError(
+        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return
+    }
+
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
       visualStore.setReceiveInfo({
@@ -367,16 +377,6 @@ export async function processMatrixView(
         canHideBranding: receiveInfo.canHideBranding
       })
       console.log(`Receive info retrieved from desktop service`, receiveInfo)
-    }
-
-    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
-
-    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
-      visualStore.setCommonError(
-        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
-      )
-      visualStore.setViewerReadyToLoad(false)
-      return
     }
 
     const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
