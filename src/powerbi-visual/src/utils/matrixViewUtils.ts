@@ -160,6 +160,40 @@ export type ReceiveInfo = {
   version?: string
 }
 
+export type PreGetObjects = {
+  modelExists: boolean
+  objectCount?: number
+}
+
+async function getPreGetObjects(commaSeparatedModelIds: string): Promise<PreGetObjects[]> {
+  const modelIds = (commaSeparatedModelIds as string).split(',')
+  const preGetObjects = []
+
+  for await (const id of modelIds) {
+    const res = await getPreGetObjectsForModel(id)
+    preGetObjects.push(res)
+  }
+  return preGetObjects
+}
+
+async function getPreGetObjectsForModel(id: string): Promise<PreGetObjects> {
+  try {
+    const preGetObjectsRes = await fetch(`http://localhost:29364/pre-get-objects/${id}`)
+
+    if (!preGetObjectsRes.body) {
+      console.log('No response body for pre get objects')
+      return {
+        modelExists: false,
+        objectCount: null
+      } as PreGetObjects
+    }
+
+    return (await preGetObjectsRes.json()) as PreGetObjects
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 async function getReceiveInfo(id) {
   try {
     const ids = (id as string).split(',')
@@ -176,19 +210,29 @@ async function getReceiveInfo(id) {
   }
 }
 
-async function fetchStreamedData(commaSeparatedModelIds: string) {
+async function fetchStreamedData(commaSeparatedModelIds: string, totalObjectCount: number) {
   const modelIds = (commaSeparatedModelIds as string).split(',')
   const modelObjects = []
 
+  let loadedObjectCount = 0
+
   for await (const id of modelIds) {
-    const objects = await fetchStreamedDataForModel(id)
+    const objects = await fetchStreamedDataForModel(id, totalObjectCount, loadedObjectCount)
     modelObjects.push(objects)
+    loadedObjectCount += objects.length
   }
   return modelObjects
 }
 
-async function fetchStreamedDataForModel(id) {
+async function fetchStreamedDataForModel(
+  id: string,
+  totalObjectCount: number,
+  loadedObjectCount: number
+) {
+  console.log(loadedObjectCount, totalObjectCount)
+
   try {
+    const visualStore = useVisualStore()
     const response = await fetch(`http://localhost:29364/get-objects/${id}`)
 
     if (!response.body) {
@@ -215,6 +259,11 @@ async function fetchStreamedDataForModel(id) {
         try {
           const obj = JSON.parse(jsonString)
           objects.push(obj)
+          visualStore.setLoadingProgress(
+            'Loading objects from storage',
+            (objects.length + loadedObjectCount) / totalObjectCount
+          )
+          // console.log('Loading', (objects.length + loadedObjectCount) / totalObjectCount)
 
           // console.log('Received object:', jsonObject)
         } catch (e) {
@@ -304,8 +353,6 @@ export async function processMatrixView(
 
   if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
     const start = performance.now()
-    visualStore.setViewerReadyToLoad()
-    visualStore.setLoadingProgress('Loading', null)
 
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
@@ -322,11 +369,26 @@ export async function processMatrixView(
       console.log(`Receive info retrieved from desktop service`, receiveInfo)
     }
 
+    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
+
+    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
+      visualStore.setCommonError(
+        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return
+    }
+
+    const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
+      return sum + (obj.objectCount ?? 0)
+    }, 0)
+
+    visualStore.setViewerReadyToLoad(true)
     // stream data
-    modelObjects = await fetchStreamedData(id)
+    modelObjects = await fetchStreamedData(id, totalObjectCount)
 
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
-
+    visualStore.setLoadingProgress('Loading objects into viewer', null)
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 

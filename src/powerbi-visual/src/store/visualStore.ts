@@ -18,12 +18,14 @@ export type FieldInputState = {
   tooltipData: boolean
 }
 
+export type LoadingProgress = { summary: string; progress: number; step?: string }
+
 export const useVisualStore = defineStore('visualStore', () => {
   const latestAvailableVersion = ref<Version | null>(null)
 
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const formattingSettings = ref<SpeckleVisualSettingsModel>()
-  const loadingProgress = ref<{ summary: string; progress: number }>(undefined)
+  const loadingProgress = ref<LoadingProgress>(undefined)
   const objectsFromStore = ref<object[]>(undefined)
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
@@ -33,6 +35,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isBrandingHidden = ref<boolean>(false)
   const isOrthoProjection = ref<boolean>(false)
   const isGhostActive = ref<boolean>(true)
+
+  const commonError = ref<string>(undefined)
 
   // once you see this shit, you might freak out and you are right. All of them needed because of "update" function trigger by API.
   // most of the time we need to know what we are doing to treat operations accordingly. Ask for more to me (Ogu), but the answers will make both of us unhappy.
@@ -153,7 +157,9 @@ export const useVisualStore = defineStore('visualStore', () => {
       await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
+      setLoadingProgress('Storing objects into file', null)
       writeObjectsToFile(dataInput.value.modelObjects)
+      loadingProgress.value = undefined
     }
 
     if (dataInput.value.selectedIds.length > 0) {
@@ -294,7 +300,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
 
-  const setViewerReadyToLoad = () => (isViewerReadyToLoad.value = true)
+  const setViewerReadyToLoad = (newValue: boolean) => (isViewerReadyToLoad.value = newValue)
 
   const setViewerReloadNeeded = () => (viewerReloadNeeded.value = true)
 
@@ -337,6 +343,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value.launchUrl(latestAvailableVersion.value?.Url as string)
   }
 
+  const setCommonError = (error: string) => {
+    commonError.value = error
+  }
+
   return {
     host,
     receiveInfo,
@@ -365,6 +375,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     isGhostActive,
     latestAvailableVersion,
     isConnectorUpToDate,
+    commonError,
+    setCommonError,
     setLatestAvailableVersion,
     setIsOrthoProjection,
     setIsGhost,

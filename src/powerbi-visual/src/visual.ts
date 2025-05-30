@@ -69,6 +69,10 @@ export class Visual implements IVisual {
 
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
+    if (visualStore.commonError) {
+      visualStore.setCommonError(undefined)
+      visualStore.setViewerReadyToLoad(false)
+    }
 
     if (visualStore.postFileSaveSkipNeeded) {
       visualStore.setPostFileSaveSkipNeeded(false)
@@ -242,7 +246,7 @@ export class Visual implements IVisual {
     const visualStore = useVisualStore()
 
     this.tooltipHandler.setup(input.objectTooltipData)
-    visualStore.setViewerReadyToLoad()
+    visualStore.setViewerReadyToLoad(true)
 
     if (visualStore.isViewerInitialized && !visualStore.viewerReloadNeeded) {
       visualStore.setDataInput(input)
@@ -256,7 +260,7 @@ export class Visual implements IVisual {
   }
 
   private tryReadFromFile(objectsFromFile: object[][], visualStore) {
-    visualStore.setViewerReadyToLoad()
+    visualStore.setViewerReadyToLoad(true)
     visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
     setTimeout(() => {
       visualStore.loadObjectsFromFile(objectsFromFile)
