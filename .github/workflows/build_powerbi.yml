@@ -8,32 +8,38 @@ jobs:
     runs-on: windows-latest
     outputs:
       semver: ${{ steps.set-version.outputs.semver }}
-      file-version: ${{ steps.set-info-version.outputs.file-version }}
+      file-version: ${{ steps.set-version.outputs.file-version }}
     env:
       CertFile: "./speckle.pfx"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
         with:
           python-version: "3.10"
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.0.0
-        with:
-          versionSpec: 6.0.5 # github actions doesnt like 6.1.0 onwards https://github.com/GitTools/actions/blob/main/docs/versions.md
+      - id: set-version
+        name: Set version to output
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            TAG="v3.0.99.${{ github.run_number }}"
+          fi
+          SEMVER="${TAG#v}"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
 
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3.0.0
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo $SEMVER
+          echo $FILE_VERSION
 
       - name: Set connector version
         run: |
-          python patch_version.py ${{steps.gitversion.outputs.AssemblySemVer}}
+          python patch_version.py ${{steps.set-version.outputs.file-version}}
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -60,37 +66,38 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - id: set-version
-        name: Set version to output
-        run: echo "semver=${{steps.gitversion.outputs.semVer}}" >> "$GITHUB_OUTPUT"
-        shell: bash
-      - id: set-info-version
-        name: Set version to output
-        run: echo "file-version=${{steps.gitversion.outputs.AssemblySemVer}}" >> "$GITHUB_OUTPUT"
-        shell: bash
-
   build-visual:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.0.0
-        with:
-          versionSpec: 6.0.5 # github actions doesnt like 6.1.0 onwards https://github.com/GitTools/actions/blob/main/docs/versions.md
 
       - name: Determine Version
         id: gitversion
         uses: gittools/actions/gitversion/execute@v3.0.0
 
+      - id: set-version
+        name: Set version to output
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            TAG="v3.0.99.${{ github.run_number }}"
+          fi
+          SEMVER="${TAG#v}"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo $SEMVER
+          echo $FILE_VERSION
+
       - run: npm ci
         working-directory: src/powerbi-visual
-      - run: npm version ${{steps.gitversion.outputs.semVer}} --allow-same-version
+      - run: npm version ${{steps.set-version.outputs.semver}} --allow-same-version
         working-directory: src/powerbi-visual
       - run: npm run build
         working-directory: src/powerbi-visual
