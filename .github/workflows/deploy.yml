@@ -1,4 +1,4 @@
-name: build_powerbi
+name: Build and deploy Connector and Visual
 on:
   push:
     branches: ["installer-test/**"]

@@ -1,0 +1,30 @@
+name: Test Build Connector and Visual
+on: pull_request
+
+jobs:
+  build-connector:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Data Connector
+        working-directory: src/powerbi-data-connector
+        run: |
+          msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
+
+  build-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+        working-directory: src/powerbi-visual
+      - run: npm run build
+        working-directory: src/powerbi-visual
