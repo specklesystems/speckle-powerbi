@@ -31,7 +31,8 @@ export class Tracker {
         // eslint-disable-next-line camelcase
         server_id: hashedServer,
         email: receiveInfo.userEmail,
-        isAnonymous: receiveInfo.userEmail === ''
+        isAnonymous: receiveInfo.userEmail === '',
+        connectorVersion: receiveInfo.version
       }
     }
 
