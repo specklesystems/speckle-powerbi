@@ -1,5 +1,5 @@
 (url as text) as list =>
-    let
+    try let
         // Import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -71,3 +71,9 @@
 
     in
         JsonResponse
+    otherwise
+        error [
+            Reason = "Desktop Service Not Available", 
+            Message = "Cannot connect to Speckle Desktop Service. Please ensure the Desktop Service is running and try again.",
+            Detail = "The Speckle Desktop Service must be running to load data from Speckle. Please start the Desktop Service application and refresh your data connection."
+        ]
