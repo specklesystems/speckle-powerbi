@@ -296,9 +296,14 @@ async function fetchStreamedDataForModel(
     const endObjectCleanup = performance.now()
     console.log(`Objects cleaned up in: ${(endObjectCleanup - startObjectCleanup) / 1000} s`)
 
-    const sizeInBytes = new TextEncoder().encode(JSON.stringify(objects)).length
-    const sizeInMB = sizeInBytes / (1024 * 1024)
-    console.log(`Size of objects: ${sizeInMB} MB`)
+    try {
+      const sizeInBytes = new TextEncoder().encode(JSON.stringify(objects)).length
+      const sizeInMB = sizeInBytes / (1024 * 1024)
+      console.log(`Size of objects: ${sizeInMB} MB`)
+    } catch (error) {
+      console.log("Can't calculate the size of the model")
+      console.log(error)
+    }
 
     return objects
   } catch (error) {
