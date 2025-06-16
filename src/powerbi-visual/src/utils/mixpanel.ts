@@ -32,7 +32,7 @@ export class Tracker {
         server_id: hashedServer,
         email: receiveInfo.userEmail,
         isAnonymous: receiveInfo.userEmail === '',
-        connectorVersion: receiveInfo.version
+        core_version: receiveInfo.version
       }
     }
 

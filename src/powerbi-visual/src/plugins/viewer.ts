@@ -242,7 +242,7 @@ export class ViewerHandler {
     Tracker.dataLoaded({
       sourceHostApp: store.receiveInfo.sourceApplication,
       workspace_id: store.receiveInfo.workspaceId,
-      connectorVersion: store.receiveInfo.version
+      core_version: store.receiveInfo.version
     })
     if (store.cameraPosition) {
       const position = new Vector3(
