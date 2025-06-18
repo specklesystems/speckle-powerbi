@@ -1,6 +1,12 @@
 // function for extracting and flattening properties from Speckle objects
 (inputRecord as record) as record =>
 let
+    // auto-extract properties if the input has a "properties" field
+    ActualInput = if Record.HasFields(inputRecord, {"properties"}) then 
+        inputRecord[properties] 
+    else 
+        inputRecord,
+    
     // define excluded paths
     ExcludedPaths = {
         "Composite Structure",
@@ -14,6 +20,37 @@ let
                 ExcludedPaths,
                 (excludedPath) => Text.StartsWith(path, excludedPath)
             )
+        ),
+    
+    // helper function to handle duplicate keys by adding suffixes
+    AddUniqueKey = (existingRecord as record, newKey as text, newValue as any) as record =>
+        let
+            originalKey = newKey,
+            counter = 1,
+            
+            // find a unique key by adding suffix if needed
+            FindUniqueKey = (testKey as text, testCounter as number) as text =>
+                if Record.HasFields(existingRecord, {testKey}) then
+                    @FindUniqueKey(originalKey & "_" & Text.From(testCounter), testCounter + 1)
+                else
+                    testKey,
+            
+            uniqueKey = FindUniqueKey(newKey, counter),
+            result = Record.AddField(existingRecord, uniqueKey, newValue)
+        in
+            result,
+    
+    SafeRecordCombine = (records as list) as record =>
+        List.Accumulate(
+            records,
+            [],
+            (state, current) => 
+                List.Accumulate(
+                    Record.FieldNames(current),
+                    state,
+                    (innerState, fieldName) => 
+                        AddUniqueKey(innerState, fieldName, Record.Field(current, fieldName))
+                )
         ),
     
     // helper function to process name-value objects
@@ -36,10 +73,10 @@ let
         in
             Result,
     
-    // Helper function to process direct key-value objects
+    // helper function to process direct key-value objects
     ProcessDirectKeyValueObject = (obj as record) as record =>
         let
-            // Assert that input is a record
+            // assert that input is a record
             _ = if not Value.Is(obj, type record) then
                 error [
                     Reason = "Invalid Input Type",
@@ -48,7 +85,7 @@ let
             else
                 null,
                 
-            // Extract all primitive key-value pairs
+            // extract all primitive key-value pairs
             PrimitiveFields = List.Transform(
                 Record.FieldNames(obj),
                 (fieldName) => 
@@ -61,17 +98,13 @@ let
                             []
             ),
             
-            // Filter out empty records and combine
+            // filter out empty records and combine using safe combine
             FilteredFields = List.Select(PrimitiveFields, (rec) => Record.FieldCount(rec) > 0),
-            Result = List.Accumulate(
-                FilteredFields,
-                [],
-                (state, current) => Record.Combine({state, current})
-            )
+            Result = SafeRecordCombine(FilteredFields)
         in
             Result,
     
-    // Helper functions for type checking
+    // helper functions for type checking
     HasDirectKeyValuePattern = (obj as record) as logical =>
         List.AllTrue(
             List.Transform(
@@ -88,13 +121,12 @@ let
             )
         ),
     
-    // Main processing function with path tracking
+    // main processing function with path tracking
     ProcessField = (fieldName as text, fieldValue as any, currentPath as text) as record =>
         let
             fieldPath = if currentPath = "" then fieldName else currentPath & "." & fieldName
         in
             if IsExcludedPath(fieldPath) then
-                // Return empty record for excluded paths
                 []
             else if Type.Is(Value.Type(fieldValue), type record) then
                 if Record.HasFields(fieldValue, {"name", "value"}) then
@@ -102,19 +134,19 @@ let
                 else if HasDirectKeyValuePattern(fieldValue) then
                     ProcessDirectKeyValueObject(fieldValue)
                 else if IsNestedContainer(fieldValue) then
-                    // Recursive call for nested containers
+                    // recursive call for nested containers
                     @ProcessRecord(fieldValue, fieldPath)
                 else
-                    // Unknown record type, skip
+                    // unknown record type, skip
                     []
             else
-                // Primitive value
+                // primitive value
                 Record.FromList({fieldValue}, {fieldName}),
     
-    // Process entire record recursively
+    // process entire record recursively
     ProcessRecord = (record as record, currentPath as text) as record =>
         let
-            // Assert that input is a record
+            // assert that input is a record
             _ = if not Value.Is(record, type record) then
                 error [
                     Reason = "Invalid Record Type",
@@ -128,24 +160,20 @@ let
                 (fieldName) => ProcessField(fieldName, Record.Field(record, fieldName), currentPath)
             ),
             FilteredFields = List.Select(ProcessedFields, (rec) => Record.FieldCount(rec) > 0),
-            CombinedRecord = List.Accumulate(
-                FilteredFields,
-                [],
-                (state, current) => Record.Combine({state, current})
-            )
+            CombinedRecord = SafeRecordCombine(FilteredFields)
         in
             CombinedRecord,
     
-    // Assert that input is a record before processing
-    _ = if not Value.Is(inputRecord, type record) then
+    // assert that input is a record before processing
+    _ = if not Value.Is(ActualInput, type record) then
         error [
             Reason = "Invalid Input Type",
-            Message = "Input must be a record, but received: " & Text.From(Value.Type(inputRecord))
+            Message = "Input must be a record, but received: " & Text.From(Value.Type(ActualInput))
         ]
     else
         null,
     
-    // Start processing from root
-    Result = ProcessRecord(inputRecord, "")
+    // start processing from root
+    Result = ProcessRecord(ActualInput, "")
 in
     Result 
