@@ -1,11 +1,18 @@
 // function for extracting and flattening properties from Speckle objects
-(inputRecord as record) as record =>
+(inputRecord as record, optional filterKeys as list) as record =>
 let
     // auto-extract properties if the input has a "properties" field
     ActualInput = if Record.HasFields(inputRecord, {"properties"}) then 
         inputRecord[properties] 
     else 
         inputRecord,
+    
+    // helper function to check if a key should be included
+    ShouldIncludeKey = (keyName as text) as logical =>
+        if filterKeys = null then 
+            true 
+        else 
+            List.Contains(filterKeys, keyName),
     
     // define excluded paths
     ExcludedPaths = {
@@ -40,6 +47,7 @@ let
         in
             result,
     
+    // enhanced combine function that handles duplicates and filtering
     SafeRecordCombine = (records as list) as record =>
         List.Accumulate(
             records,
@@ -49,7 +57,10 @@ let
                     Record.FieldNames(current),
                     state,
                     (innerState, fieldName) => 
-                        AddUniqueKey(innerState, fieldName, Record.Field(current, fieldName))
+                        if ShouldIncludeKey(fieldName) then
+                            AddUniqueKey(innerState, fieldName, Record.Field(current, fieldName))
+                        else
+                            innerState
                 )
         ),
     
@@ -68,8 +79,11 @@ let
             BaseName = obj[name],
             BaseValue = obj[value],
             
-            // only extract name and value, ignore units and other fields
-            Result = Record.FromList({BaseValue}, {BaseName})
+            // only extract name and value if it should be included
+            Result = if ShouldIncludeKey(BaseName) then
+                Record.FromList({BaseValue}, {BaseName})
+            else
+                []
         in
             Result,
     
@@ -92,7 +106,7 @@ let
                     let
                         fieldValue = Record.Field(obj, fieldName)
                     in
-                        if not Type.Is(Value.Type(fieldValue), type record) then
+                        if not Type.Is(Value.Type(fieldValue), type record) and ShouldIncludeKey(fieldName) then
                             Record.FromList({fieldValue}, {fieldName})
                         else
                             []
@@ -140,8 +154,11 @@ let
                     // unknown record type, skip
                     []
             else
-                // primitive value
-                Record.FromList({fieldValue}, {fieldName}),
+                // primitive value - check if should be included
+                if ShouldIncludeKey(fieldName) then
+                    Record.FromList({fieldValue}, {fieldName})
+                else
+                    [],
     
     // process entire record recursively
     ProcessRecord = (record as record, currentPath as text) as record =>
