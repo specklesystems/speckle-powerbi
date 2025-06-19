@@ -80,6 +80,17 @@ shared Speckle.Objects.Properties = Value.ReplaceType(
     type function (inputRecord as record, optional filterKeys as list) as record
 );
 
+
+shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
+    Speckle.LoadFunction("Utils.ExpandRecord.pqm"),
+    type function (
+        table as table,
+        columnName as text,
+        optional FieldNames as list,
+        optional UseCombinedNames as logical
+    ) as table
+);
+
 shared Speckle.Objects.Collections = Value.ReplaceType(
     Speckle.LoadFunction("Objects.Collections.pqm"),
     type function (inputData as table) as table
