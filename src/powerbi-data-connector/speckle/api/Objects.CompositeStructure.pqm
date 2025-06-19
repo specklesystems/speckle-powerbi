@@ -1,0 +1,18 @@
+(objectRecord as record, optional outputAsList as nullable logical) as any =>
+    let
+        compositeStructure =
+            if Record.HasFields(objectRecord[properties], "Composite Structure") then
+                objectRecord[properties][Composite Structure]
+            else if Record.HasFields(objectRecord[properties], "Parameters") and 
+                    Record.HasFields(objectRecord[properties][Parameters], "Type Parameters") and
+                    Record.HasFields(objectRecord[properties][Parameters][Type Parameters], "Structure") then
+                objectRecord[properties][Parameters][Type Parameters][Structure]
+            else
+                null,
+        result =
+            if outputAsList = true then
+                if compositeStructure <> null then Record.ToList(compositeStructure) else null
+            else
+                compositeStructure
+    in
+        result

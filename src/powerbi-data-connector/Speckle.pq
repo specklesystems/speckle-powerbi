@@ -96,6 +96,11 @@ shared Speckle.Objects.Collections = Value.ReplaceType(
     type function (inputData as table) as table
 );
 
+shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
+    type function (objectRecord as record, optional outputAsList as logical) as any
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
