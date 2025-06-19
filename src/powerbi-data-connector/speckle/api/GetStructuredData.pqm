@@ -58,14 +58,48 @@
                     ]
             )
         ),
+        
+        // helper function to extract referenced IDs from displayValue fields
+        ExtractDisplayValueIds = (dataRecord as record) as list =>
+            let
+                displayValue = Record.FieldOrDefault(dataRecord, "displayValue", null)
+            in
+                if displayValue = null then
+                    {}
+                else if Value.Is(displayValue, type list) then
+                    // handle array of displayValue references
+                    List.Transform(
+                        displayValue,
+                        each if Value.Is(_, type record) and Record.HasFields(_, {"referencedId"}) then
+                            _[referencedId]
+                        else
+                            null
+                    )
+                else if Value.Is(displayValue, type record) and Record.HasFields(displayValue, {"referencedId"}) then
+                    // Handle single displayValue reference
+                    {displayValue[referencedId]}
+                else
+                    {},
+        
+        // collect all object IDs that are referenced as displayValues
+        DisplayValueIds = List.Distinct(
+            List.Combine(
+                List.Transform(
+                    Table.Column(FinalTable, "data"),
+                    ExtractDisplayValueIds
+                )
+            )
+        ),
        
-        // Function to check if a row should be excluded based on speckle type
+        // function to check if a row should be excluded based on speckle type
         ShouldExcludeRow = (row as record) as logical =>
             let
-                speckleType = Record.FieldOrDefault(row[data], "speckle_type", "")
+                speckleType = Record.FieldOrDefault(row[data], "speckle_type", ""),
+                objectId = row[#"Object IDs"]
             in
                 speckleType = "Speckle.Core.Models.DataChunk" or 
-                Text.Contains(speckleType, "Objects.Other.RawEncoding"),
+                Text.Contains(speckleType, "Objects.Other.RawEncoding") or
+                List.Contains(DisplayValueIds, objectId), // Exclude objects referenced as displayValue
        
         // Filtering logic here 
         // If model data contains any DataObject -> fetch only data objects (excluding unwanted types)
