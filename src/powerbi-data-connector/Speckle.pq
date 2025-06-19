@@ -80,6 +80,11 @@ shared Speckle.GetProperties = Value.ReplaceType(
     type function (inputRecord as record, optional filterKeys as list) as record
 );
 
+shared Speckle.Objects.Collections = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.Collections.pqm"),
+    type function (inputData as table) as table
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
