@@ -75,8 +75,8 @@ shared Speckle.GetWorkspace = Value.ReplaceType(
     type function (url as Uri.Type) as record
 );
 
-shared Speckle.GetProperties = Value.ReplaceType(
-    Speckle.LoadFunction("GetProperties.pqm"),
+shared Speckle.Objects.Properties = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.Properties.pqm"),
     type function (inputRecord as record, optional filterKeys as list) as record
 );
 
