@@ -1,0 +1,31 @@
+// Expands a record column in a table, adding new columns for each field in the record.
+// If UseCombinedNames is true, columns are named as ColumnName.FieldName, otherwise just FieldName.
+// If FieldNames is provided (list), only those fields are expanded.
+(table as table, columnName as text, optional FieldNames as list, optional UseCombinedNames as logical) as table =>
+let
+    useCombined = if UseCombinedNames = null then false else UseCombinedNames,
+    // Determine which field names to expand
+    allFieldNames = if FieldNames <> null then FieldNames else List.Distinct(
+        List.Combine(
+            List.Transform(
+                Table.Column(table, columnName),
+                each if _ is record then Record.FieldNames(_) else {}
+            )
+        )
+    ),
+    // Add each field as a new column
+    addColumns = List.Accumulate(
+        allFieldNames,
+        table,
+        (state, field) =>
+            Table.AddColumn(
+                state,
+                if useCombined then columnName & "." & field else field,
+                (row) =>
+                    if Record.HasFields(row, columnName) and Record.Field(row, columnName) is record and Record.HasFields(Record.Field(row, columnName), field)
+                    then Record.Field(Record.Field(row, columnName), field)
+                    else null
+            )
+    )
+in
+    addColumns 
