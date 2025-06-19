@@ -1,0 +1,163 @@
+// function for mapping collection names to referenced elements in Speckle data
+(inputData as table) as table =>
+let
+    // Helper function to safely get field value
+    SafeFieldValue = (record as record, fieldName as text) as any =>
+        if Record.HasFields(record, {fieldName}) then 
+            Record.Field(record, fieldName)
+        else 
+            null,
+    
+    // Helper function to safely get nested field value
+    SafeNestedValue = (record as record, path as list) as any =>
+        List.Accumulate(
+            path,
+            record,
+            (current, fieldName) =>
+                if current <> null and Value.Is(current, type record) and Record.HasFields(current, {fieldName}) then
+                    Record.Field(current, fieldName)
+                else
+                    null
+        ),
+    
+    // Step 1: Identify Collection Objects
+    CollectionObjects = Table.SelectRows(
+        inputData, 
+        each 
+            let
+                speckleType = SafeFieldValue(_, "Speckle Type")
+            in
+                speckleType <> null and Text.Contains(speckleType, "Collection")
+    ),
+    
+    // Step 2: Extract Collection Metadata
+    CollectionMetadata = Table.AddColumn(
+        CollectionObjects,
+        "CollectionInfo",
+        each
+            let
+                objectId = SafeFieldValue(_, "Object IDs"),
+                collectionName = SafeNestedValue(_, {"data", "name"}),
+                elements = SafeNestedValue(_, {"data", "elements"})
+            in
+                [
+                    ObjectId = objectId,
+                    CollectionName = if collectionName <> null then collectionName else "Unnamed Collection",
+                    Elements = if elements <> null and Value.Is(elements, type list) then elements else {}
+                ]
+    ),
+    
+    // Step 3: Build Collection Hierarchy Mapping
+    CollectionHierarchy = Table.AddColumn(
+        CollectionMetadata,
+        "CollectionReferences",
+        each
+            let
+                info = [CollectionInfo],
+                collectionName = info[CollectionName],
+                elements = info[Elements]
+            in
+                List.Transform(
+                    elements,
+                    (element) =>
+                        let
+                            referencedId = if Value.Is(element, type record) and Record.HasFields(element, {"referencedId"}) then
+                                element[referencedId]
+                            else
+                                null
+                        in
+                            if referencedId <> null then
+                                [
+                                    ReferencedId = referencedId,
+                                    CollectionName = collectionName,
+                                    ParentCollectionId = info[ObjectId]
+                                ]
+                            else
+                                null
+                )
+    ),
+    
+    // Step 4: Flatten Reference Mapping
+    FlattenedReferences = Table.SelectRows(
+        Table.ExpandListColumn(
+            Table.SelectColumns(CollectionHierarchy, {"CollectionReferences"}),
+            "CollectionReferences"
+        ),
+        each [CollectionReferences] <> null
+    ),
+    
+    ReferenceTable = Table.ExpandRecordColumn(
+        FlattenedReferences,
+        "CollectionReferences",
+        {"ReferencedId", "CollectionName", "ParentCollectionId"},
+        {"ReferencedId", "CollectionName", "ParentCollectionId"}
+    ),
+    
+    // Step 5: Build Hierarchical Collection Paths
+    BuildCollectionPath = (objectId as text, visited as list) as text =>
+        let
+            // Prevent infinite loops
+            _ = if List.Contains(visited, objectId) then
+                error "Circular reference detected in collection hierarchy"
+            else
+                null,
+                
+            newVisited = List.InsertRange(visited, 0, {objectId}),
+            
+            // Find if this object is referenced by any collection
+            parentReferences = Table.SelectRows(ReferenceTable, each [ReferencedId] = objectId),
+            
+            result = if Table.RowCount(parentReferences) = 0 then
+                // No parent collection found
+                ""
+            else
+                let
+                    parentRef = parentReferences{0},
+                    parentCollectionId = parentRef[ParentCollectionId],
+                    currentCollectionName = parentRef[CollectionName],
+                    
+                    // Recursively get parent path
+                    parentPath = @BuildCollectionPath(parentCollectionId, newVisited),
+                    
+                    // Build full path
+                    fullPath = if parentPath = "" then
+                        currentCollectionName
+                    else
+                        parentPath & "::" & currentCollectionName
+                in
+                    fullPath
+        in
+            result,
+    
+    // Step 6: Add Collection Paths to data field
+    FinalData = Table.TransformColumns(
+        inputData,
+        {
+            "data", each 
+                let
+                    currentData = _,
+                    currentRow = Table.SelectRows(inputData, each [data] = currentData){0},
+                    objectId = SafeFieldValue(currentRow, "Object IDs"),
+                    collectionPath = if objectId <> null then
+                        try
+                            BuildCollectionPath(objectId, {})
+                        otherwise
+                            ""
+                    else
+                        "",
+                    
+                    // Add CollectionPath field to the data record, set to null if empty
+                    enhancedData = if Value.Is(currentData, type record) then
+                        Record.AddField(
+                            currentData, 
+                            "collectionPath", 
+                            if collectionPath = "" then null else collectionPath
+                        )
+                    else
+                        currentData
+                in
+                    enhancedData
+        }
+    )
+in
+    FinalData 

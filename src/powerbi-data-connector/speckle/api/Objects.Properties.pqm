@@ -1,0 +1,196 @@
+// function for extracting and flattening properties from Speckle objects
+(inputRecord as record, optional filterKeys as list) as record =>
+let
+    // auto-extract properties if the input has a "properties" field
+    ActualInput = if Record.HasFields(inputRecord, {"properties"}) then 
+        inputRecord[properties] 
+    else 
+        inputRecord,
+    
+    // helper function to check if a key should be included
+    ShouldIncludeKey = (keyName as text) as logical =>
+        if filterKeys = null then 
+            true 
+        else 
+            List.Contains(filterKeys, keyName),
+    
+    // define excluded paths
+    ExcludedPaths = {
+        "Composite Structure",
+        "Material Quantities", 
+        "Parameters.Type Parameters.Structure"
+    },
+    
+    IsExcludedPath = (path as text) as logical =>
+        List.AnyTrue(
+            List.Transform(
+                ExcludedPaths,
+                (excludedPath) => Text.StartsWith(path, excludedPath)
+            )
+        ),
+    
+    // helper function to handle duplicate keys by adding suffixes
+    AddUniqueKey = (existingRecord as record, newKey as text, newValue as any) as record =>
+        let
+            originalKey = newKey,
+            counter = 1,
+            
+            // find a unique key by adding suffix if needed
+            FindUniqueKey = (testKey as text, testCounter as number) as text =>
+                if Record.HasFields(existingRecord, {testKey}) then
+                    @FindUniqueKey(originalKey & "_" & Text.From(testCounter), testCounter + 1)
+                else
+                    testKey,
+            
+            uniqueKey = FindUniqueKey(newKey, counter),
+            result = Record.AddField(existingRecord, uniqueKey, newValue)
+        in
+            result,
+    
+    // enhanced combine function that handles duplicates and filtering
+    SafeRecordCombine = (records as list) as record =>
+        List.Accumulate(
+            records,
+            [],
+            (state, current) => 
+                List.Accumulate(
+                    Record.FieldNames(current),
+                    state,
+                    (innerState, fieldName) => 
+                        if ShouldIncludeKey(fieldName) then
+                            AddUniqueKey(innerState, fieldName, Record.Field(current, fieldName))
+                        else
+                            innerState
+                )
+        ),
+    
+    // helper function to process name-value objects
+    ProcessNameValueObject = (obj as record) as record =>
+        let
+            // Assert that the object has required fields
+            _ = if not (Record.HasFields(obj, {"name"}) and Record.HasFields(obj, {"value"})) then
+                error [
+                    Reason = "Invalid Name-Value Object",
+                    Message = "Object must have both 'name' and 'value' fields"
+                ]
+            else
+                null,
+                
+            BaseName = obj[name],
+            BaseValue = obj[value],
+            
+            // only extract name and value if it should be included
+            Result = if ShouldIncludeKey(BaseName) then
+                Record.FromList({BaseValue}, {BaseName})
+            else
+                []
+        in
+            Result,
+    
+    // helper function to process direct key-value objects
+    ProcessDirectKeyValueObject = (obj as record) as record =>
+        let
+            // assert that input is a record
+            _ = if not Value.Is(obj, type record) then
+                error [
+                    Reason = "Invalid Input Type",
+                    Message = "Expected record for direct key-value processing"
+                ]
+            else
+                null,
+                
+            // extract all primitive key-value pairs
+            PrimitiveFields = List.Transform(
+                Record.FieldNames(obj),
+                (fieldName) => 
+                    let
+                        fieldValue = Record.Field(obj, fieldName)
+                    in
+                        if not Type.Is(Value.Type(fieldValue), type record) and ShouldIncludeKey(fieldName) then
+                            Record.FromList({fieldValue}, {fieldName})
+                        else
+                            []
+            ),
+            
+            // filter out empty records and combine using safe combine
+            FilteredFields = List.Select(PrimitiveFields, (rec) => Record.FieldCount(rec) > 0),
+            Result = SafeRecordCombine(FilteredFields)
+        in
+            Result,
+    
+    // helper functions for type checking
+    HasDirectKeyValuePattern = (obj as record) as logical =>
+        List.AllTrue(
+            List.Transform(
+                Record.FieldValues(obj),
+                (value) => not Type.Is(Value.Type(value), type record)
+            )
+        ),
+    
+    IsNestedContainer = (obj as record) as logical =>
+        List.AnyTrue(
+            List.Transform(
+                Record.FieldValues(obj),
+                (value) => Type.Is(Value.Type(value), type record)
+            )
+        ),
+    
+    // main processing function with path tracking
+    ProcessField = (fieldName as text, fieldValue as any, currentPath as text) as record =>
+        let
+            fieldPath = if currentPath = "" then fieldName else currentPath & "." & fieldName
+        in
+            if IsExcludedPath(fieldPath) then
+                []
+            else if Type.Is(Value.Type(fieldValue), type record) then
+                if Record.HasFields(fieldValue, {"name", "value"}) then
+                    ProcessNameValueObject(fieldValue)
+                else if HasDirectKeyValuePattern(fieldValue) then
+                    ProcessDirectKeyValueObject(fieldValue)
+                else if IsNestedContainer(fieldValue) then
+                    // recursive call for nested containers
+                    @ProcessRecord(fieldValue, fieldPath)
+                else
+                    // unknown record type, skip
+                    []
+            else
+                // primitive value - check if should be included
+                if ShouldIncludeKey(fieldName) then
+                    Record.FromList({fieldValue}, {fieldName})
+                else
+                    [],
+    
+    // process entire record recursively
+    ProcessRecord = (record as record, currentPath as text) as record =>
+        let
+            // assert that input is a record
+            _ = if not Value.Is(record, type record) then
+                error [
+                    Reason = "Invalid Record Type",
+                    Message = "Expected record for processing, but received: " & Text.From(Value.Type(record))
+                ]
+            else
+                null,
+                
+            ProcessedFields = List.Transform(
+                Record.FieldNames(record),
+                (fieldName) => ProcessField(fieldName, Record.Field(record, fieldName), currentPath)
+            ),
+            FilteredFields = List.Select(ProcessedFields, (rec) => Record.FieldCount(rec) > 0),
+            CombinedRecord = SafeRecordCombine(FilteredFields)
+        in
+            CombinedRecord,
+    
+    // assert that input is a record before processing
+    _ = if not Value.Is(ActualInput, type record) then
+        error [
+            Reason = "Invalid Input Type",
+            Message = "Input must be a record, but received: " & Text.From(Value.Type(ActualInput))
+        ]
+    else
+        null,
+    
+    // start processing from root
+    Result = ProcessRecord(ActualInput, "")
+in
+    Result 
