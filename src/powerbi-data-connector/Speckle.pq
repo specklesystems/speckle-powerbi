@@ -96,6 +96,9 @@ shared Speckle.Objects.Collections = Value.ReplaceType(
     type function (inputData as table) as table
 );
 
+shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
+
 shared Speckle.Objects.MaterialQuantities = Value.ReplaceType(
     Speckle.LoadFunction("Objects.MaterialQuantities.pqm"),
     type function (objectRecord as record, optional outputAsList as logical) as any
