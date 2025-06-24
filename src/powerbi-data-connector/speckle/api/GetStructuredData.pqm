@@ -59,7 +59,7 @@
             )
         ),
        
-        // Function to check if a row should be excluded based on speckle type
+        // function to check if a row should be excluded based on speckle type
         ShouldExcludeRow = (row as record) as logical =>
             let
                 speckleType = Record.FieldOrDefault(row[data], "speckle_type", "")

@@ -1,0 +1,15 @@
+// Helper function to extract [properties][Material Quantities] and optionally output as list
+(objectRecord as record, optional outputAsList as logical) as any =>
+    let
+        // Ensure outputAsList is logical and defaults to false if not provided
+        OutputAsList = if outputAsList = null then false else outputAsList,
+        // Check if 'properties' and 'Material Quantities' exist
+        HasMaterialQuantities = Record.HasFields(objectRecord, {"properties"}) and Record.HasFields(Record.Field(objectRecord, "properties"), {"Material Quantities"}),
+        MaterialQuantities = if HasMaterialQuantities then Record.Field(Record.Field(objectRecord, "properties"), "Material Quantities") else null,
+        Result = if MaterialQuantities = null then null else
+            if OutputAsList then
+                Record.ToList(MaterialQuantities)
+            else
+                MaterialQuantities
+    in
+        Result
