@@ -89,6 +89,9 @@
       "properties": {
         "defaultViewMode": {
           "type": { "text": true }
+        },
+        "navbarHidden": {
+          "type": { "bool": true }
         }
       }
     },

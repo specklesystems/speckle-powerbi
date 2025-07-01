@@ -148,6 +148,18 @@ export class Visual implements IVisual {
                 )
               }
 
+              if (options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean) {
+                console.log(
+                  `Navbar Hidden: ${
+                    options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
+                  }`
+                )
+
+                visualStore.setNavbarHidden(
+                  options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
+                )
+              }
+
               if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
                 console.log(`Stored camera position is found`)
                 visualStore.setCameraPositionInFile([
