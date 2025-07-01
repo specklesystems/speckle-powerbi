@@ -82,6 +82,9 @@
       "properties": {
         "brandingHidden": {
           "type": { "bool": true }
+        },
+        "navbarHidden": {
+          "type": { "bool": true }
         }
       }
     },

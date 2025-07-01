@@ -2,7 +2,7 @@
   <div class="border">
     <transition name="slide-fade">
       <nav
-        v-show="!isNavbarCollapsed"
+        v-show="!visualStore.isNavbarHidden"
         class="fixed top-0 h-9 flex items-center bg-foundation border border-outline-2 w-full transition z-20 cursor-default"
       >
         <div class="flex items-center transition-all justify-between w-full">
@@ -46,7 +46,7 @@
             <button
               class="text-gray-400 hover:text-gray-700 transition"
               title="Hide navbar"
-              @click="isNavbarCollapsed = true"
+              @click="visualStore.toggleNavbar()"
             >
               <ChevronUpIcon class="w-4 h-4" />
             </button>
@@ -58,17 +58,17 @@
     <div
       v-if="!isInteractive"
       class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
-      :class="isNavbarCollapsed ? 'top-1' : 'top-11'"
+      :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
       <strong>Object IDs</strong>
       field is needed for interactivity with other visuals.
     </div>
 
-    <div v-if="isNavbarCollapsed" class="fixed top-0 right-0 z-20">
+    <div v-if="visualStore.isNavbarHidden" class="fixed top-0 right-0 z-20">
       <button
         class="transition opacity-50 hover:opacity-100"
         title="Show navbar"
-        @click="isNavbarCollapsed = false"
+        @click="visualStore.toggleNavbar()"
       >
         <ChevronDownIcon class="w-4 h-4 text-gray-400" />
       </button>
@@ -76,7 +76,7 @@
 
     <transition name="slide-left">
       <ViewerControls
-        v-show="!isNavbarCollapsed"
+        v-show="!visualStore.isNavbarHidden"
         v-model:section-box="bboxActive"
         :views="views"
         class="fixed top-11 left-2 z-30"
@@ -151,8 +151,6 @@ let viewerHandler: ViewerHandler = null
 const container = ref<HTMLElement>()
 let bboxActive = ref(false)
 let views: Ref<SpeckleView[]> = ref([])
-
-const isNavbarCollapsed = ref(false)
 
 const isInteractive = computed(
   () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds

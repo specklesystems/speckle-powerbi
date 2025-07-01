@@ -35,6 +35,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isBrandingHidden = ref<boolean>(false)
   const isOrthoProjection = ref<boolean>(false)
   const isGhostActive = ref<boolean>(true)
+  const isNavbarHidden = ref<boolean>(false)
 
   const commonError = ref<string>(undefined)
 
@@ -272,6 +273,22 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeNavbarVisibilityToFile = (navbarHidden: boolean) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'workspace',
+          properties: {
+            navbarHidden: navbarHidden
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
@@ -311,6 +328,15 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setBrandingHidden = (val: boolean) => {
     isBrandingHidden.value = val
+  }
+
+  const setNavbarHidden = (val: boolean) => {
+    isNavbarHidden.value = val
+  }
+
+  const toggleNavbar = () => {
+    isNavbarHidden.value = !isNavbarHidden.value
+    writeNavbarVisibilityToFile(isNavbarHidden.value)
   }
 
   const setIsOrthoProjection = (val: boolean) => {
@@ -373,6 +399,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     isBrandingHidden,
     isOrthoProjection,
     isGhostActive,
+    isNavbarHidden,
     latestAvailableVersion,
     isConnectorUpToDate,
     commonError,
@@ -382,6 +409,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setIsGhost,
     setFormattingSettings,
     setBrandingHidden,
+    setNavbarHidden,
     setPostClickSkipNeeded,
     setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
@@ -399,7 +427,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     writeViewModeToFile,
     writeCameraPositionToFile,
     writeHideBrandingToFile,
+    writeNavbarVisibilityToFile,
     toggleBranding,
+    toggleNavbar,
     setViewerEmitter,
     setDataInput,
     setFieldInputState,
