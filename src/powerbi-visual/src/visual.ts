@@ -148,15 +148,15 @@ export class Visual implements IVisual {
                 )
               }
 
-              if (options.dataViews[0].metadata.objects.workspace?.navbarHidden as boolean) {
+              if (options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean) {
                 console.log(
                   `Navbar Hidden: ${
-                    options.dataViews[0].metadata.objects.workspace?.navbarHidden as boolean
+                    options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
                   }`
                 )
 
                 visualStore.setNavbarHidden(
-                  options.dataViews[0].metadata.objects.workspace?.navbarHidden as boolean
+                  options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
                 )
               }
 

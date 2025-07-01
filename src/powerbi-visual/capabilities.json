@@ -82,9 +82,6 @@
       "properties": {
         "brandingHidden": {
           "type": { "bool": true }
-        },
-        "navbarHidden": {
-          "type": { "bool": true }
         }
       }
     },
@@ -92,6 +89,9 @@
       "properties": {
         "defaultViewMode": {
           "type": { "text": true }
+        },
+        "navbarHidden": {
+          "type": { "bool": true }
         }
       }
     },

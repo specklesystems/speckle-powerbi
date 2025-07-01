@@ -279,7 +279,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value.persistProperties({
       merge: [
         {
-          objectName: 'workspace',
+          objectName: 'viewMode',
           properties: {
             navbarHidden: navbarHidden
           },
