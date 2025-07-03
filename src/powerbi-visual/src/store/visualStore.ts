@@ -169,7 +169,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
-      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      // Only apply filtering if object IDs are available, otherwise show all objects normally
+      if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      } else {
+        // No object IDs provided - show all objects without any filtering
+        viewerEmit.value('unIsolateObjects')
+      }
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
@@ -358,7 +364,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     (formattingSettings.value = newFormattingSettings)
 
   const resetFilters = () => {
-    viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+    // Only apply filtering if object IDs are available, otherwise show all objects normally
+    if (fieldInputState.value.objectIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+    } else {
+      // No object IDs provided - show all objects without any filtering
+      viewerEmit.value('unIsolateObjects')
+    }
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }
@@ -387,7 +399,13 @@ export const useVisualStore = defineStore('visualStore', () => {
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
-        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+        // Only apply filtering if object IDs are available, otherwise show all objects normally
+        if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+        } else {
+          // No object IDs provided - show all objects without any filtering
+          viewerEmit.value('unIsolateObjects')
+        }
       }
       
       // Restore color grouping
