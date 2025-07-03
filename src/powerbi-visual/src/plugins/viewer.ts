@@ -52,6 +52,7 @@ export interface IViewerEvents {
   toggleProjection: () => void
   toggleGhostHidden: (ghost: boolean) => void
   loadObjects: (objects: object[]) => void
+  objectsLoaded: () => void
 }
 
 export type ColorBy = {
@@ -81,6 +82,7 @@ export class ViewerHandler {
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
     this.emitter.on('loadObjects', this.loadObjects)
+    this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
   }
@@ -219,7 +221,8 @@ export class ViewerHandler {
     const store = useVisualStore()
     const speckleViews = []
 
-    modelObjects.forEach(async (objects) => {
+    // Use for...of loop to properly handle async operations
+    for (const objects of modelObjects) {
       //@ts-ignore
       const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
 
@@ -232,7 +235,7 @@ export class ViewerHandler {
       // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
       this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after loadObjects
-    })
+    }
 
     store.setSpeckleViews(speckleViews)
     if (store.defaultViewModeInFile) {
@@ -257,10 +260,20 @@ export class ViewerHandler {
       )
       this.cameraControls.setCameraView({ position, target }, true)
     }
+    
+    // Emit objects loaded event to trigger update
+    this.emit('objectsLoaded')
   }
 
   private handlePing = (message: string) => {
     console.log(message)
+  }
+
+  private handleObjectsLoaded = () => {
+    console.log('🎯 Objects loaded - triggering update')
+    const store = useVisualStore()
+    // Handle state restoration after objects are loaded
+    store.handleObjectsLoadedComplete()
   }
 
   private pickViewableHit(hits: Hit[]): Hit | null {

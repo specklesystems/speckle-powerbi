@@ -373,6 +373,31 @@ export const useVisualStore = defineStore('visualStore', () => {
     commonError.value = error
   }
 
+  const handleObjectsLoadedComplete = () => {
+    console.log('🔄 Objects loaded - handling state restoration')
+    
+    // If we have current data input with selections, restore them
+    if (dataInput.value) {
+      console.log('🔄 Restoring selection state after object load')
+      
+      // Restore selection filters if they exist
+      if (dataInput.value.selectedIds.length > 0) {
+        isFilterActive.value = true
+        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
+      } else {
+        isFilterActive.value = false
+        latestColorBy.value = dataInput.value.colorByIds
+        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      }
+      
+      // Restore color grouping
+      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+    }
+    
+    // Trigger host data refresh to synchronize with Power BI
+    host.value.refreshHostData()
+  }
+
   return {
     host,
     receiveInfo,
@@ -439,6 +464,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     clearLoadingProgress,
     setIsLoadingFromFile,
     resetFilters,
-    downloadLatestVersion
+    downloadLatestVersion,
+    handleObjectsLoadedComplete
   }
 })
