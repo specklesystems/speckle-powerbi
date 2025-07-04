@@ -169,7 +169,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
-      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      // Only apply filtering if object IDs are available, otherwise show all objects normally
+      if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      } else {
+        // No object IDs provided - show all objects without any filtering
+        viewerEmit.value('unIsolateObjects')
+      }
     }
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
@@ -358,7 +364,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     (formattingSettings.value = newFormattingSettings)
 
   const resetFilters = () => {
-    viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+    // Only apply filtering if object IDs are available, otherwise show all objects normally
+    if (fieldInputState.value.objectIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+    } else {
+      // No object IDs provided - show all objects without any filtering
+      viewerEmit.value('unIsolateObjects')
+    }
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }
@@ -371,6 +383,37 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setCommonError = (error: string) => {
     commonError.value = error
+  }
+
+  const handleObjectsLoadedComplete = () => {
+    console.log('🔄 Objects loaded - handling state restoration')
+    
+    // If we have current data input with selections, restore them
+    if (dataInput.value) {
+      console.log('🔄 Restoring selection state after object load')
+      
+      // Restore selection filters if they exist
+      if (dataInput.value.selectedIds.length > 0) {
+        isFilterActive.value = true
+        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
+      } else {
+        isFilterActive.value = false
+        latestColorBy.value = dataInput.value.colorByIds
+        // Only apply filtering if object IDs are available, otherwise show all objects normally
+        if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+        } else {
+          // No object IDs provided - show all objects without any filtering
+          viewerEmit.value('unIsolateObjects')
+        }
+      }
+      
+      // Restore color grouping
+      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+    }
+    
+    // Trigger host data refresh to synchronize with Power BI
+    host.value.refreshHostData()
   }
 
   return {
@@ -439,6 +482,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     clearLoadingProgress,
     setIsLoadingFromFile,
     resetFilters,
-    downloadLatestVersion
+    downloadLatestVersion,
+    handleObjectsLoadedComplete
   }
 })
