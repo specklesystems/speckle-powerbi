@@ -106,6 +106,11 @@ shared Speckle.Objects.MaterialQuantities = Value.ReplaceType(
     type function (objectRecord as record, optional outputAsList as logical) as any
 );
 
+shared Speckle.Models.Federate = Value.ReplaceType(
+    Speckle.LoadFunction("Models.Federate.pqm"),
+    type function (tables as list, optional excludeData as logical) as table
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
