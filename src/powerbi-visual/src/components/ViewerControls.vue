@@ -18,6 +18,19 @@
         <Ghost v-if="visualStore.isGhostActive" class="h-5 w-5" />
         <Ghost v-else class="h-5 w-5 opacity-30" />
       </ViewerControlsButtonToggle>
+      <!-- Zoom on Filter -->
+      <ViewerControlsButtonToggle
+        :tooltip="
+          visualStore.isZoomOnFilterActive
+            ? 'Zoom to objects on filter'
+            : 'Keep camera position on filter'
+        "
+        flat
+        @click="toggleZoomOnFilter"
+      >
+        <HandZoom v-if="visualStore.isZoomOnFilterActive" class="h-5 w-5" />
+        <HandZoom v-else class="h-5 w-5 opacity-30" />
+      </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
     <ViewerControlsButtonGroup>
       <!-- View Modes -->
@@ -65,6 +78,7 @@ import Perspective from '../components/global/icon/Perspective.vue'
 import PerspectiveMore from '../components/global/icon/PerspectiveMore.vue'
 
 import Ghost from '../components/global/icon/Ghost.vue'
+import HandZoom from '../components/global/icon/HandZoom.vue'
 
 const visualStore = useVisualStore()
 
@@ -109,6 +123,11 @@ const toggleGhostHidden = () => {
   visualStore.setIsGhost(!visualStore.isGhostActive)
   visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
   visualStore.writeIsGhostToFile()
+}
+
+const toggleZoomOnFilter = () => {
+  visualStore.setIsZoomOnFilterActive(!visualStore.isZoomOnFilterActive)
+  visualStore.writeZoomOnFilterToFile()
 }
 
 const viewModesOpen = computed({

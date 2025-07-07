@@ -36,6 +36,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isOrthoProjection = ref<boolean>(false)
   const isGhostActive = ref<boolean>(true)
   const isNavbarHidden = ref<boolean>(false)
+  const isZoomOnFilterActive = ref<boolean>(true)
 
   const commonError = ref<string>(undefined)
 
@@ -165,13 +166,13 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     if (dataInput.value.selectedIds.length > 0) {
       isFilterActive.value = true
-      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
       // Only apply filtering if object IDs are available, otherwise show all objects normally
       if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
       } else {
         // No object IDs provided - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
@@ -240,6 +241,22 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'camera',
           properties: {
             isGhost: isGhostActive.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
+  const writeZoomOnFilterToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'camera',
+          properties: {
+            zoomOnFilter: isZoomOnFilterActive.value
           },
           selector: null
         }
@@ -353,6 +370,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     isGhostActive.value = val
   }
 
+  const setIsZoomOnFilterActive = (val: boolean) => {
+    isZoomOnFilterActive.value = val
+  }
+
   const setPostFileSaveSkipNeeded = (newValue: boolean) => (postFileSaveSkipNeeded.value = newValue)
   const setPostClickSkipNeeded = (newValue: boolean) => (postClickSkipNeeded.value = newValue)
 
@@ -366,7 +387,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const resetFilters = () => {
     // Only apply filtering if object IDs are available, otherwise show all objects normally
     if (fieldInputState.value.objectIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
     } else {
       // No object IDs provided - show all objects without any filtering
       viewerEmit.value('unIsolateObjects')
@@ -395,13 +416,13 @@ export const useVisualStore = defineStore('visualStore', () => {
       // Restore selection filters if they exist
       if (dataInput.value.selectedIds.length > 0) {
         isFilterActive.value = true
-        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value)
+        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
         // Only apply filtering if object IDs are available, otherwise show all objects normally
         if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value)
+          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
         } else {
           // No object IDs provided - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
@@ -443,6 +464,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     isOrthoProjection,
     isGhostActive,
     isNavbarHidden,
+    isZoomOnFilterActive,
     latestAvailableVersion,
     isConnectorUpToDate,
     commonError,
@@ -450,6 +472,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setLatestAvailableVersion,
     setIsOrthoProjection,
     setIsGhost,
+    setIsZoomOnFilterActive,
     setFormattingSettings,
     setBrandingHidden,
     setNavbarHidden,
@@ -466,6 +489,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     writeObjectsToFile,
     writeCameraViewToFile,
     writeIsGhostToFile,
+    writeZoomOnFilterToFile,
     writeIsOrthoToFile,
     writeViewModeToFile,
     writeCameraPositionToFile,
