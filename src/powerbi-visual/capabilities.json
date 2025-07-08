@@ -105,6 +105,9 @@
         },
         "isGhost": {
           "type": { "bool": true }
+        },
+        "zoomOnFilter": {
+          "type": { "bool": true }
         }
       }
     },
