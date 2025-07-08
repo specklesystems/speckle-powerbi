@@ -39,8 +39,9 @@
         ),
         // fields to remove from data record
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-        // create the final table with cleaned data records
-        FinalTable = Table.FromRecords(
+        
+        // create basic table with cleaned data records (no properties column yet)
+        BasicTable = Table.FromRecords(
             List.Transform(
                 TableFromList[Column1],
                 each let
@@ -48,13 +49,14 @@
                     fieldsToRemoveForThisRecord = List.Select(
                         FieldsToRemove,
                         each Record.HasFields(record, {_})
-                    )
+                    ),
+                    cleanedRecord = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
                 in
                     [
                         #"Object IDs" = record[id], // Object IDs
                         #"Speckle Type" = record[speckle_type], // Speckle Type
                         #"Version Object ID" = rootId,
-                        data = Record.RemoveFields(record, fieldsToRemoveForThisRecord) // Data
+                        data = cleanedRecord // Data
                     ]
             )
         ),
@@ -70,14 +72,38 @@
         // Filtering logic here 
         // If model data contains any DataObject -> fetch only data objects (excluding unwanted types)
         // If there are no data objects in the data -> fetch everything but exclude DataChunks and RawEncoding
+        // Check if model contains any DataObject
         HasDataObjects = Table.RowCount(
             Table.SelectRows(
-                FinalTable, 
+                BasicTable, 
                 each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject") 
                      and not ShouldExcludeRow(_)
             )
         ) > 0,
 
+        // load the Objects.Properties function only if we have DataObjects
+        ObjectsProperties = if HasDataObjects then Extension.LoadFunction("Objects.Properties.pqm") else null,
+        
+        // Add properties column only if model has DataObjects
+        FinalTable = if HasDataObjects then
+            Table.AddColumn(
+                BasicTable,
+                "properties",
+                each let
+                    dataRecord = [data],
+                    isDataObject = Text.Contains(Record.FieldOrDefault(dataRecord, "speckle_type", ""), "DataObject"),
+                    hasProperties = Record.HasFields(dataRecord, {"properties"}),
+                    extractedProperties = if hasProperties and isDataObject then 
+                        try ObjectsProperties(dataRecord) otherwise []
+                    else 
+                        []
+                in
+                    if Record.FieldCount(extractedProperties) > 0 then extractedProperties else null
+            )
+        else
+            BasicTable,
+
+        // Apply the same filtering logic as before
         FilteredTable = if HasDataObjects then
             Table.SelectRows(
                 FinalTable, 
