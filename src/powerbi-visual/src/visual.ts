@@ -196,6 +196,16 @@ export class Visual implements IVisual {
                 )
               }
 
+              if (camera && 'zoomOnFilter' in camera) {
+                console.log(
+                  `Zoom on filter?: ${options.dataViews[0].metadata.objects.camera?.zoomOnFilter as boolean}`
+                )
+
+                visualStore.setIsZoomOnFilterActive(
+                  options.dataViews[0].metadata.objects.camera?.zoomOnFilter as boolean
+                )
+              }
+
               // get receive info from file for mixpanel
               try {
                 const receiveInfoFromFile = JSON.parse(

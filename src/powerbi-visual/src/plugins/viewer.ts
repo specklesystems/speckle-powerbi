@@ -37,8 +37,8 @@ export interface Hit {
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
-  resetFilter: (objectIds: string[], ghost: boolean) => void
-  filterSelection: (objectIds: string[], ghost: boolean) => void
+  resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
+  filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   setViewMode: (viewMode: ViewMode) => void
   colorObjectsByGroup: (
     colorById: {
@@ -149,20 +149,24 @@ export class ViewerHandler {
     }
   }
 
-  public filterSelection = (objectIds: string[], ghost: boolean) => {
+  public filterSelection = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.unIsolateObjects()
       this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
-      this.zoomObjects(objectIds, true)
+      if (zoom) {
+        this.zoomObjects(objectIds, true)
+      }
     }
   }
 
-  public resetFilter = (objectIds: string[], ghost: boolean) => {
+  public resetFilter = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.isolateObjects(objectIds, ghost)
-      this.zoomObjects(objectIds, true)
+      if (zoom) {
+        this.zoomObjects(objectIds, true)
+      }
     }
   }
 
