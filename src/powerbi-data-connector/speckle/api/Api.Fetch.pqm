@@ -42,16 +42,11 @@
             null,
         
         // Comprehensive error handling
+        // Comprehensive error handling
         result = if not IsHttpSuccess then
             error [
                 Reason = "HttpRequestFailed",
                 Message = "Failed to connect to Speckle server",
-                Detail = [Server = server, StatusCode = StatusCode]
-            ]
-        else if #"JSON" = null then
-            error [
-                Reason = "InvalidJsonResponse",
-                Message = "Server returned invalid JSON response",
                 Detail = [Server = server, StatusCode = StatusCode]
             ]
         else if StatusCode = 401 then
@@ -65,6 +60,12 @@
                 Reason = "AuthorizationFailed", 
                 Message = "Insufficient permissions for this operation",
                 Detail = [Server = server]
+            ]
+        else if #"JSON" = null then
+            error [
+                Reason = "InvalidJsonResponse",
+                Message = "Server returned invalid JSON response",
+                Detail = [Server = server, StatusCode = StatusCode]
             ]
         else if Record.HasFields(#"JSON", {"errors"}) then
             error [
