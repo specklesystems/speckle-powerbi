@@ -204,7 +204,7 @@ Speckle = [
                     // Build authorization URL with PKCE parameters
                     authUrl = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
                         "?code_challenge=" & codeChallenge &
-                        "&code_challenge_method=S256"
+                        "&code_challenge_method=plain"
                 in
                     [
                         LoginUri = authUrl,
