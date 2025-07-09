@@ -5,22 +5,75 @@ AuthAppId = "spklpwerbi";
 AuthAppSecret = "spklpwerbi";
 
 // PKCE helper functions for enhanced OAuth2 security
+Base64UrlEncode = (binaryData as binary) =>
+    let
+        // Convert binary to base64
+        base64 = Binary.ToText(binaryData, BinaryEncoding.Base64),
+        // Convert to base64url by replacing characters and removing padding
+        base64url = Text.Replace(Text.Replace(Text.Replace(base64, "+", "-"), "/", "_"), "=", "")
+    in
+        base64url;
+
 GeneratePKCEVerifier = () =>
     let
-        // Generate a random code verifier using multiple GUIDs
+        // Generate cryptographically secure random string using allowed characters
+        // RFC 7636: [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
+        allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",
+        
+        // Generate multiple GUIDs to create entropy
         guid1 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
         guid2 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
         guid3 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
         guid4 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
-        verifier = guid1 & guid2 & guid3 & guid4
+        
+        // Combine and convert to allowed characters
+        combined = guid1 & guid2 & guid3 & guid4,
+        
+        // Map hex characters to allowed PKCE characters
+        mapped = Text.Replace(
+            Text.Replace(
+                Text.Replace(
+                    Text.Replace(
+                        Text.Replace(
+                            Text.Replace(combined, "0", "A"),
+                            "1", "B"),
+                        "2", "C"),
+                    "3", "D"),
+                "4", "E"),
+            "5", "F"),
+        
+        // Continue mapping remaining hex chars to allowed chars
+        verifier = Text.Replace(
+            Text.Replace(
+                Text.Replace(
+                    Text.Replace(
+                        Text.Replace(
+                            Text.Replace(
+                                Text.Replace(
+                                    Text.Replace(
+                                        Text.Replace(
+                                            Text.Replace(mapped, "6", "G"),
+                                            "7", "H"),
+                                        "8", "I"),
+                                    "9", "J"),
+                                "a", "K"),
+                            "b", "L"),
+                        "c", "M"),
+                    "d", "N"),
+                "e", "O"),
+            "f", "P"),
+        
+        // Ensure length is between 43-128 characters as per RFC 7636
+        finalVerifier = Text.Start(verifier, 43)
     in
-        Text.Start(verifier, 128);
+        finalVerifier;
 
 GeneratePKCEChallenge = (verifier as text) =>
     let
-        // For Power Query M, we'll use a simpler approach since Crypto functions are limited
-        // This creates a basic challenge - in production, proper SHA256 would be ideal
-        challenge = Text.Replace(Text.Replace(Text.Replace(verifier, "A", "X"), "B", "Y"), "C", "Z")
+        // Create SHA256 hash of the verifier as required by RFC 7636
+        hash = Crypto.CreateHash(CryptoAlgorithm.SHA256, Text.ToBinary(verifier, TextEncoding.Ascii)),
+        // Convert to base64url encoding
+        challenge = Base64UrlEncode(hash)
     in
         challenge;
 
@@ -204,7 +257,7 @@ Speckle = [
                     // Build authorization URL with PKCE parameters
                     authUrl = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
                         "?code_challenge=" & codeChallenge &
-                        "&code_challenge_method=plain"
+                        "&code_challenge_method=S256"
                 in
                     [
                         LoginUri = authUrl,
