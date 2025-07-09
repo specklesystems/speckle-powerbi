@@ -247,12 +247,14 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      visualStore.setFieldInputState({
-        rootObjectId: false,
-        objectIds: false,
-        colorBy: false,
-        tooltipData: false
-      })
+      
+      // Reset visual state when all inputs are removed
+      visualStore.resetVisualToInitialState()
+      
+      // Clear selection handler
+      await this.clear()
+      
+      console.log('🔄 Visual state reset due to empty inputs')
       return
     }
   }

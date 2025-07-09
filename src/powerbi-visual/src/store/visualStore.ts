@@ -437,6 +437,39 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value.refreshHostData()
   }
 
+  const resetVisualToInitialState = () => {
+    console.log('🔄 Resetting visual to initial state')
+    
+    // Clear data input
+    dataInput.value = null
+    
+    // Reset viewer states
+    isViewerReadyToLoad.value = false
+    isViewerObjectsLoaded.value = false
+    viewerReloadNeeded.value = false
+    isLoadingFromFile.value = false
+    
+    // Reset filter states
+    isFilterActive.value = false
+    latestColorBy.value = []
+    
+    // Clear cached data
+    objectsFromStore.value = undefined
+    lastLoadedRootObjectId.value = undefined
+    
+    // Clear progress and errors
+    loadingProgress.value = undefined
+    commonError.value = undefined
+    
+    // Reset field input state
+    fieldInputState.value = {
+      rootObjectId: false,
+      objectIds: false,
+      colorBy: false,
+      tooltipData: false
+    }
+  }
+
   return {
     host,
     receiveInfo,
@@ -507,6 +540,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setIsLoadingFromFile,
     resetFilters,
     downloadLatestVersion,
-    handleObjectsLoadedComplete
+    handleObjectsLoadedComplete,
+    resetVisualToInitialState
   }
 })
