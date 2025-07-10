@@ -16,7 +16,11 @@
 Speckle Power BI Data Connector lets you easily get data from Speckle into Power BI reports and visualizations. You can access and analyze data from various AEC apps (like Revit, Archicad, Grasshopper, and more) and open-source files (IFC, STL, OBJ, etc.) into Power BI with ease. 
 
 <p align="center">
-  <a href="https://app.speckle.systems/connectors/" style="display:inline-block;padding:10px 20px;background-color:#0078d4;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
+  <div align="center">
+    <a href="https://app.speckle.systems/connectors/">
+      Download Power BI Connector
+    </a>
+  </div>
     Download Power BI Connector
   </a>
 </p>
