@@ -100,7 +100,7 @@ To get started with Power BI connector, please take a look at the [documentation
 1. **Install PowerQuery SDK**:
    Follow the instructions from the [official docs](https://docs.microsoft.com/en-us/power-query/installingsdk)
 
-2. **Open the project in Visual Studio**:
+2. **Open the project in Visual Studio Code**:
    - Open `src/powerbi-data-connector/Speckle.proj`
    - Build the project to generate the `.mez` file
 
