@@ -8,12 +8,18 @@
 > Speckle is the first AEC data hub that connects with your favorite AEC tools. Speckle exists to overcome the challenges of working in a fragmented industry where communication, creative workflows, and the exchange of data are often hindered by siloed software and processes. It is here to make the industry better.
 
 <h3 align="center">
-    Speckle Connector and 3D Viewer Visual for Power BI
+    Speckle Connector and 3D Visual for Power BI
 </h3>
 
-# Features
+## Features
 
 Speckle Power BI Data Connector lets you easily get data from Speckle into Power BI reports and visualizations. You can access and analyze data from various AEC apps (like Revit, Archicad, Grasshopper, and more) and open-source files (IFC, STL, OBJ, etc.) into Power BI with ease. 
+
+<p align="center">
+  <a href="https://app.speckle.systems/connectors/" style="display:inline-block;padding:10px 20px;background-color:#0078d4;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
+    Download Power BI Connector
+  </a>
+</p>
 
 Speckle’s connection to Power BI consists of two parts:
 
@@ -22,19 +28,19 @@ Speckle’s connection to Power BI consists of two parts:
 
 ![Desktop - 1 (1)](https://github.com/specklesystems/speckle-powerbi/assets/51519350/6d2c5224-965f-4eae-b869-be26cb48c6b2)
 
-# Repo Structure
+## Repository Structure
 
-This repo is home to our Power BI connector. The Speckle Server provides all the web-facing functionality and can be found [here](https://github.com/specklesystems/Server).
+This repository is home to our Power BI connector. The Speckle Server provides all the web-facing functionality and can be found [here](https://github.com/specklesystems/Server).
 
 `src/powerbi-data-connector` contains all the code for the Data connector.
 
 `src/powerbi-visual` contains all the code for 3D Visual.
 
-# Installation
+## Installation
 
-Speckle connector can be installed directly from the [connectors portal](https://app.speckle.systems/connectors/). Full instructions for [installation](https://speckle.guide/user/powerbi/installation.html) and [configuration](https://speckle.guide/user/powerbi/configuration.html) can be found on our docs.
+Power BI connector installer can be downloaded from the [connectors portal](https://app.speckle.systems/connectors/). Full instructions for [installation](https://docs.speckle.systems/connectors/power-bi#setup) and [configuration](https://docs.speckle.systems/connectors/power-bi#why-dont-i-see-speckle-as-a-data-source-in-power-bi) can be found on our docs.
 
-# Using 3D Visual
+### 3D Visual
 
 3D Visual can be imported as any other Power BI custom visual.
 
@@ -43,34 +49,62 @@ Speckle connector can be installed directly from the [connectors portal](https:/
 3. Go to `Documents/Power BI Desktop/Custom Visuals` and import `Speckle 3D Visual.pbiviz` file.
 4. Speckle cube will appear in the Visualization pane.
 
-For more on how to use the visual, [check our docs](https://speckle.guide/user/powerbi-visual/introduction.html).
+For more on how to use the visual, [check our docs](https://docs.speckle.systems/connectors/power-bi).
 
-# Usage
+## Quick Start
 
-To get started with Power BI connectors, please take a look at the [documentation](https://speckle.guide/user/powerbi/introduction.html) and extensive [tutorials](https://www.youtube.com/playlist?list=PLlI5Dyt2HaEsZHG2WJ75WIM0Brx6VHT2S) published. 
+To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
-# **Developing & Debugging**
+## Development Setup
 
-We encourage everyone interested to debug/hack/contribute/give feedback to this project.
+### For local development of the 3D Visual
 
-## **Setup**
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/specklesystems/speckle-powerbi.git
+   cd speckle-powerbi
+   ```
 
-### **Install PowerQuery SDK**
+2. **Navigate to the visual directory**:
+   ```bash
+   cd src/powerbi-visual
+   ```
 
-Follow the instructions from the [official docs](https://docs.microsoft.com/en-us/power-query/installingsdk)
+3. **Install dependencies**:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-### **Build with Visual Studio**
+4. **Start development server**:
+   ```bash
+   npm run dev
+   ```
 
-Every time you build the connector, VisualStudio will copy the latest `.mez` connector file to the appropriate location. Just restart PowerBI to see the latest changes.
+5. **Build the visual**:
+   ```bash
+   # Development build
+   npm run build:dev
+   
+   # Production build
+   npm run build
+   ```
 
-### **Debug**
+### For local development of the Data Connector
 
-You can start the PowerQuery connector in VisualStudio, this will open a standalone connector you can use for testing purposes.
+1. **Install PowerQuery SDK**:
+   Follow the instructions from the [official docs](https://docs.microsoft.com/en-us/power-query/installingsdk)
 
-We don't know of a way to debug the connector live in PowerBI, but we'd be happy to hear about it.
+2. **Open the project in Visual Studio**:
+   - Open `src/powerbi-data-connector/Speckle.proj`
+   - Build the project to generate the `.mez` file
 
+3. **Testing the connector**:
+   - Visual Studio will automatically copy the `.mez` file to the appropriate location
+   - Restart Power BI Desktop to see the latest changes
 
-# About Speckle
+## About Speckle
 
 What is Speckle? Check our ![YouTube Video Views](https://img.shields.io/youtube/views/B9humiSpHzM?label=Speckle%20in%201%20minute%20video&style=social)
 
@@ -91,12 +125,10 @@ What is Speckle? Check our ![YouTube Video Views](https://img.shields.io/youtube
 
 Give Speckle a try in no time by:
 
-- [![app.speckle.systems](https://img.shields.io/badge/https://-speckle.xyz-0069ff?style=flat-square&logo=hackthebox&logoColor=white)](https://app.speckle.systems) ⇒ creating an account at our public server
+- [![app.speckle.systems](https://img.shields.io/badge/https://-app.speckle.systems-0069ff?style=flat-square&logo=hackthebox&logoColor=white)](https://app.speckle.systems) ⇒ creating an account at our public server
 
 ### Resources
 
 - [![Community forum users](https://img.shields.io/badge/community-forum-green?style=for-the-badge&logo=discourse&logoColor=white)](https://speckle.community) for help, feature requests or just to hang with other speckle enthusiasts, check out our community forum!
 - [![website](https://img.shields.io/badge/tutorials-speckle.systems-royalblue?style=for-the-badge&logo=youtube)](https://speckle.systems) our tutorials portal is full of resources to get you started using Speckle
-- [![docs](https://img.shields.io/badge/docs-speckle.guide-orange?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://speckle.guide/dev/) reference on almost any end-user and developer functionality
-
-![Untitled](https://user-images.githubusercontent.com/2679513/132021739-15140299-624d-4410-98dc-b6ae6d9027ab.png)
+- [![docs](https://img.shields.io/badge/docs-speckle.systems-orange?style=for-the-badge&logo=read-the-docs&logoColor=white)](https://docs.speckle.systems) reference on almost any end-user and developer functionality
