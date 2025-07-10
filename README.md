@@ -21,8 +21,6 @@ Speckle Power BI Data Connector lets you easily get data from Speckle into Power
       Download Power BI Connector
     </a>
   </div>
-    Download Power BI Connector
-  </a>
 </p>
 
 Speckle’s connection to Power BI consists of two parts:
