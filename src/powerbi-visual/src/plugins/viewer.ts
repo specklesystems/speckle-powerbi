@@ -13,13 +13,14 @@ import {
   SelectionExtension,
   FilteringExtension,
   UpdateFlags,
-  ViewerEvent
+  ViewerEvent,
+  ObjectLayers
 } from '@speckle/viewer'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { Vector3 } from 'three'
+import { Vector3, Vector2 } from 'three'
 
 export interface IViewer {
   /**
@@ -93,6 +94,9 @@ export class ViewerHandler {
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(SelectionExtension)
 
+    // Override the SelectionExtension's click handler to apply our filtering
+    this.viewer.on(ViewerEvent.ObjectClicked, this.onViewerObjectClicked.bind(this))
+
     const store = useVisualStore()
     if (store.isOrthoProjection) {
       this.cameraControls.toggleCameras()
@@ -161,7 +165,7 @@ export class ViewerHandler {
   }
 
   public resetFilter = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
-    console.log('🔗 Handling filterSelection inside ViewerHandler')
+    console.log('🔗 Handling resetFilter inside ViewerHandler')
     if (objectIds) {
       this.isolateObjects(objectIds, ghost)
       if (zoom) {
@@ -199,22 +203,96 @@ export class ViewerHandler {
   }
 
   public intersect = (coords: { x: number; y: number }) => {
-    const point = this.viewer.Utils.screenToNDC(coords.x, coords.y)
-
-    const intQuery: IntersectionQuery = {
-      operation: 'Pick',
-      point
-    }
-
-    const res = this.viewer.query(intQuery)
-
-    if (!res) {
+    const camera = this.viewer.getRenderer().renderingCamera
+    if (!camera) {
       this.selection.clearSelection()
       return
     }
+
+    // Convert screen coordinates to NDC
+    const point = this.viewer.Utils.screenToNDC(coords.x, coords.y)
+
+    // Use the renderer's intersection method directly to get detailed results
+    const results = this.viewer.getRenderer().intersections.intersect(
+      this.viewer.getRenderer().scene,
+      camera,
+      new Vector2(point.x, point.y),
+      [
+        ObjectLayers.STREAM_CONTENT_MESH,
+        ObjectLayers.STREAM_CONTENT_POINT,
+        ObjectLayers.STREAM_CONTENT_LINE,
+        ObjectLayers.STREAM_CONTENT_TEXT
+      ],
+      true,
+      this.viewer.getRenderer().clippingVolume
+    )
+    
+    if (!results || results.length === 0) {
+      this.selection.clearSelection()
+      return
+    }
+
+    // Filter out hidden and ghosted objects
+    const filteredResults = results.filter((intersection) => {
+      if (intersection.batchObject) {
+        try {
+          // Cast to the proper type that has getBatchObjectMaterial method
+          const material = (intersection.object as any).getBatchObjectMaterial(intersection.batchObject)
+          // Simple approach: only keep materials that are visible
+          // Hidden and ghosted materials should have visible: false
+          return material && material.visible
+        } catch (error) {
+          return true
+        }
+      }
+      return true
+    })
+
+    if (filteredResults.length === 0) {
+      this.selection.clearSelection()
+      return
+    }
+
+    // Convert the filtered result to the format expected by the rest of the code
+    const hits = this.viewer.getRenderer().queryHits(filteredResults)
+    
+    if (!hits || hits.length === 0) {
+      this.selection.clearSelection()
+      return
+    }
+
+    // Additional filtering based on isolation state
+    let validHits = hits
+    
+    // Use extension filtering state as fallback if local state is out of sync
+    const currentFilteringState = this.filteringState || this.filtering?.filteringState
+    const isolatedObjects = currentFilteringState?.isolatedObjects || []
+    
+    if (isolatedObjects && isolatedObjects.length > 0) {
+      validHits = hits.filter(hit => {
+        return isolatedObjects.includes(hit.node.model.id)
+      })
+    }
+
+    if (validHits.length === 0) {
+      this.selection.clearSelection()
+      return
+    }
+
+    // Use the first valid hit
+    const hit = validHits[0]
+    
     return {
-      hit: this.pickViewableHit(res.objects),
-      objects: res.objects
+      hit: {
+        guid: hit.node.model.id,
+        object: hit.node.model.raw,
+        point: hit.point
+      },
+      objects: validHits.map(h => ({
+        guid: h.node.model.id,
+        object: h.node.model.raw,
+        point: h.point
+      }))
     }
   }
 
@@ -304,6 +382,36 @@ export class ViewerHandler {
       )
         return hits[k]
     }
+  }
+
+  public onViewerObjectClicked = (selectionEvent: any) => {
+    if (!selectionEvent || !selectionEvent.hits || selectionEvent.hits.length === 0) {
+      // No selection or no hits - let the SelectionExtension handle it normally
+      return
+    }
+
+    // Apply the same isolation filtering as in our intersect method
+    const currentFilteringState = this.filteringState || this.filtering?.filteringState
+    const isolatedObjects = currentFilteringState?.isolatedObjects || []
+
+    if (isolatedObjects && isolatedObjects.length > 0) {
+      // Filter hits to only include isolated objects
+      const filteredHits = selectionEvent.hits.filter(hit => {
+        return isolatedObjects.includes(hit.node.model.id)
+      })
+
+      if (filteredHits.length === 0) {
+        // Block the selection by calling the SelectionExtension with null
+        this.selection.clearSelection()
+        return
+      }
+
+      // Update the selection event with filtered hits
+      selectionEvent.hits = filteredHits
+    }
+
+    // Let the original SelectionExtension handle the (potentially filtered) selection event
+    // We don't need to call anything here as the SelectionExtension will process it next
   }
 
   public dispose() {
