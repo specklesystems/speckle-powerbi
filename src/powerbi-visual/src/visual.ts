@@ -105,6 +105,13 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
+      // Check if Version Object ID is missing - if so, reset to initial state
+      if (!validationResult.rootObjectId) {
+        console.log('🚫 Version Object ID is missing - resetting visual to initial state')
+        visualStore.resetVisualState()
+        return
+      }
+
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
         case powerbi.VisualUpdateType.ResizeEnd:
@@ -247,14 +254,12 @@ export class Visual implements IVisual {
       console.warn(
         `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
       )
-      
-      // Reset visual state when all inputs are removed
-      visualStore.resetVisualToInitialState()
-      
-      // Clear selection handler
-      await this.clear()
-      
-      console.log('🔄 Visual state reset due to empty inputs')
+      visualStore.setFieldInputState({
+        rootObjectId: false,
+        objectIds: false,
+        colorBy: false,
+        tooltipData: false
+      })
       return
     }
   }
