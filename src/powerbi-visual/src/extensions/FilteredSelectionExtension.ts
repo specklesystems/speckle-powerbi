@@ -82,7 +82,10 @@ export class FilteredSelectionExtension extends SelectionExtension {
   }
 
   protected onObjectClicked(selection: SelectionEvent | null) {
+    console.log('🎯 FilteredSelectionExtension.onObjectClicked called with:', selection)
+    
     if (!selection) {
+      console.log('🎯 No selection, calling super with null')
       super.onObjectClicked(selection)
       return
     }
@@ -98,11 +101,14 @@ export class FilteredSelectionExtension extends SelectionExtension {
 
     if (filteredSelection) {
       for (const hit of selection.hits) {
+        console.log('🎯 Checking hit:', hit.node.model.id, 'isVisible:', this.isVisibleForSelection(hit.node.model.id))
         if (this.isVisibleForSelection(hit.node.model.id)) {
           filteredHits.push(hit)
         }
       }
     }
+
+    console.log('🎯 Filtered hits:', filteredHits.length)
 
     // Call base class with the filtered selection
     if (filteredSelection && filteredSelection.hits.length) {
