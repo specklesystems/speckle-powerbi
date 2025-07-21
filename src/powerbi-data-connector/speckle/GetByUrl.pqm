@@ -1,4 +1,4 @@
-(url as text) as table =>
+(url as text, MarkReceivedFunc as function) as table =>
     let
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
@@ -89,9 +89,18 @@
                     // get structured data
                     structuredData = GetStructuredData(url),
     
-                    // rename column based on send status
+                    // Mark the version as received
+                    markReceived = MarkReceivedFunc(
+                        parsedUrl[baseUrl],
+                        parsedUrl[projectId],
+                        modelInfo[versionId],
+                        "PowerBI"
+                    ),
+
                     newColumnName = "Version Object ID",
-                    result = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}})
+                    renamedTable = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}}),
+
+                    result = if markReceived then renamedTable else renamedTable
                 in
                     result
         else
