@@ -118,7 +118,7 @@ shared Speckle.Models.Federate = Value.ReplaceType(
 
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
-    (url as text) => Speckle.LoadFunction("GetByUrl.pqm")(url, Speckle.MarkReceived),
+    Speckle.LoadFunction("GetByUrl.pqm"),
     type function (
         url as (
             Uri.Type meta [

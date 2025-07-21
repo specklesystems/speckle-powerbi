@@ -1,4 +1,4 @@
-(url as text, MarkReceivedFunc as function) as table =>
+(url as text) as table =>
     let
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
@@ -6,6 +6,7 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+        MarkReceived = Extension.LoadFunction("api/MarkReceived.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -90,7 +91,7 @@
                     structuredData = GetStructuredData(url),
     
                     // Mark the version as received
-                    markReceived = MarkReceivedFunc(
+                    markReceived = MarkReceived(
                         parsedUrl[baseUrl],
                         parsedUrl[projectId],
                         modelInfo[versionId],
