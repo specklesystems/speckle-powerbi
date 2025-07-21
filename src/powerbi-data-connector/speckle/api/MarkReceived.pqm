@@ -2,22 +2,6 @@
     let
         ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
         
-        Extension.LoadFunction = (fileName as text) =>
-            let
-                binary = Extension.Contents(fileName),
-                asText = Text.FromBinary(binary)
-            in
-                try
-                    Expression.Evaluate(asText, #shared)
-                catch (e) =>
-                    error
-                        [
-                            Reason = "Extension.LoadFunction Failure",
-                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
-                            Message.Parameters = {fileName, e[Reason], e[Message]},
-                            Detail = [File = fileName, Error = e]
-                        ],
-        
         query = "
             mutation MarkReceived($input: MarkReceivedVersionInput!) {
               versionMutations {
