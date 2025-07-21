@@ -1,4 +1,3 @@
-import { FilteringState } from '@speckle/viewer'
 import { OrthographicCamera, PerspectiveCamera } from 'three'
 
 export function projectToScreen(cam: OrthographicCamera | PerspectiveCamera, loc) {
@@ -16,17 +15,7 @@ export interface Hit {
   object?: Record<string, unknown>
   point: { x: number; y: number; z: number }
 }
-export function pickViewableHit(hits: Hit[], state: FilteringState): Hit | null {
-  let hit = null
-  if (state.isolatedObjects) {
-    // Find the first hit contained in the isolated objects
-    hit = hits.find((hit) => {
-      const hitId = hit.object.id as string
-      return state.isolatedObjects.includes(hitId)
-    })
-  }
-  return hit
-}
+
 
 export const createViewerContainerDiv = (parent: HTMLElement) => {
   const container = parent.appendChild(document.createElement('div'))

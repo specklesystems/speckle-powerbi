@@ -1,7 +1,6 @@
 import {
   DefaultViewerParams,
   FilteringState,
-  IntersectionQuery,
   CameraController,
   CanonicalView,
   ViewModes,
@@ -13,8 +12,10 @@ import {
   SelectionExtension,
   FilteringExtension,
   UpdateFlags,
-  ViewerEvent
+  ViewerEvent,
+  SelectionEvent
 } from '@speckle/viewer'
+import { FilteredSelectionExtension, FilteredSelectionEvent } from '@src/extensions/FilteredSelectionExtension'
 import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
@@ -53,6 +54,7 @@ export interface IViewerEvents {
   toggleGhostHidden: (ghost: boolean) => void
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
+  objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
 }
 
 export type ColorBy = {
@@ -65,7 +67,7 @@ export class ViewerHandler {
   public viewer: Viewer
   public cameraControls: CameraController
   public filtering: FilteringExtension
-  public selection: SelectionExtension
+  public selection: FilteredSelectionExtension
   private filteringState: FilteringState
 
   constructor() {
@@ -91,7 +93,7 @@ export class ViewerHandler {
     this.viewer = await createViewer(parent)
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
-    this.selection = this.viewer.getExtension(SelectionExtension)
+    this.selection = this.viewer.getExtension(FilteredSelectionExtension)
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
@@ -101,6 +103,14 @@ export class ViewerHandler {
     this.viewer.on(ViewerEvent.LoadComplete, (arg: string) => {
       store.clearLoadingProgress()
     })
+
+    // Set up event listener for viewer's built-in object clicked events
+    this.viewer.on(ViewerEvent.ObjectClicked, (selection: SelectionEvent | null) => {
+      console.log('🎯 Viewer ObjectClicked event received:', selection)
+    })
+
+    // Set up event listener for filtered selection events
+    this.selection.on(FilteredSelectionEvent.FilteredObjectClicked, this.handleFilteredSelection)
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
@@ -198,25 +208,7 @@ export class ViewerHandler {
     }
   }
 
-  public intersect = (coords: { x: number; y: number }) => {
-    const point = this.viewer.Utils.screenToNDC(coords.x, coords.y)
 
-    const intQuery: IntersectionQuery = {
-      operation: 'Pick',
-      point
-    }
-
-    const res = this.viewer.query(intQuery)
-
-    if (!res) {
-      this.selection.clearSelection()
-      return
-    }
-    return {
-      hit: this.pickViewableHit(res.objects),
-      objects: res.objects
-    }
-  }
 
   public loadObjects = async (modelObjects: object[][]) => {
     await this.viewer.unloadAll()
@@ -264,7 +256,7 @@ export class ViewerHandler {
       )
       this.cameraControls.setCameraView({ position, target }, true)
     }
-    
+
     // Emit objects loaded event to trigger update
     this.emit('objectsLoaded')
   }
@@ -280,31 +272,34 @@ export class ViewerHandler {
     store.handleObjectsLoadedComplete()
   }
 
-  private pickViewableHit(hits: Hit[]): Hit | null {
-    // The current filtering state
-    const filteringState = this.filtering.filteringState
-    // Are there any objects isolated?
-    const hasIsolatedObjects =
-      !!filteringState.isolatedObjects && filteringState.isolatedObjects.length !== 0
-    // Are there any objects hidden?
-    const hasHiddenObjects =
-      !!filteringState.hiddenObjects && filteringState.hiddenObjects.length !== 0
-    // No isolated or hidden objects? Return the first hit
-    if (hasIsolatedObjects && !hasHiddenObjects) {
-      return hits.find((h) => filteringState.isolatedObjects.includes(h.guid))
+  private handleFilteredSelection = (selection: SelectionEvent | null) => {
+    console.log('🎯 Filtered selection event received:', selection)
+    
+    let hit: Hit | null = null
+    let isMultiSelect = false
+    let mouseEvent: PointerEvent | undefined = undefined
+    
+    if (selection && selection.hits.length > 0) {
+      // Convert the first hit to the Hit format expected by ViewerWrapper
+      const firstHit = selection.hits[0]
+      hit = {
+        guid: firstHit.node.model.id,
+        object: firstHit.node.model.raw,
+        point: {
+          x: firstHit.point.x,
+          y: firstHit.point.y,
+          z: firstHit.point.z
+        }
+      }
+      isMultiSelect = selection.multiple
+      mouseEvent = selection.event
     }
-
-    for (let k = 0; k < hits.length; k++) {
-      /** Return the first one that's not hidden or isolated. */
-      if (
-        hasIsolatedObjects &&
-        filteringState.isolatedObjects?.includes(hits[k].guid) &&
-        hasHiddenObjects &&
-        filteringState.hiddenObjects?.includes(hits[k].guid)
-      )
-        return hits[k]
-    }
+    
+    // Emit the objectClicked event for ViewerWrapper to handle
+    this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
   }
+
+
 
   public dispose() {
     this.viewer.getExtension(CameraController).dispose()
@@ -321,11 +316,11 @@ const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   await viewer.init()
 
   viewer.createExtension(HybridCameraController) // camera controller
-  viewer.createExtension(SelectionExtension) // selection helper
+  viewer.createExtension(FilteringExtension) // filtering - must be created before FilteredSelectionExtension
+  viewer.createExtension(FilteredSelectionExtension) // filtered selection helper - depends on FilteringExtension
   // viewer.createExtension(SectionTool) // section tool, possibly not needed for now?
   // viewer.createExtension(SectionOutlines) // section tool, possibly not needed for now?
   // viewer.createExtension(MeasurementsExtension) // measurements, possibly not needed for now?
-  viewer.createExtension(FilteringExtension) // filtering
   viewer.createExtension(ViewModes) // view modes
 
   console.log('🎥 Viewer is created!')

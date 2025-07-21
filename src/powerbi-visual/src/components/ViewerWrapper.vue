@@ -162,6 +162,10 @@ onMounted(async () => {
   console.log('Viewer Wrapper mounted')
   viewerHandler = new ViewerHandler()
   await viewerHandler.init(container.value)
+  
+  // Set up event listener for object clicks from the FilteredSelectionExtension
+  viewerHandler.emitter.on('objectClicked', handleObjectClicked)
+  
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
 
@@ -169,43 +173,59 @@ onBeforeUnmount(async () => {
   await viewerHandler.dispose()
 })
 
-function isMultiSelect(e: MouseEvent) {
-  if (!e) return false
-  if (currentOS === OS.MacOS) return e.metaKey || e.shiftKey
-  else return e.ctrlKey || e.shiftKey
-}
-
-async function onCanvasClick(ev: MouseEvent) {
+async function handleObjectClicked(hit: any, isMultiSelect: boolean, mouseEvent?: PointerEvent) {
+  // Skip if dragging occurred
   if (dragged.value) return
-
-  const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
-
-  const multi = isMultiSelect(ev)
-  const hit = intersectResult?.hit
+  
+  console.log('🎯 Object clicked in ViewerWrapper:', hit, isMultiSelect)
+  
   if (hit) {
     visualStore.setPostClickSkipNeeded(true)
     const id = hit.object.id as string
-    if (multi || !selectionHandler.isSelected(id)) {
-      await selectionHandler.select(id, multi)
+    if (isMultiSelect || !selectionHandler.isSelected(id)) {
+      await selectionHandler.select(id, isMultiSelect)
     }
-    tooltipHandler.show(hit, { x: ev.clientX, y: ev.clientY })
+    
+    // Show tooltip if we have mouse coordinates
+    if (mouseEvent) {
+      tooltipHandler.show(hit, { x: mouseEvent.clientX, y: mouseEvent.clientY })
+    }
+    
     const selection = selectionHandler.getCurrentSelection()
     const ids = selection.map((s) => s.id)
     await viewerHandler.selectObjects(ids)
   } else {
     visualStore.setPostClickSkipNeeded(false)
     tooltipHandler.hide()
-    if (!multi) {
+    if (!isMultiSelect) {
       selectionHandler.clear()
       await viewerHandler.selectObjects(null)
     }
   }
 }
 
+function onCanvasClick(ev: MouseEvent) {
+  // This click handler allows the viewer's built-in input system to handle clicks
+  // The viewer will emit ViewerEvent.ObjectClicked events which the SelectionExtension handles
+  console.log('🖱️ Canvas click detected:', ev.clientX, ev.clientY)
+  
+  // Let the event propagate to the viewer's input system
+  // The viewer should handle the click and emit ViewerEvent.ObjectClicked
+}
+
 async function onCanvasAuxClick(ev: MouseEvent) {
-  if (ev.button != 2 || dragged.value) return
-  const intersectResult = await viewerHandler.intersect({ x: ev.clientX, y: ev.clientY })
-  await selectionHandler.showContextMenu(ev, intersectResult?.hit)
+  if (ev.button !== 2 || dragged.value) return
+  
+  // For right-clicks, we need to get the object at the click position
+  // Since FilteredSelectionExtension doesn't handle right-clicks, we'll ask it for current selection
+  const selectedObjects = viewerHandler.selection.getSelectedObjects()
+  const hit = selectedObjects.length > 0 ? {
+    guid: selectedObjects[0].id,
+    object: selectedObjects[0],
+    point: { x: 0, y: 0, z: 0 } // We don't have exact point for context menu
+  } : null
+  
+  await selectionHandler.showContextMenu(ev, hit)
 }
 </script>
 
