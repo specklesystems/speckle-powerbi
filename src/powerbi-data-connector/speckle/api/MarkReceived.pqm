@@ -1,5 +1,22 @@
 (server as text, projectId as text, versionId as text, sourceApplication as text) as logical =>
     let
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
         ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
         
         query = "
