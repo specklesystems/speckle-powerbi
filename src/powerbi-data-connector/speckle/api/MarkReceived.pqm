@@ -35,6 +35,6 @@
             ]
         ],
         
-        result = ApiFetch(server, query, variables)
+        result = try ApiFetch(server, query, variables) otherwise [versionMutations = [markReceived = false]]
     in
         result[versionMutations][markReceived] 
