@@ -100,7 +100,7 @@
                     newColumnName = "Version Object ID",
                     renamedTable = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}}),
 
-                    result = if markReceived then renamedTable else renamedTable
+                    result = renamedTable
                 in
                     result
         else
