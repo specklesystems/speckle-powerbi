@@ -4,6 +4,79 @@ section Speckle;
 AuthAppId = "spklpwerbi";
 AuthAppSecret = "spklpwerbi";
 
+// PKCE helper functions for enhanced OAuth2 security
+Base64UrlEncode = (binaryData as binary) =>
+    let
+        // Convert binary to base64
+        base64 = Binary.ToText(binaryData, BinaryEncoding.Base64),
+        // Convert to base64url by replacing characters and removing padding
+        base64url = Text.Replace(Text.Replace(Text.Replace(base64, "+", "-"), "/", "_"), "=", "")
+    in
+        base64url;
+
+GeneratePKCEVerifier = () =>
+    let
+        // Generate cryptographically secure random string using allowed characters
+        // RFC 7636: [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
+        allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",
+        
+        // Generate multiple GUIDs to create entropy
+        guid1 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
+        guid2 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
+        guid3 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
+        guid4 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
+        
+        // Combine and convert to allowed characters
+        combined = guid1 & guid2 & guid3 & guid4,
+        
+        // Map hex characters to allowed PKCE characters
+        mapped = Text.Replace(
+            Text.Replace(
+                Text.Replace(
+                    Text.Replace(
+                        Text.Replace(
+                            Text.Replace(combined, "0", "A"),
+                            "1", "B"),
+                        "2", "C"),
+                    "3", "D"),
+                "4", "E"),
+            "5", "F"),
+        
+        // Continue mapping remaining hex chars to allowed chars
+        verifier = Text.Replace(
+            Text.Replace(
+                Text.Replace(
+                    Text.Replace(
+                        Text.Replace(
+                            Text.Replace(
+                                Text.Replace(
+                                    Text.Replace(
+                                        Text.Replace(
+                                            Text.Replace(mapped, "6", "G"),
+                                            "7", "H"),
+                                        "8", "I"),
+                                    "9", "J"),
+                                "a", "K"),
+                            "b", "L"),
+                        "c", "M"),
+                    "d", "N"),
+                "e", "O"),
+            "f", "P"),
+        
+        // Ensure length is between 43-128 characters as per RFC 7636
+        finalVerifier = Text.Start(verifier, 43)
+    in
+        finalVerifier;
+
+GeneratePKCEChallenge = (verifier as text) =>
+    let
+        // Create SHA256 hash of the verifier as required by RFC 7636
+        hash = Crypto.CreateHash(CryptoAlgorithm.SHA256, Text.ToBinary(verifier, TextEncoding.Ascii)),
+        // Convert to base64url encoding
+        challenge = Base64UrlEncode(hash)
+    in
+        challenge;
+
 // function to load `pqm` files - this is essential and must be kept
 shared Speckle.LoadFunction = (fileName as text) =>
     let
@@ -182,14 +255,21 @@ Speckle = [
                 let
                     server = Text.Combine(
                         {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
-                    )
+                    ),
+                    // Generate PKCE parameters for enhanced security
+                    codeVerifier = GeneratePKCEVerifier(),
+                    codeChallenge = GeneratePKCEChallenge(codeVerifier),
+                    // Build authorization URL with PKCE parameters
+                    authUrl = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
+                        "?code_challenge=" & codeChallenge &
+                        "&code_challenge_method=S256"
                 in
                     [
-                        LoginUri = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/"),
+                        LoginUri = authUrl,
                         CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
                         WindowHeight = 800,
                         WindowWidth = 600,
-                        Context = null
+                        Context = [code_verifier = codeVerifier]
                     ],
             FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
                 let
@@ -197,20 +277,22 @@ Speckle = [
                         {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
                     ),
                     Parts = Uri.Parts(callbackUri)[Query],
+                    // Extract code verifier from context for PKCE
+                    codeVerifier = if context <> null then context[code_verifier] else null,
+                    // Build token request with PKCE parameters
+                    tokenRequest = [
+                        accessCode = Parts[access_code],
+                        appId = AuthAppId,
+                        appSecret = AuthAppSecret,
+                        challenge = state
+                    ] & (if codeVerifier <> null then [code_verifier = codeVerifier] else []),
                     Source = Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
                         [
                             Headers = [
                                 #"Content-Type" = "application/json"
                             ],
-                            Content = Json.FromValue(
-                                [
-                                    accessCode = Parts[access_code],
-                                    appId = AuthAppId,
-                                    appSecret = AuthAppSecret,
-                                    challenge = state
-                                ]
-                            )
+                            Content = Json.FromValue(tokenRequest)
                         ]
                     ),
                     json = Json.Document(Source)
@@ -226,7 +308,8 @@ Speckle = [
                     server = Text.Combine(
                         {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
                     ),
-                    Source = Web.Contents(
+                    // Enhanced refresh with error handling for gateway compatibility
+                    Source = try Web.Contents(
                         Text.Combine({server, "auth", "token"}, "/"),
                         [
                             Headers = [
@@ -238,17 +321,42 @@ Speckle = [
                                     appId = AuthAppId,
                                     appSecret = AuthAppSecret
                                 ]
-                            )
+                            ),
+                            ManualStatusHandling = {400, 401, 403, 500, 502, 503, 504}
                         ]
-                    ),
-                    json = Json.Document(Source)
+                    ) otherwise null,
+                    
+                    // Check if request was successful
+                    IsSuccess = Source <> null,
+                    
+                    // If successful, parse the response
+                    json = if IsSuccess then
+                        try Json.Document(Source) otherwise null
+                    else
+                        null,
+                    
+                    // Validate the response contains expected fields
+                    IsValidResponse = json <> null and Record.HasFields(json, {"token"}),
+                    
+                    // Return result with enhanced error handling
+                    result = if IsValidResponse then
+                        [
+                            access_token = json[token],
+                            scope = null,
+                            token_type = "bearer",
+                            refresh_token = json[refreshToken]
+                        ]
+                    else
+                        error [
+                            Reason = "TokenRefreshFailed",
+                            Message = "Failed to refresh OAuth token - please re-authenticate",
+                            Detail = [
+                                Server = server,
+                                RefreshToken = if refreshToken = null then "null" else "present"
+                            ]
+                        ]
                 in
-                    [
-                        access_token = json[token],
-                        scope = null,
-                        token_type = "bearer",
-                        refresh_token = json[refreshToken]
-                    ]
+                    result
         ],
         Key = [
             KeyLabel = "Personal Access Token",
