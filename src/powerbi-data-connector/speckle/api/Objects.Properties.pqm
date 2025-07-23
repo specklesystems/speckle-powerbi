@@ -1,5 +1,5 @@
 // function for extracting and flattening properties from Speckle objects
-(inputRecord as any, optional targetFields as list, optional parentPath as text, optional existingFields as list) as record =>
+(inputRecord as any, optional filterKeys as list, optional parentPath as text, optional existingFields as list) as record =>
 let
     // Define excluded paths
     ExcludedPaths = {
@@ -66,7 +66,7 @@ let
     FlattenRecordImpl = (
         flattenFn as function,
         inputRecord as any, 
-        targetFields as nullable list, 
+        filterKeys as nullable list, 
         parentPathParam as nullable text, 
         existingFieldsParam as nullable list
     ) as record =>
@@ -74,7 +74,7 @@ let
             // Ensure non-null values for internal use
             currentParentPath = if parentPathParam = null then "" else parentPathParam,
             currentExistingFields = if existingFieldsParam = null then {} else existingFieldsParam,
-            currentTargetFields = targetFields,
+            currentfilterKeys = filterKeys,
             
             // Check if record has "properties" field and use it instead of the root record
             recordToProcess = if inputRecord = null then 
@@ -86,8 +86,8 @@ let
             
             // Helper function to check if a field should be included
             ShouldIncludeField = (fieldName as text) as logical =>
-                if currentTargetFields = null then true
-                else List.Contains(currentTargetFields, fieldName),
+                if currentfilterKeys = null then true
+                else List.Contains(currentfilterKeys, fieldName),
             
             // Handle different input types
             result = if recordToProcess = null then
@@ -157,7 +157,7 @@ let
                                                     let
                                                         // Call the function through the passed reference
                                                         // IMPORTANT: Pass the current state's existing fields list
-                                                        flattened = flattenFn(flattenFn, fieldValue, currentTargetFields, newPath, state[ExistingFieldsList]),
+                                                        flattened = flattenFn(flattenFn, fieldValue, currentfilterKeys, newPath, state[ExistingFieldsList]),
                                                         // Get all field names from the flattened result
                                                         flattenedFieldNames = Record.FieldNames(flattened),
                                                         // Merge the flattened record with the current state
@@ -193,7 +193,7 @@ let
                                                                         else
                                                                             let
                                                                                 // Call the function through the passed reference
-                                                                                flattened = flattenFn(flattenFn, listItem, currentTargetFields, listPath, listState[ExistingFieldsList]),
+                                                                                flattened = flattenFn(flattenFn, listItem, currentfilterKeys, listPath, listState[ExistingFieldsList]),
                                                                                 // Get all field names from the flattened result
                                                                                 flattenedFieldNames = Record.FieldNames(flattened),
                                                                                 // Merge the flattened record with the current state
@@ -252,6 +252,6 @@ let
             result,
     
     // Call the implementation with self-reference
-    result = FlattenRecordImpl(FlattenRecordImpl, inputRecord, targetFields, parentPath, existingFields)
+    result = FlattenRecordImpl(FlattenRecordImpl, inputRecord, filterKeys, parentPath, existingFields)
 in
     result
