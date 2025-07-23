@@ -156,9 +156,14 @@ let
                                                 else
                                                     let
                                                         // Call the function through the passed reference
+                                                        // IMPORTANT: Pass the current state's existing fields list
                                                         flattened = flattenFn(flattenFn, fieldValue, currentTargetFields, newPath, state[ExistingFieldsList]),
+                                                        // Get all field names from the flattened result
+                                                        flattenedFieldNames = Record.FieldNames(flattened),
+                                                        // Merge the flattened record with the current state
                                                         combinedRecord = flattened & state[FlattenedRecord],
-                                                        allFieldNames = Record.FieldNames(combinedRecord)
+                                                        // Update the existing fields list with ALL fields from both records
+                                                        allFieldNames = List.Distinct(state[ExistingFieldsList] & flattenedFieldNames)
                                                     in
                                                         [FlattenedRecord = combinedRecord, ExistingFieldsList = allFieldNames]
                                             in
@@ -189,8 +194,12 @@ let
                                                                             let
                                                                                 // Call the function through the passed reference
                                                                                 flattened = flattenFn(flattenFn, listItem, currentTargetFields, listPath, listState[ExistingFieldsList]),
+                                                                                // Get all field names from the flattened result
+                                                                                flattenedFieldNames = Record.FieldNames(flattened),
+                                                                                // Merge the flattened record with the current state
                                                                                 combinedRecord = flattened & listState[FlattenedRecord],
-                                                                                allFieldNames = Record.FieldNames(combinedRecord)
+                                                                                // Update the existing fields list with ALL fields
+                                                                                allFieldNames = List.Distinct(listState[ExistingFieldsList] & flattenedFieldNames)
                                                                             in
                                                                                 [FlattenedRecord = combinedRecord, ExistingFieldsList = allFieldNames]
                                                                     in
