@@ -184,6 +184,11 @@ shared Speckle.Models.Federate = Value.ReplaceType(
     type function (tables as list, optional excludeData as logical) as table
 );
 
+shared Speckle.Models.MaterialQuantities = Value.ReplaceType(
+    Speckle.LoadFunction("Models.MaterialQuantities.pqm"),
+    type function (inputTable as table) as table
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
