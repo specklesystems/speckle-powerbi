@@ -186,7 +186,7 @@ shared Speckle.Models.Federate = Value.ReplaceType(
 
 shared Speckle.Models.MaterialQuantities = Value.ReplaceType(
     Speckle.LoadFunction("Models.MaterialQuantities.pqm"),
-    type function (inputTable as table) as table
+    type function (inputTable as table, optional addPrefix as logical) as table
 );
 
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
