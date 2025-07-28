@@ -47,6 +47,7 @@
             SourceApplication = modelInfo[sourceApplication],
             Token = apiKey,
             Version = connectorVersion,
+            VersionId = parsedUrl[versionId],
             WorkspaceId = workspaceInfo[workspaceId],
             WorkspaceName = workspaceInfo[workspaceName],
             WorkspaceLogo = workspaceInfo[workspaceLogo],
