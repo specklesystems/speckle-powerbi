@@ -150,7 +150,7 @@ shared Speckle.GetWorkspace = Value.ReplaceType(
 
 shared Speckle.Objects.Properties = Value.ReplaceType(
     Speckle.LoadFunction("Objects.Properties.pqm"),
-    type function (inputRecord as record, optional filterKeys as list) as record
+    type function (inputRecord as any, optional filterKeys as list, optional parentPath as text, optional existingFields as list) as record
 );
 
 
