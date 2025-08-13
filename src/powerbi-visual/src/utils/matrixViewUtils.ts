@@ -340,13 +340,26 @@ export async function processMatrixView(
   const localMatrixView = matrixView.rows.root.children
   let id = null
 
-  if (hasColorFilter) {
-    id = localMatrixView[0].children[0].values[0].value as unknown as string
-  } else {
-    id = localMatrixView[0].values[0].value as unknown as string
+  // Safely extract the Version Object ID
+  try {
+    if (hasColorFilter) {
+      id = localMatrixView[0]?.children?.[0]?.values?.[0]?.value as unknown as string
+    } else {
+      id = localMatrixView[0]?.values?.[0]?.value as unknown as string
+    }
+  } catch (error) {
+    console.error('❌ Error extracting Version Object ID from matrix view:', error)
+    visualStore.setCommonError('Unable to extract Version Object ID from data. Please check your data configuration.')
+    return
   }
 
-  // const id = localMatrixView[0].values[0].value as unknown as string
+  // Validate that we have a valid ID
+  if (!id || id === null || id === undefined) {
+    console.error('❌ Version Object ID is null or undefined')
+    visualStore.setCommonError('Version Object ID is missing or invalid. Please ensure the field is properly configured.')
+    return
+  }
+
   console.log('🗝️ Root Object Id: ', id)
   console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
 

@@ -437,6 +437,38 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value.refreshHostData()
   }
 
+  const resetVisualState = () => {
+    console.log('🔄 Resetting visual state due to missing Version Object ID')
+    
+    // Clear all data and state
+    dataInput.value = null
+    lastLoadedRootObjectId.value = undefined
+    objectsFromStore.value = undefined
+    receiveInfo.value = undefined
+    commonError.value = undefined
+    loadingProgress.value = undefined
+    
+    // Reset viewer state
+    isViewerReadyToLoad.value = false
+    isViewerObjectsLoaded.value = false
+    viewerReloadNeeded.value = false
+    isLoadingFromFile.value = false
+    
+    // Reset UI state
+    isFilterActive.value = false
+    isNavbarHidden.value = false
+    
+    // Reset field input state
+    fieldInputState.value = {
+      rootObjectId: false,
+      objectIds: false,
+      colorBy: false,
+      tooltipData: false
+    }
+    
+    console.log('✅ Visual state reset complete')
+  }
+
   return {
     host,
     receiveInfo,
@@ -507,6 +539,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setIsLoadingFromFile,
     resetFilters,
     downloadLatestVersion,
-    handleObjectsLoadedComplete
+    handleObjectsLoadedComplete,
+    resetVisualState
   }
 })

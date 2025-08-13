@@ -105,6 +105,13 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
+      // Check if Version Object ID is missing - if so, reset to initial state
+      if (!validationResult.rootObjectId) {
+        console.log('🚫 Version Object ID is missing - resetting visual to initial state')
+        visualStore.resetVisualState()
+        return
+      }
+
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
         case powerbi.VisualUpdateType.ResizeEnd:
