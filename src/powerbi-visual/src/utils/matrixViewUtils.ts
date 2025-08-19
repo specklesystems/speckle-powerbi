@@ -158,6 +158,7 @@ export type ReceiveInfo = {
   workspaceName?: string
   canHideBranding: boolean
   version?: string
+  token: string
 }
 
 export type PreGetObjects = {
@@ -379,9 +380,11 @@ export async function processMatrixView(
         workspaceName: receiveInfo.workspaceName,
         workspaceLogo: receiveInfo.workspaceLogo,
         version: receiveInfo.version,
-        canHideBranding: receiveInfo.canHideBranding
+        canHideBranding: receiveInfo.canHideBranding,
+        token: receiveInfo.weakToken || receiveInfo.WeakToken || receiveInfo.token
       })
       console.log(`Receive info retrieved from desktop service`, receiveInfo)
+      console.log(`Token from receiveInfo:`, (receiveInfo.weakToken || receiveInfo.WeakToken || receiveInfo.token) ? 'TOKEN PRESENT' : 'NO TOKEN')
     }
 
     const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
