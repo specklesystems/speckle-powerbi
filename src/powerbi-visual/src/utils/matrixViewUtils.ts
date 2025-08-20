@@ -285,6 +285,15 @@ export async function processMatrixView(
     try {
       modelObjects = await fetchFromSpeckleApi(id, serverUrl, projectId, token)
       console.log('Successfully downloaded from Speckle API')
+      
+      // Debug: Check what we're passing to the viewer
+      if (modelObjects && modelObjects.length > 0 && modelObjects[0].length > 0) {
+        console.log('ModelObjects structure:', {
+          totalModels: modelObjects.length,
+          firstModelObjectCount: modelObjects[0].length,
+          firstObject: modelObjects[0][0]
+        })
+      }
     } catch (error) {
       console.error('Failed to download from Speckle API:', error)
       visualStore.setCommonError(

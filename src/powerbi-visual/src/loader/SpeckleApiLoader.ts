@@ -1,12 +1,11 @@
 import { useVisualStore } from '@src/store/visualStore'
+import ObjectLoader from '@speckle/objectloader' // Default import for v1
 
 interface SpeckleObject {
   id: string
-  speckleType?: string
-  data?: any
+  speckle_type?: string
   [key: string]: any
 }
-
 
 export class SpeckleApiLoader {
   private serverUrl: string
@@ -24,44 +23,64 @@ export class SpeckleApiLoader {
     }
   }
 
-
   async downloadObjectsWithChildren(objectId: string, onProgress?: (loaded: number, total: number) => void): Promise<SpeckleObject[]> {
     const visualStore = useVisualStore()
-    
-    visualStore.setLoadingProgress('Downloading objects from Speckle', 0)
 
-    // Use the correct REST API endpoint for downloading object and all its children
-    const url = `${this.serverUrl}/objects/${this.projectId}/${objectId}`
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        ...this.headers,
-        'Accept': 'application/json'
+    visualStore.setLoadingProgress('Initializing object loader', 0)
+    console.log('Creating ObjectLoader v1 for Power BI environment')
+
+    // Create ObjectLoader v1 instance - use 'token' not 'authToken'
+    const loader = new ObjectLoader({
+      serverUrl: this.serverUrl,
+      streamId: this.projectId,
+      objectId: objectId,
+      token: this.token,
+      options: {
+        enableCaching: false, // Disable caching for Power BI environment
       }
     })
 
-    if (!response.ok) {
-      throw new Error(`Failed to download objects: ${response.statusText}`)
-    }
+    try {
+      // Get total count for progress tracking
+      const totalCount = await loader.getTotalObjectCount()
+      console.log(`Loading ${totalCount} objects using ObjectLoader v1`)
 
-    // Parse JSON response directly (not NDJSON)
-    const objects: SpeckleObject[] = await response.json()
-    
-    console.log(`Downloaded ${objects.length} objects from Speckle REST API`)
+      const objects: SpeckleObject[] = []
+      let loadedCount = 0
 
-    // Clean up objects (remove unnecessary data)
-    for (let i = 1; i < objects.length; i++) {
-      const obj = objects[i]
-      if (obj.speckleType?.includes('Objects.Data.DataObject')) {
-        delete obj.properties
+      // Stream all objects using the async iterator
+      for await (const obj of loader.getObjectIterator()) {
+        objects.push(obj as SpeckleObject) // Type assertion since ObjectLoader v1 has different type
+        loadedCount++
+
+        // Update progress
+        if (onProgress) {
+          onProgress(loadedCount, totalCount)
+        }
+
+        const progress = totalCount > 0 ? loadedCount / totalCount : 0
+        visualStore.setLoadingProgress('Loading objects from Speckle', progress)
+
+        // Log progress every 100 objects
+        if (loadedCount % 100 === 0) {
+          console.log(`Loaded ${loadedCount}/${totalCount} objects`)
+        }
       }
-      delete obj.__closure
-    }
 
-    visualStore.setLoadingProgress('Download complete', 1)
-    
-    return objects
+      console.log(`Downloaded ${objects.length} objects using ObjectLoader v1`)
+      visualStore.setLoadingProgress('Download complete', 1)
+
+      return objects
+
+    } catch (error) {
+      console.error('Error loading objects:', error)
+      throw error
+    } finally {
+      // ObjectLoader v1 cleanup
+      if (loader.dispose) {
+        loader.dispose()
+      }
+    }
   }
 
   async downloadFromVersionId(versionId: string): Promise<SpeckleObject[]> {
