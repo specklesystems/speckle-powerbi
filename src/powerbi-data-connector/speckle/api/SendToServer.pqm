@@ -37,10 +37,10 @@
 
         workspaceInfo = GetWorkspace(url),
 
-        // Exchange powerful token for weak token
+        // exchange powerful token for weak token via ds 
         tokenExchangeData = Json.FromValue([
             PowerfulToken = apiKey,
-            Scopes = {"streams:read", "profile:read"},
+            Scopes = {"profile:read", "streams:read", "users:read"},
             ProjectId = parsedUrl[projectId]
         ]),
         
@@ -59,13 +59,13 @@
         tokenExchangeJson = Json.Document(tokenExchangeResponse),
         weakToken = tokenExchangeJson[token],
 
-        // Prepare request data with only weak token
+        // prepare request data with weak token
         requestData = Json.FromValue([
             Url = url,
             Server = parsedUrl[baseUrl],
             Email = userEmail,
             ProjectId = parsedUrl[projectId],
-            ObjectId = modelInfo[rootObjectId],
+            RootObjectId = modelInfo[rootObjectId],
             SourceApplication = modelInfo[sourceApplication],
             Token = weakToken,
             Version = connectorVersion,

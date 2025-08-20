@@ -3,7 +3,6 @@ import { Version } from '@src/composables/useUpdateConnector'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
-import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
@@ -83,7 +82,11 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value = hostToSet
   }
 
-  const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => (receiveInfo.value = newReceiveInfo)
+  const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => {
+    receiveInfo.value = newReceiveInfo
+    // Save receiveInfo to file for persistence (contains token and metadata)
+    writeReceiveInfoToFile()
+  }
 
   const setLatestAvailableVersion = (version: Version | null) => {
     latestAvailableVersion.value = version
@@ -133,17 +136,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     id: string
   }
 
-  const loadObjectsFromFile = async (objects: object[][]) => {
-    const savedVersionObjectId = objects.map((o) => (o[0] as SpeckleObject).id).join(',')
-    lastLoadedRootObjectId.value = savedVersionObjectId
-    viewerReloadNeeded.value = false
-    console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
-    await viewerEmit.value('loadObjects', objects)
-    objectsFromStore.value = objects
-    isViewerObjectsLoaded.value = true
-    viewerReloadNeeded.value = false
-    setIsLoadingFromFile(false)
-  }
 
   /**
    * Sets upcoming data input into store to be able to pass it through viewer by evaluating the data.
@@ -159,8 +151,6 @@ export const useVisualStore = defineStore('visualStore', () => {
       await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
-      setLoadingProgress('Storing objects into file', null)
-      writeObjectsToFile(dataInput.value.modelObjects)
       loadingProgress.value = undefined
     }
 
@@ -181,17 +171,15 @@ export const useVisualStore = defineStore('visualStore', () => {
     viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
-  const writeObjectsToFile = (modelObjects: object[][]) => {
+  const writeReceiveInfoToFile = () => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
-    const compressedChunks = zipModelObjects(modelObjects, 10000) // Compress in chunks
 
     host.value.persistProperties({
       merge: [
         {
           objectName: 'storedData',
           properties: {
-            speckleObjects: compressedChunks,
             receiveInfo: JSON.stringify(receiveInfo.value)
           },
           selector: null
@@ -338,7 +326,6 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const clearDataInput = () => (dataInput.value = null)
 
-  const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
 
   const setViewerReadyToLoad = (newValue: boolean) => (isViewerReadyToLoad.value = newValue)
 
@@ -481,12 +468,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     setCameraPositionInFile,
     setDefaultViewModeInFile,
     setSpeckleViews,
-    loadObjectsFromFile,
     setHost,
     setReceiveInfo,
     setViewerReloadNeeded,
     setObjectsFromStore,
-    writeObjectsToFile,
     writeCameraViewToFile,
     writeIsGhostToFile,
     writeZoomOnFilterToFile,
@@ -504,7 +489,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     setViewerReadyToLoad,
     setLoadingProgress,
     clearLoadingProgress,
-    setIsLoadingFromFile,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete

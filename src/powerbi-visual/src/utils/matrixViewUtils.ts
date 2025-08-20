@@ -11,6 +11,7 @@ import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { delay } from 'lodash'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
 import { useUpdateConnector } from '@src/composables/useUpdateConnector'
+import { SpeckleApiLoader } from '@src/loader/SpeckleApiLoader'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -159,41 +160,10 @@ export type ReceiveInfo = {
   canHideBranding: boolean
   version?: string
   token: string
+  projectId?: string
 }
 
-export type PreGetObjects = {
-  modelExists: boolean
-  objectCount?: number
-}
 
-async function getPreGetObjects(commaSeparatedModelIds: string): Promise<PreGetObjects[]> {
-  const modelIds = (commaSeparatedModelIds as string).split(',')
-  const preGetObjects = []
-
-  for await (const id of modelIds) {
-    const res = await getPreGetObjectsForModel(id)
-    preGetObjects.push(res)
-  }
-  return preGetObjects
-}
-
-async function getPreGetObjectsForModel(id: string): Promise<PreGetObjects> {
-  try {
-    const preGetObjectsRes = await fetch(`http://localhost:29364/pre-get-objects/${id}`)
-
-    if (!preGetObjectsRes.body) {
-      console.log('No response body for pre get objects')
-      return {
-        modelExists: false,
-        objectCount: null
-      } as PreGetObjects
-    }
-
-    return (await preGetObjectsRes.json()) as PreGetObjects
-  } catch (error) {
-    console.log(error)
-  }
-}
 
 async function getReceiveInfo(id) {
   try {
@@ -207,120 +177,33 @@ async function getReceiveInfo(id) {
     return await response.json()
   } catch (error) {
     console.log(error)
-    console.log("User infp couldn't retrieved from local server.")
+    console.log("User info couldn't retrieved from local server.")
   }
 }
 
-async function fetchStreamedData(commaSeparatedModelIds: string, totalObjectCount: number) {
-  const modelIds = (commaSeparatedModelIds as string).split(',')
+async function fetchFromSpeckleApi(
+  objectIds: string,
+  serverUrl: string,
+  projectId: string,
+  token: string
+): Promise<object[][]> {
+  const ids = objectIds.split(',')
   const modelObjects = []
-
-  let loadedObjectCount = 0
-
-  for await (const id of modelIds) {
-    const objects = await fetchStreamedDataForModel(id, totalObjectCount, loadedObjectCount)
-    modelObjects.push(objects)
-    loadedObjectCount += objects.length
-  }
-  return modelObjects
-}
-
-async function fetchStreamedDataForModel(
-  id: string,
-  totalObjectCount: number,
-  loadedObjectCount: number
-) {
-  console.log(loadedObjectCount, totalObjectCount)
-
-  try {
-    const visualStore = useVisualStore()
-    const response = await fetch(`http://localhost:29364/get-objects/${id}`)
-
-    if (!response.body) {
-      console.error('No response body')
-      return
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    const objects = []
-    let buffer = ''
-
-    const start = performance.now()
-    console.log('Streaming started...')
-    for await (const chunk of readStream(reader)) {
-      // chucks.push(chuck)
-      buffer += decoder.decode(chunk, { stream: true })
-
-      let boundary
-      while ((boundary = buffer.indexOf('\n')) !== -1) {
-        const jsonString = buffer.slice(0, boundary)
-        buffer = buffer.slice(boundary + 1)
-
-        try {
-          const obj = JSON.parse(jsonString)
-          objects.push(obj)
-          visualStore.setLoadingProgress(
-            'Loading objects from storage',
-            (objects.length + loadedObjectCount) / totalObjectCount
-          )
-          // console.log('Loading', (objects.length + loadedObjectCount) / totalObjectCount)
-
-          // console.log('Received object:', jsonObject)
-        } catch (e) {
-          console.error('Invalid JSON chunk:', jsonString)
-        }
-      }
-    }
+  
+  for (const objectId of ids) {
     try {
-      const obj = JSON.parse(buffer)
-      objects.push(obj)
-      // console.log('Received object:', jsonObject)
-    } catch (e) {
-      console.error('Invalid JSON chunk:', buffer)
-    }
-
-    const end = performance.now()
-    console.log(`Objects streamed in: ${(end - start) / 1000} s`)
-
-    const startObjectCleanup = performance.now()
-    // Skips first element
-    for (let i = 1; i < objects.length; i++) {
-      const obj = objects[i]
-      if (obj.speckle_type) {
-        if (obj.speckle_type.includes('Objects.Data.DataObject')) {
-          delete obj.properties
-        }
-      }
-      delete obj.__closure
-    }
-    const endObjectCleanup = performance.now()
-    console.log(`Objects cleaned up in: ${(endObjectCleanup - startObjectCleanup) / 1000} s`)
-
-    try {
-      const sizeInBytes = new TextEncoder().encode(JSON.stringify(objects)).length
-      const sizeInMB = sizeInBytes / (1024 * 1024)
-      console.log(`Size of objects: ${sizeInMB} MB`)
+      console.log(`Downloading from Speckle API: ${objectId}`)
+      const loader = new SpeckleApiLoader(serverUrl, projectId, token)
+      const objects = await loader.downloadObjectsWithChildren(objectId)
+      modelObjects.push(objects)
+      console.log(`Downloaded ${objects.length} objects from Speckle`)
     } catch (error) {
-      console.log("Can't calculate the size of the model")
-      console.log(error)
+      console.error(`Failed to download objects from Speckle:`, error)
+      throw error
     }
-
-    return objects
-  } catch (error) {
-    console.log(error)
-    console.log("Objects couldn't retrieved from local server.")
-  } finally {
-    console.log('Streaming finished!')
   }
-}
-
-async function* readStream(reader) {
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    yield value
-  }
+  
+  return modelObjects
 }
 
 export async function processMatrixView(
@@ -353,47 +236,70 @@ export async function processMatrixView(
 
   let modelObjects: object[][] = undefined
 
-  if (visualStore.isLoadingFromFile) {
-    console.log('The data is loading from file, skipping the streaming it.')
-  }
-
-  if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
+  if (visualStore.lastLoadedRootObjectId !== id) {
     const start = performance.now()
 
-    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
-
-    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
-      visualStore.setCommonError(
-        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
-      )
-      visualStore.setViewerReadyToLoad(false)
-      return
-    }
-
+    // Get receive info from desktop service to populate visual store
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
       visualStore.setReceiveInfo({
-        userEmail: receiveInfo.email,
-        serverUrl: receiveInfo.server,
-        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication),
-        workspaceId: receiveInfo.workspaceId,
-        workspaceName: receiveInfo.workspaceName,
-        workspaceLogo: receiveInfo.workspaceLogo,
-        version: receiveInfo.version,
-        canHideBranding: receiveInfo.canHideBranding,
-        token: receiveInfo.weakToken || receiveInfo.WeakToken || receiveInfo.token
+        userEmail: receiveInfo.email || receiveInfo.Email,
+        serverUrl: receiveInfo.server || receiveInfo.Server,
+        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication || receiveInfo.SourceApplication),
+        workspaceId: receiveInfo.workspaceId || receiveInfo.WorkspaceId,
+        workspaceName: receiveInfo.workspaceName || receiveInfo.WorkspaceName,
+        workspaceLogo: receiveInfo.workspaceLogo || receiveInfo.WorkspaceLogo,
+        version: receiveInfo.version || receiveInfo.Version,
+        canHideBranding: receiveInfo.canHideBranding ?? receiveInfo.CanHideBranding,
+        token: receiveInfo.weakToken || receiveInfo.WeakToken,
+        projectId: receiveInfo.projectId || receiveInfo.ProjectId
       })
-      console.log(`Receive info retrieved from desktop service`, receiveInfo)
-      console.log(`Token from receiveInfo:`, (receiveInfo.weakToken || receiveInfo.WeakToken || receiveInfo.token) ? 'TOKEN PRESENT' : 'NO TOKEN')
+      console.log(`Receive info retrieved from desktop service - credentials loaded`)
+      console.log(`Token from receiveInfo:`, (receiveInfo.weakToken || receiveInfo.WeakToken) ? 'TOKEN PRESENT' : 'NO TOKEN')
     }
 
-    const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
-      return sum + (obj.objectCount ?? 0)
-    }, 0)
+    // Now get the data from visual store for Speckle API download
+    const token = visualStore.receiveInfo?.token
+    const serverUrl = visualStore.receiveInfo?.serverUrl  
+    const projectId = visualStore.receiveInfo?.projectId
+    
+    if (!token || !serverUrl || !projectId) {
+      visualStore.setCommonError(
+        'Missing Speckle credentials. Please refresh the data from the data connector.'
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return {
+        modelObjects: [],
+        objectIds: [],
+        selectedIds: [],
+        colorByIds: null,
+        objectTooltipData: new Map(),
+        isFromStore: false
+      }
+    }
 
     visualStore.setViewerReadyToLoad(true)
-    // stream data
-    modelObjects = await fetchStreamedData(id, totalObjectCount)
+    
+    console.log('Downloading objects directly from Speckle API...')
+    console.log(`Server: ${serverUrl}, Project: ${projectId}, Object: ${id}`)
+    try {
+      modelObjects = await fetchFromSpeckleApi(id, serverUrl, projectId, token)
+      console.log('Successfully downloaded from Speckle API')
+    } catch (error) {
+      console.error('Failed to download from Speckle API:', error)
+      visualStore.setCommonError(
+        `Failed to download objects from Speckle: ${error.message}`
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return {
+        modelObjects: [],
+        objectIds: [],
+        selectedIds: [],
+        colorByIds: null,
+        objectTooltipData: new Map(),
+        isFromStore: false
+      }
+    }
 
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
     visualStore.setLoadingProgress('Loading objects into viewer', null)

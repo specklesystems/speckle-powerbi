@@ -21,7 +21,6 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
-import { unzipModelObjects } from './utils/compression'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -114,15 +113,12 @@ export class Visual implements IVisual {
           return
         case powerbi.VisualUpdateType.Data:
           try {
-            // read saved data from file if any
+            // read saved settings from file if any
             if (
               !visualStore.isViewerObjectsLoaded &&
               this.isFirstViewerLoad &&
               options.dataViews[0].metadata.objects
             ) {
-              const chunks = options.dataViews[0].metadata.objects.storedData
-                ?.speckleObjects as string
-              const objectsFromFile = unzipModelObjects(chunks)
 
               if (options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string) {
                 console.log(
@@ -206,20 +202,16 @@ export class Visual implements IVisual {
                 )
               }
 
-              // get receive info from file for mixpanel
+              // get receive info from file for persistence
               try {
                 const receiveInfoFromFile = JSON.parse(
                   options.dataViews[0].metadata.objects.storedData?.receiveInfo as string
                 ) as ReceiveInfo
-                visualStore.setReceiveInfo(receiveInfoFromFile)
+                // Don't call setReceiveInfo here as it would trigger another save
+                visualStore.receiveInfo = receiveInfoFromFile
               } catch (error) {
                 console.warn(error)
-                console.log('missing mixpanel info')
-              }
-
-              const savedVersionObjectId = objectsFromFile.map((o) => o[0].id).join(',')
-              if (visualStore.lastLoadedRootObjectId !== savedVersionObjectId) {
-                this.tryReadFromFile(objectsFromFile, visualStore)
+                console.log('missing stored receive info')
               }
             }
 
@@ -281,15 +273,6 @@ export class Visual implements IVisual {
     }
   }
 
-  private tryReadFromFile(objectsFromFile: object[][], visualStore) {
-    visualStore.setViewerReadyToLoad(true)
-    visualStore.setIsLoadingFromFile(true) // to block unnecessary streaming data if bg service is running
-    setTimeout(() => {
-      visualStore.loadObjectsFromFile(objectsFromFile)
-      this.isFirstViewerLoad = false
-    }, 250)
-    console.log(`${objectsFromFile.length} objects retrieved from persistent properties!`)
-  }
 
   public async destroy() {
     await this.clear()
