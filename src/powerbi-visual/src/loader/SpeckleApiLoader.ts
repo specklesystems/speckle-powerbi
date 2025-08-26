@@ -59,7 +59,7 @@ export class SpeckleApiLoader {
         }
 
         const progress = totalCount > 0 ? loadedCount / totalCount : 0
-        visualStore.setLoadingProgress('Loading objects from Speckle', progress)
+        visualStore.setLoadingProgress('🌍 Loading from Speckle', progress)
 
         // Log progress every 100 objects
         if (loadedCount % 100 === 0) {

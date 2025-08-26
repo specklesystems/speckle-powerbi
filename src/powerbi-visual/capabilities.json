@@ -133,6 +133,15 @@
         }
       }
     },
+    "dataLoading": {
+      "properties": {
+        "internalizeData": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    },
     "color": {
       "properties": {
         "enabled": {
