@@ -100,16 +100,4 @@ export class SpeckleApiLoader {
     return allObjects
   }
 
-  static async checkObjectExists(serverUrl: string, projectId: string, objectId: string, token: string): Promise<boolean> {
-    const loader = new SpeckleApiLoader(serverUrl, projectId, token)
-    
-    try {
-      // Try to download a minimal version of the object to check if it exists
-      const objects = await loader.downloadObjectsWithChildren(objectId)
-      return objects.length > 0
-    } catch (error) {
-      console.error('Error checking object existence:', error)
-      return false
-    }
-  }
 }
