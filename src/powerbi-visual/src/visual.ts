@@ -270,6 +270,22 @@ export class Visual implements IVisual {
               internalizedData
             )
             this.updateViewer(input)
+
+            // Auto-internalize new API data if toggle is ON and this is fresh data (not from store)
+            // Imagine that user has a visual and select internalizing data and changes the data source
+            // This will automatically internalize the new data
+            if (
+              this.formattingSettings.dataLoading.internalizeData.value &&
+              input.modelObjects &&
+              input.modelObjects.length > 0 &&
+              !input.isFromStore
+            ) {
+              console.log('📦 Auto-internalizing new API data since toggle is ON')
+              // Trigger internalization after objects are loaded
+              setTimeout(() => {
+                this.internalizeCurrentViewerData()
+              }, 2000) // avoid a race condition (i know)
+            }
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
@@ -404,36 +420,62 @@ export class Visual implements IVisual {
 
       visualStore.setLoadingProgress('📦 Internalizing data...', null)
 
-      // Use desktop service  for internalization
+      // Use desktop service for internalization
       // TBD: getting objects from viewer caused two issue:
       // - Data format -> we need to make an extra operation to match with the offline loader
       // - Memory -> need to save data two times so sometimes causes memory issues
-      const rootObjectId = visualStore.lastLoadedRootObjectId
-      const response = await fetch(`http://localhost:29364/get-objects/${rootObjectId}`)
+      const rootObjectIds = visualStore.lastLoadedRootObjectId
+      const projectId = visualStore.receiveInfo?.projectId
+      
+      // Handle federated models by processing each object ID separately
+      const objectIds = rootObjectIds.split(',')
+      let allStreamedObjects = []
+      
+      for (const objectId of objectIds) {
+        console.log(`📁 Fetching objects for ID: ${objectId}`)
+        
+        // For federated models, pass project ID explicitly to avoid "project id is not set" error
+        const url = projectId 
+          ? `http://localhost:29364/get-objects/${objectId}?projectId=${projectId}`
+          : `http://localhost:29364/get-objects/${objectId}`
+        
+        const response = await fetch(url)
+        
+        if (!response.body) {
+          console.error(`📁 No response body from desktop service for ${objectId}`)
+          continue
+        }
 
-      if (!response.body) {
-        console.error('📁 No response body from desktop service')
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let allObjectsData = ''
+
+        console.log(`📁 Streaming objects from desktop service for ${objectId}...`)
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          allObjectsData += decoder.decode(value, { stream: true })
+        }
+
+        // Parse NDJSON (newline-delimited JSON) format
+        const lines = allObjectsData.trim().split('\n')
+        const objectsForThisId = lines.map((line) => JSON.parse(line))
+        
+        console.log(`📁 Streamed ${objectsForThisId.length} objects for ID ${objectId}`)
+        allStreamedObjects.push(...objectsForThisId)
+      }
+      
+      const streamedObjects = allStreamedObjects
+      
+      if (streamedObjects.length === 0) {
+        console.error('📁 No objects retrieved from desktop service')
         visualStore.clearLoadingProgress()
         return
       }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let allObjectsData = ''
-
-      console.log('📁 Streaming objects from desktop service...')
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        allObjectsData += decoder.decode(value, { stream: true })
-      }
-
-      // Parse NDJSON (newline-delimited JSON) format
-      const lines = allObjectsData.trim().split('\n')
-      const streamedObjects = lines.map((line) => JSON.parse(line))
-      console.log(`📁 Streamed ${streamedObjects.length} objects from desktop service`)
+      
+      console.log(`📁 Retrieved ${streamedObjects.length} total objects from desktop service`)
 
       // Clean up objects to reduce file size (same as desktop service does)
       const cleanedObjects = streamedObjects.map((obj: any, index: number) => {

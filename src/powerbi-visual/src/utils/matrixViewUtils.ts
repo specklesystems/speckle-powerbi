@@ -224,26 +224,52 @@ export async function processMatrixView(
   const localMatrixView = matrixView.rows.root.children
   let id = null
 
-  if (hasColorFilter) {
-    id = localMatrixView[0].children[0].values[0].value as unknown as string
-  } else {
-    id = localMatrixView[0].values[0].value as unknown as string
+  // Safety check for matrix data structure
+  if (!localMatrixView || localMatrixView.length === 0) {
+    throw new Error('Matrix view has no data rows')
   }
 
-  // Check for internalized data
+  try {
+    if (hasColorFilter) {
+      if (!localMatrixView[0].children || localMatrixView[0].children.length === 0 || !localMatrixView[0].children[0].values) {
+        throw new Error('Matrix view structure is incomplete for color filter mode')
+      }
+      id = localMatrixView[0].children[0].values[0].value as unknown as string
+    } else {
+      if (!localMatrixView[0].values || !localMatrixView[0].values[0]) {
+        throw new Error('Matrix view structure is incomplete for normal mode')
+      }
+      id = localMatrixView[0].values[0].value as unknown as string
+    }
+  } catch (error) {
+    console.error('Error accessing matrix data:', error)
+    throw new Error(`Failed to extract root object ID from matrix: ${error.message}`)
+  }
+
+  // Check for internalized data but ONLY if it matches current matrix data
   let internalizedModelObjects: object[][] | undefined = undefined
   if (settings.dataLoading.internalizeData.value && internalizedData) {
-    console.log('📁 Loading from internalized data in processMatrixView')
+    console.log('📁 Checking internalized data in processMatrixView')
 
     try {
       internalizedModelObjects = unzipModelObjects(internalizedData)
 
       if (internalizedModelObjects && internalizedModelObjects.length > 0) {
-        console.log(
-          '📁 Successfully unzipped',
-          internalizedModelObjects.length,
-          'models from internalized data'
-        )
+        // CRITICAL: Validate that internalized data matches current matrix data
+        const internalizedRootId = (internalizedModelObjects[0][0] as any).id
+        if (internalizedRootId !== id) {
+          console.log(`📁 Internalized data mismatch: stored=${internalizedRootId}, current=${id}. Using fresh data.`)
+          internalizedModelObjects = undefined // Clear internalized data - use fresh data instead
+        } else {
+          console.log(
+            '📁 Successfully validated internalized data matches current matrix:',
+            internalizedModelObjects.length,
+            'models'
+          )
+        }
+      }
+
+      if (internalizedModelObjects && internalizedModelObjects.length > 0) {
 
         // Set dummy receiveInfo to prevent UI errors
         if (!visualStore.receiveInfo) {
@@ -261,11 +287,15 @@ export async function processMatrixView(
           })
         }
 
-        // Trigger viewer reload for internalized data (only if not already loaded)
-        if (!visualStore.isViewerObjectsLoaded) {
+        // Only reload if switching models or not already loaded
+        const needsReload = !visualStore.isViewerObjectsLoaded || visualStore.lastLoadedRootObjectId !== id
+        if (needsReload) {
+          console.log('🔄 Forcing viewer reload for internalized data (model switch or first load)')
           visualStore.setViewerReloadNeeded()
           visualStore.setViewerReadyToLoad(true)
           visualStore.setLoadingProgress('📁 Loading from file', null)
+        } else {
+          console.log('📁 Internalized data already loaded, skipping reload')
         }
         visualStore.lastLoadedRootObjectId = id // Set to current ID to skip API calls
       } else {
