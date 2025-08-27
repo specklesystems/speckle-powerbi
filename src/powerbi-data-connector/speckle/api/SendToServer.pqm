@@ -37,15 +37,37 @@
 
         workspaceInfo = GetWorkspace(url),
 
-        // Prepare request data
+        // exchange powerful token for weak token via ds 
+        tokenExchangeData = Json.FromValue([
+            PowerfulToken = apiKey,
+            Scopes = {"profile:read", "streams:read", "users:read"},
+            ProjectId = parsedUrl[projectId]
+        ]),
+        
+        tokenExchangeResponse = Web.Contents(
+            "http://127.0.0.1:29364/auth/exchange-token",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST"
+                ],
+                Content = tokenExchangeData,
+                ManualStatusHandling = {400, 401, 403, 404, 500}
+            ]
+        ),
+        
+        tokenExchangeJson = Json.Document(tokenExchangeResponse),
+        weakToken = tokenExchangeJson[token],
+
+        // prepare request data with weak token
         requestData = Json.FromValue([
             Url = url,
             Server = parsedUrl[baseUrl],
             Email = userEmail,
             ProjectId = parsedUrl[projectId],
-            ObjectId = modelInfo[rootObjectId],
+            RootObjectId = modelInfo[rootObjectId],
             SourceApplication = modelInfo[sourceApplication],
-            Token = apiKey,
+            Token = weakToken,
             Version = connectorVersion,
             VersionId = parsedUrl[versionId],
             WorkspaceId = workspaceInfo[workspaceId],

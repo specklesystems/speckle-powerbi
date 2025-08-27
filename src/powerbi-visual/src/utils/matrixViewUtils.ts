@@ -11,6 +11,8 @@ import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { delay } from 'lodash'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
 import { useUpdateConnector } from '@src/composables/useUpdateConnector'
+import { SpeckleApiLoader } from '@src/loader/SpeckleApiLoader'
+import { unzipModelObjects } from './compression'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -158,40 +160,8 @@ export type ReceiveInfo = {
   workspaceName?: string
   canHideBranding: boolean
   version?: string
-}
-
-export type PreGetObjects = {
-  modelExists: boolean
-  objectCount?: number
-}
-
-async function getPreGetObjects(commaSeparatedModelIds: string): Promise<PreGetObjects[]> {
-  const modelIds = (commaSeparatedModelIds as string).split(',')
-  const preGetObjects = []
-
-  for await (const id of modelIds) {
-    const res = await getPreGetObjectsForModel(id)
-    preGetObjects.push(res)
-  }
-  return preGetObjects
-}
-
-async function getPreGetObjectsForModel(id: string): Promise<PreGetObjects> {
-  try {
-    const preGetObjectsRes = await fetch(`http://localhost:29364/pre-get-objects/${id}`)
-
-    if (!preGetObjectsRes.body) {
-      console.log('No response body for pre get objects')
-      return {
-        modelExists: false,
-        objectCount: null
-      } as PreGetObjects
-    }
-
-    return (await preGetObjectsRes.json()) as PreGetObjects
-  } catch (error) {
-    console.log(error)
-  }
+  token: string
+  projectId?: string
 }
 
 async function getReceiveInfo(id) {
@@ -206,120 +176,33 @@ async function getReceiveInfo(id) {
     return await response.json()
   } catch (error) {
     console.log(error)
-    console.log("User infp couldn't retrieved from local server.")
+    console.log("User info couldn't retrieved from local server.")
   }
 }
 
-async function fetchStreamedData(commaSeparatedModelIds: string, totalObjectCount: number) {
-  const modelIds = (commaSeparatedModelIds as string).split(',')
+async function fetchFromSpeckleApi(
+  objectIds: string,
+  serverUrl: string,
+  projectId: string,
+  token: string
+): Promise<object[][]> {
+  const ids = objectIds.split(',')
   const modelObjects = []
 
-  let loadedObjectCount = 0
-
-  for await (const id of modelIds) {
-    const objects = await fetchStreamedDataForModel(id, totalObjectCount, loadedObjectCount)
-    modelObjects.push(objects)
-    loadedObjectCount += objects.length
-  }
-  return modelObjects
-}
-
-async function fetchStreamedDataForModel(
-  id: string,
-  totalObjectCount: number,
-  loadedObjectCount: number
-) {
-  console.log(loadedObjectCount, totalObjectCount)
-
-  try {
-    const visualStore = useVisualStore()
-    const response = await fetch(`http://localhost:29364/get-objects/${id}`)
-
-    if (!response.body) {
-      console.error('No response body')
-      return
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    const objects = []
-    let buffer = ''
-
-    const start = performance.now()
-    console.log('Streaming started...')
-    for await (const chunk of readStream(reader)) {
-      // chucks.push(chuck)
-      buffer += decoder.decode(chunk, { stream: true })
-
-      let boundary
-      while ((boundary = buffer.indexOf('\n')) !== -1) {
-        const jsonString = buffer.slice(0, boundary)
-        buffer = buffer.slice(boundary + 1)
-
-        try {
-          const obj = JSON.parse(jsonString)
-          objects.push(obj)
-          visualStore.setLoadingProgress(
-            'Loading objects from storage',
-            (objects.length + loadedObjectCount) / totalObjectCount
-          )
-          // console.log('Loading', (objects.length + loadedObjectCount) / totalObjectCount)
-
-          // console.log('Received object:', jsonObject)
-        } catch (e) {
-          console.error('Invalid JSON chunk:', jsonString)
-        }
-      }
-    }
+  for (const objectId of ids) {
     try {
-      const obj = JSON.parse(buffer)
-      objects.push(obj)
-      // console.log('Received object:', jsonObject)
-    } catch (e) {
-      console.error('Invalid JSON chunk:', buffer)
-    }
-
-    const end = performance.now()
-    console.log(`Objects streamed in: ${(end - start) / 1000} s`)
-
-    const startObjectCleanup = performance.now()
-    // Skips first element
-    for (let i = 1; i < objects.length; i++) {
-      const obj = objects[i]
-      if (obj.speckle_type) {
-        if (obj.speckle_type.includes('Objects.Data.DataObject')) {
-          delete obj.properties
-        }
-      }
-      delete obj.__closure
-    }
-    const endObjectCleanup = performance.now()
-    console.log(`Objects cleaned up in: ${(endObjectCleanup - startObjectCleanup) / 1000} s`)
-
-    try {
-      const sizeInBytes = new TextEncoder().encode(JSON.stringify(objects)).length
-      const sizeInMB = sizeInBytes / (1024 * 1024)
-      console.log(`Size of objects: ${sizeInMB} MB`)
+      console.log(`Downloading from Speckle API: ${objectId}`)
+      const loader = new SpeckleApiLoader(serverUrl, projectId, token)
+      const objects = await loader.downloadObjectsWithChildren(objectId)
+      modelObjects.push(objects)
+      console.log(`Downloaded ${objects.length} objects from Speckle`)
     } catch (error) {
-      console.log("Can't calculate the size of the model")
-      console.log(error)
+      console.error(`Failed to download objects from Speckle:`, error)
+      throw error
     }
-
-    return objects
-  } catch (error) {
-    console.log(error)
-    console.log("Objects couldn't retrieved from local server.")
-  } finally {
-    console.log('Streaming finished!')
   }
-}
 
-async function* readStream(reader) {
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    yield value
-  }
+  return modelObjects
 }
 
 export async function processMatrixView(
@@ -327,7 +210,8 @@ export async function processMatrixView(
   host: powerbi.extensibility.visual.IVisualHost,
   hasColorFilter: boolean,
   settings: SpeckleVisualSettingsModel,
-  onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
+  onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void,
+  internalizedData?: string
 ): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
   const objectIds = [],
@@ -340,10 +224,86 @@ export async function processMatrixView(
   const localMatrixView = matrixView.rows.root.children
   let id = null
 
-  if (hasColorFilter) {
-    id = localMatrixView[0].children[0].values[0].value as unknown as string
-  } else {
-    id = localMatrixView[0].values[0].value as unknown as string
+  // Safety check for matrix data structure
+  if (!localMatrixView || localMatrixView.length === 0) {
+    throw new Error('Matrix view has no data rows')
+  }
+
+  try {
+    if (hasColorFilter) {
+      if (!localMatrixView[0].children || localMatrixView[0].children.length === 0 || !localMatrixView[0].children[0].values) {
+        throw new Error('Matrix view structure is incomplete for color filter mode')
+      }
+      id = localMatrixView[0].children[0].values[0].value as unknown as string
+    } else {
+      if (!localMatrixView[0].values || !localMatrixView[0].values[0]) {
+        throw new Error('Matrix view structure is incomplete for normal mode')
+      }
+      id = localMatrixView[0].values[0].value as unknown as string
+    }
+  } catch (error) {
+    console.error('Error accessing matrix data:', error)
+    throw new Error(`Failed to extract root object ID from matrix: ${error.message}`)
+  }
+
+  // Check for internalized data but ONLY if it matches current matrix data
+  let internalizedModelObjects: object[][] | undefined = undefined
+  if (settings.dataLoading.internalizeData.value && internalizedData) {
+    console.log('📁 Checking internalized data in processMatrixView')
+
+    try {
+      internalizedModelObjects = unzipModelObjects(internalizedData)
+
+      if (internalizedModelObjects && internalizedModelObjects.length > 0) {
+        // CRITICAL: Validate that internalized data matches current matrix data
+        const internalizedRootId = (internalizedModelObjects[0][0] as any).id
+        if (internalizedRootId !== id) {
+          console.log(`📁 Internalized data mismatch: stored=${internalizedRootId}, current=${id}. Using fresh data.`)
+          internalizedModelObjects = undefined // Clear internalized data - use fresh data instead
+        } else {
+          console.log(
+            '📁 Successfully validated internalized data matches current matrix:',
+            internalizedModelObjects.length,
+            'models'
+          )
+        }
+      }
+
+      if (internalizedModelObjects && internalizedModelObjects.length > 0) {
+
+        // Set dummy receiveInfo to prevent UI errors
+        if (!visualStore.receiveInfo) {
+          visualStore.setReceiveInfo({
+            userEmail: 'offline@speckle.systems',
+            serverUrl: 'offline',
+            sourceApplication: 'PowerBI Offline',
+            workspaceId: 'offline',
+            workspaceName: 'Offline Workspace',
+            workspaceLogo: '',
+            version: '1.0.0',
+            canHideBranding: false,
+            token: 'offline',
+            projectId: 'offline'
+          })
+        }
+
+        // Only reload if switching models or not already loaded
+        const needsReload = !visualStore.isViewerObjectsLoaded || visualStore.lastLoadedRootObjectId !== id
+        if (needsReload) {
+          console.log('🔄 Forcing viewer reload for internalized data (model switch or first load)')
+          visualStore.setViewerReloadNeeded()
+          visualStore.setViewerReadyToLoad(true)
+          visualStore.setLoadingProgress('📁 Loading from file', null)
+        } else {
+          console.log('📁 Internalized data already loaded, skipping reload')
+        }
+        visualStore.lastLoadedRootObjectId = id // Set to current ID to skip API calls
+      } else {
+        console.error('📁 Failed to unzip internalized data')
+      }
+    } catch (error) {
+      console.error('📁 Error processing internalized data:', error)
+    }
   }
 
   // const id = localMatrixView[0].values[0].value as unknown as string
@@ -352,48 +312,85 @@ export async function processMatrixView(
 
   let modelObjects: object[][] = undefined
 
-  if (visualStore.isLoadingFromFile) {
-    console.log('The data is loading from file, skipping the streaming it.')
-  }
-
-  if (visualStore.lastLoadedRootObjectId !== id && !visualStore.isLoadingFromFile) {
+  if (
+    visualStore.lastLoadedRootObjectId !== id &&
+    !visualStore.isLoadingFromFile &&
+    !internalizedModelObjects
+  ) {
     const start = performance.now()
 
-    const getPreGetObjectsRes: PreGetObjects[] = await getPreGetObjects(id)
-
-    if (getPreGetObjectsRes.some((preGetObjects) => preGetObjects.modelExists === false)) {
-      visualStore.setCommonError(
-        'Version Object ID is not found in storage. Please make sure you placed correct field or consider refreshing your data via data connector.'
-      )
-      visualStore.setViewerReadyToLoad(false)
-      return
-    }
-
+    // Get receive info from desktop service to populate visual store
     const receiveInfo = await getReceiveInfo(id)
     if (receiveInfo) {
       visualStore.setReceiveInfo({
-        userEmail: receiveInfo.email,
-        serverUrl: receiveInfo.server,
-        sourceApplication: getSlugFromHostAppNameAndVersion(receiveInfo.sourceApplication),
-        workspaceId: receiveInfo.workspaceId,
-        workspaceName: receiveInfo.workspaceName,
-        workspaceLogo: receiveInfo.workspaceLogo,
-        version: receiveInfo.version,
-        canHideBranding: receiveInfo.canHideBranding
+        userEmail: receiveInfo.email || receiveInfo.Email,
+        serverUrl: receiveInfo.server || receiveInfo.Server,
+        sourceApplication: getSlugFromHostAppNameAndVersion(
+          receiveInfo.sourceApplication || receiveInfo.SourceApplication
+        ),
+        workspaceId: receiveInfo.workspaceId || receiveInfo.WorkspaceId,
+        workspaceName: receiveInfo.workspaceName || receiveInfo.WorkspaceName,
+        workspaceLogo: receiveInfo.workspaceLogo || receiveInfo.WorkspaceLogo,
+        version: receiveInfo.version || receiveInfo.Version,
+        canHideBranding: receiveInfo.canHideBranding ?? receiveInfo.CanHideBranding,
+        token: receiveInfo.weakToken || receiveInfo.WeakToken,
+        projectId: receiveInfo.projectId || receiveInfo.ProjectId
       })
-      console.log(`Receive info retrieved from desktop service`, receiveInfo)
+      console.log(`Receive info retrieved from desktop service - credentials loaded`)
     }
 
-    const totalObjectCount = getPreGetObjectsRes.reduce((sum, obj) => {
-      return sum + (obj.objectCount ?? 0)
-    }, 0)
+    // Now get the data from visual store for Speckle API download
+    const token = visualStore.receiveInfo?.token
+    const serverUrl = visualStore.receiveInfo?.serverUrl
+    const projectId = visualStore.receiveInfo?.projectId
+
+    if (!token || !serverUrl || !projectId) {
+      visualStore.setCommonError(
+        'Missing Speckle credentials. Please refresh the data from the data connector.'
+      )
+      visualStore.setViewerReadyToLoad(false)
+      return {
+        modelObjects: [],
+        objectIds: [],
+        selectedIds: [],
+        colorByIds: null,
+        objectTooltipData: new Map(),
+        isFromStore: false
+      }
+    }
 
     visualStore.setViewerReadyToLoad(true)
-    // stream data
-    modelObjects = await fetchStreamedData(id, totalObjectCount)
+
+    console.log('Downloading objects directly from Speckle API...')
+    console.log(`Server: ${serverUrl}, Project: ${projectId}, Object: ${id}`)
+    try {
+      modelObjects = await fetchFromSpeckleApi(id, serverUrl, projectId, token)
+      console.log('Successfully downloaded from Speckle API')
+
+      // Debug: Check what we're passing to the viewer
+      if (modelObjects && modelObjects.length > 0 && modelObjects[0].length > 0) {
+        console.log('ModelObjects structure:', {
+          totalModels: modelObjects.length,
+          firstModelObjectCount: modelObjects[0].length,
+          firstObject: modelObjects[0][0]
+        })
+      }
+    } catch (error) {
+      console.error('Failed to download from Speckle API:', error)
+      visualStore.setCommonError(`Failed to download objects from Speckle: ${error.message}`)
+      visualStore.setViewerReadyToLoad(false)
+      return {
+        modelObjects: [],
+        objectIds: [],
+        selectedIds: [],
+        colorByIds: null,
+        objectTooltipData: new Map(),
+        isFromStore: false
+      }
+    }
 
     visualStore.setViewerReloadNeeded() // they should be marked as deferred action bc of update function complexity.
-    visualStore.setLoadingProgress('Loading objects into viewer', null)
+    visualStore.setLoadingProgress('🌍 Loading objects into viewer', null)
     console.log(`🚀 Upload is completed in ${(performance.now() - start) / 1000} s!`)
   }
 
@@ -538,11 +535,11 @@ export async function processMatrixView(
   previousPalette = host.colorPalette['colorPalette']
 
   return {
-    modelObjects,
+    modelObjects: internalizedModelObjects || modelObjects, // Use internalized data if available
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
     objectTooltipData,
-    isFromStore: false
+    isFromStore: !!internalizedModelObjects // true if loaded from internalized data
   }
 }
