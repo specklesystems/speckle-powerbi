@@ -95,7 +95,6 @@ export class Visual implements IVisual {
     )
 
     visualStore.setFormattingSettings(this.formattingSettings)
-    console.log('Selector colors', this.formattingSettings.colorSelector)
     console.log(
       'Data Loading - Internalize Data:',
       this.formattingSettings.dataLoading.internalizeData.value
@@ -314,69 +313,7 @@ export class Visual implements IVisual {
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     console.log('🎨 getFormattingModel called')
-
-    // build the cards for the options
-    const model: powerbi.visuals.FormattingModel = {
-      cards: [
-        // Color card
-        {
-          displayName: 'Object Display',
-          name: 'color',
-          uid: 'color_card_uid',
-          groups: [
-            {
-              displayName: undefined,
-              uid: 'color_group_uid',
-              slices: [
-                {
-                  displayName: 'Enabled',
-                  uid: 'color_enabled_uid',
-                  control: {
-                    type: powerbi.visuals.FormattingComponent.ToggleSwitch,
-                    properties: {
-                      descriptor: {
-                        objectName: 'color',
-                        propertyName: 'enabled'
-                      },
-                      value: this.formattingSettings.color.enabled.value
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        },
-        // Data Management card
-        {
-          displayName: 'Data Management',
-          name: 'dataLoading',
-          uid: 'dataLoading_card_uid',
-          groups: [
-            {
-              displayName: undefined,
-              uid: 'dataLoading_group_uid',
-              slices: [
-                {
-                  displayName: 'Internalize Data',
-                  uid: 'dataLoading_internalizeData_uid',
-                  control: {
-                    type: powerbi.visuals.FormattingComponent.ToggleSwitch,
-                    properties: {
-                      descriptor: {
-                        objectName: 'dataLoading',
-                        propertyName: 'internalizeData'
-                      },
-                      value: this.formattingSettings.dataLoading.internalizeData.value
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-
+    const model = this.formattingSettingsService.buildFormattingModel(this.formattingSettings)
     return model
   }
 
