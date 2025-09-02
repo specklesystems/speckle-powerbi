@@ -42,7 +42,7 @@
             PowerfulToken = apiKey,
             Scopes = {"profile:read", "streams:read", "users:read"},
             ProjectId = parsedUrl[projectId],
-            serverUrl = parsedUrl[baseUrl]
+            ServerUrl = parsedUrl[baseUrl]
         ]),
         
         tokenExchangeResponse = Web.Contents(
