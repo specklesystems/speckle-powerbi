@@ -247,7 +247,7 @@ GetByUrl.Icons = [
 Speckle = [
     // This is used when running the connector on an on-premises data gateway
     TestConnection = (path) => {"Speckle.GetUser", path},
-    // Authentication strategy
+    // Authentication strategy - OAuth only
     Authentication = [
         OAuth = [
             Label = "Speckle Account",
@@ -357,13 +357,6 @@ Speckle = [
                         ]
                 in
                     result
-        ],
-        Key = [
-            KeyLabel = "Personal Access Token",
-            Label = "Private Project"
-        ],
-        Implicit = [
-            Label = "Public Project"
         ]
     ],
     Label = "Speckle"
