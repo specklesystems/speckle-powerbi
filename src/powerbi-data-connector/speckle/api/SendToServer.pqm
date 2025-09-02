@@ -41,7 +41,8 @@
         tokenExchangeData = Json.FromValue([
             PowerfulToken = apiKey,
             Scopes = {"profile:read", "streams:read", "users:read"},
-            ProjectId = parsedUrl[projectId]
+            ProjectId = parsedUrl[projectId],
+            serverUrl = parsedUrl[baseUrl]
         ]),
         
         tokenExchangeResponse = Web.Contents(
