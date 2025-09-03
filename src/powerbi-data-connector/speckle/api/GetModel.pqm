@@ -29,7 +29,7 @@
         versionId = parsedUrl[versionId],
         
         // get API key if available
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        apiKey = try Extension.CurrentCredential()[access_token] otherwise null,
         
         // graphql query to get model info including root object id
         // includes specific version if provided

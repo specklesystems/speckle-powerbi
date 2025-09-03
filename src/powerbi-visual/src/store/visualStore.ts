@@ -26,7 +26,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<LoadingProgress>(undefined)
-  const objectsFromStore = ref<object[]>(undefined)
+  const objectsFromStore = ref<object[][]>(undefined)
 
   // State tracking for toggle reset prevention
   const previousToggleState = ref<boolean | undefined>(undefined)
@@ -88,8 +88,14 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => {
     receiveInfo.value = newReceiveInfo
-    // Only save receiveInfo to file in offline mode for persistence (contains token and metadata)
-    if (formattingSettings.value?.dataLoading.internalizeData.value) {
+    
+    // Always save receiveInfo to file for credentials persistence (contains token and metadata)
+    // This ensures weak tokens are available even when desktop service is unavailable
+    if (formattingSettings.value?.dataLoading.internalizeData.value && objectsFromStore.value) {
+      // If internalize is ON and we have objects, save both objects and receiveInfo together
+      writeObjectsToFile(objectsFromStore.value)
+    } else {
+      // Otherwise just save receiveInfo alone (credentials only)
       writeReceiveInfoToFile()
     }
   }
@@ -122,7 +128,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
-  const setObjectsFromStore = (newObjectsFromStore: object[]) => {
+  const setObjectsFromStore = (newObjectsFromStore: object[][]) => {
     objectsFromStore.value = newObjectsFromStore
   }
 
@@ -214,7 +220,7 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'storedData',
           properties: {
             speckleObjects: compressedChunks,
-            receiveInfo: JSON.stringify(receiveInfo.value)
+            receiveInfo: JSON.stringify(receiveInfo.value) // Keep receiveInfo in sync when storing objects
           },
           selector: null
         }
