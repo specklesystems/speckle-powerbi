@@ -1,32 +1,73 @@
-<script setup lang="ts">
-import { FormButton } from '@speckle/ui-components'
-import { inject } from 'vue'
-import { hostKey } from 'src/injectionKeys'
-
-const host = inject(hostKey)
-
-function goToForum() {
-  host.launchUrl('https://speckle.community/tag/powerbi')
-}
-
-function goToGuide() {
-  host.launchUrl('https://speckle.guide/user/powerbi')
-}
-
-</script>
-
 <template>
-  <div id="speckle-home-view"
-    class="flex flex-col justify-center items-center h-full w-full bg-primary text-center text-foundation">
-    <div class="flex justify-center items-center">
-      <img src="@assets/logo-white.png" alt="Logo" class="w-1/3" />
+  <div
+    id="speckle-home-view"
+    class="flex flex-col justify-center items-center h-full w-full text-center space-y-4 p-2 cursor-default"
+  >
+    <div class="flex flex-col justify-center items-center h-full w-full text-center space-y-4">
+      <div class="flex flex-row justify-center items-center space-x-3">
+        <div class="flex justify-center items-center">
+          <img src="@assets/logo-big.png" alt="Logo" class="w-12" />
+        </div>
+        <div
+          class="bg-gradient-to-r from-blue-500 via-blue-400 to-blue-600 inline-block py-1 text-transparent bg-clip-text text-2xl"
+        >
+          <p>
+            <b>Speckle</b>
+            for
+            <b>PowerBI</b>
+          </p>
+        </div>
+      </div>
+      <div class="flex flex-col justify-center space-y-1">
+        <div class="flex flex-row space-x-2">
+          <EyeIcon class="w-6"></EyeIcon>
+          <p><b>Version Object ID</b></p>
+          <ArrowRightIcon class="w-4"></ArrowRightIcon>
+          <p>View your model</p>
+        </div>
+        <div class="flex flex-row space-x-2">
+          <CursorArrowRippleIcon class="w-6"></CursorArrowRippleIcon>
+          <p><b>Object IDs</b></p>
+          <ArrowRightIcon class="w-4"></ArrowRightIcon>
+          <p>Highlighting and interactivity</p>
+        </div>
+        <div class="flex flex-row space-x-2">
+          <ChatBubbleLeftIcon class="w-6"></ChatBubbleLeftIcon>
+          <p><b>Object Data</b></p>
+          <ArrowRightIcon class="w-4"></ArrowRightIcon>
+          <p>Tooltips for selected object</p>
+        </div>
+      </div>
     </div>
-    <p class="heading">Speckle PowerBI 3D Visual</p>
-    <div class="flex justify-center mt-2 gap-1">
-      <FormButton color="invert" @click="goToForum">Help</FormButton>
-      <FormButton color="invert" @click="goToGuide">Getting started</FormButton>
+    <div class="flex justify-end gap-1">
+      <FormButton size="sm" @click="goToGuide">Getting started</FormButton>
+      <FormButton size="sm" @click="goToForum">Help</FormButton>
     </div>
   </div>
 </template>
 
-<style scoped></style>
+<script setup lang="ts">
+import FormButton from '@src/components/form/FormButton.vue'
+import { useVisualStore } from '../store/visualStore'
+// import { FormButton } from '@speckle/ui-components'
+import {
+  EyeIcon,
+  ArrowRightIcon,
+  CursorArrowRippleIcon,
+  ChatBubbleLeftIcon
+} from '@heroicons/vue/24/outline'
+
+const visualStore = useVisualStore()
+
+const buttonClass = `btn p-2 rounded-md bg-primary-muted border-transparent font-medium 
+  hover:bg-gray-200 hover:shadow-md
+  disabled:hover:bg-transparent focus-visible:border-foundation transition-all duration-150`
+
+function goToForum() {
+  visualStore.host.launchUrl('https://speckle.community/tag/powerbi')
+}
+
+function goToGuide() {
+  visualStore.host.launchUrl('https://speckle.guide/user/powerbi')
+}
+</script>

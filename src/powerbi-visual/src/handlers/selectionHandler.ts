@@ -20,18 +20,23 @@ export default class SelectionHandler {
     })
   }
 
-  public set(url: string, data: powerbi.extensibility.ISelectionId) {
-    this.selectionIdMap.set(url, data)
+  public set(objectId: string, data: powerbi.extensibility.ISelectionId) {
+    this.selectionIdMap.set(objectId, data)
   }
-  public async select(url: string, multi = false) {
+
+  public async select(objectId: string, multi = false) {
+    const selectionId = this.selectionIdMap.get(objectId)
     if (multi) {
-      await this.selectionManager.select(this.selectionIdMap.get(url), true)
-      if (this.currentSelection.has(url)) this.currentSelection.delete(url)
-      else this.currentSelection.add(url)
+      await this.selectionManager.select(selectionId, true)
+      if (this.currentSelection.has(objectId)) {
+        this.currentSelection.delete(objectId)
+      } else {
+        this.currentSelection.add(objectId)
+      }
     } else {
-      await this.selectionManager.select(this.selectionIdMap.get(url), false)
+      await this.selectionManager.select(selectionId, false)
       this.currentSelection.clear()
-      this.currentSelection.add(url)
+      this.currentSelection.add(objectId)
     }
   }
 

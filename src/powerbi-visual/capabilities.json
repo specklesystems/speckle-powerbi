@@ -1,29 +1,24 @@
 {
   "dataRoles": [
     {
-      "displayName": "Model URL",
-      "kind": "Grouping",
-      "name": "stream"
-    },
-    {
       "displayName": "Version Object ID",
-      "kind": "Grouping",
-      "name": "parentObject"
+      "kind": "Measure",
+      "name": "rootObjectId"
     },
     {
-      "displayName": "Object ID",
+      "displayName": "Object IDs",
       "kind": "Grouping",
-      "name": "object"
+      "name": "objectIds"
+    },
+    {
+      "displayName": "Object Data (Tooltip)",
+      "kind": "Measure",
+      "name": "tooltipData"
     },
     {
       "displayName": "Color By",
       "kind": "Grouping",
-      "name": "objectColorBy"
-    },
-    {
-      "displayName": "Tooltip Data",
-      "kind": "Measure",
-      "name": "objectData"
+      "name": "colorBy"
     }
   ],
   "dataViewMappings": [
@@ -32,28 +27,18 @@
         "rows": {
           "dataReductionAlgorithm": {
             "top": {
-              "count": 30000
+              "count": 150000
             }
           },
           "select": [
             {
               "bind": {
-                "to": "stream"
-              }
-            },
-            {
-              "bind": {
-                "to": "parentObject"
-              }
-            },
-            {
-              "bind": {
-                "to": "objectColorBy"
+                "to": "colorBy"
               }
             },
             {
               "for": {
-                "in": "object"
+                "in": "objectIds"
               }
             }
           ]
@@ -61,70 +46,98 @@
         "values": {
           "select": [
             {
-              "bind": {
-                "to": "objectData"
+              "for": {
+                "in": "rootObjectId"
+              }
+            },
+            {
+              "for": {
+                "in": "tooltipData"
               }
             }
           ]
         }
-      }
+      },
+      "conditions": [
+        {
+          "colorBy": { "max": 1 },
+          "objectIds": { "max": 1 },
+          "rootObjectId": { "max": 1 }
+        }
+      ]
     }
   ],
   "objects": {
+    "storedData": {
+      "properties": {
+        "speckleObjects": {
+          "type": { "text": true }
+        },
+        "receiveInfo": {
+          "type": { "text": true }
+        }
+      }
+    },
+    "workspace": {
+      "properties": {
+        "brandingHidden": {
+          "type": { "bool": true }
+        }
+      }
+    },
+    "viewMode": {
+      "properties": {
+        "defaultViewMode": {
+          "type": { "text": true }
+        },
+        "navbarHidden": {
+          "type": { "bool": true }
+        }
+      }
+    },
     "camera": {
       "properties": {
         "defaultView": {
-          "type": {
-            "enumeration": [
-              {
-                "displayName": "Perspective",
-                "value": "perspective"
-              },
-              {
-                "displayName": "Top",
-                "value": "top"
-              },
-              {
-                "displayName": "Front",
-                "value": "front"
-              },
-              {
-                "displayName": "Left",
-                "value": "left"
-              },
-              {
-                "displayName": "Back",
-                "value": "back"
-              },
-              {
-                "displayName": "Right",
-                "value": "right"
-              }
-            ]
-          }
+          "type": { "text": true }
         },
-        "allowCameraUnder": {
+        "isOrtho": {
+          "type": { "bool": true }
+        },
+        "isGhost": {
+          "type": { "bool": true }
+        },
+        "zoomOnFilter": {
+          "type": { "bool": true }
+        }
+      }
+    },
+    "cameraPosition": {
+      "properties": {
+        "positionX": {
+          "type": { "text": true }
+        },
+        "positionY": {
+          "type": { "text": true }
+        },
+        "positionZ": {
+          "type": { "text": true }
+        },
+        "targetX": {
+          "type": { "text": true }
+        },
+        "targetY": {
+          "type": { "text": true }
+        },
+        "targetZ": {
+          "type": { "text": true }
+        }
+      }
+    },
+    "dataLoading": {
+      "properties": {
+        "internalizeData": {
           "type": {
             "bool": true
-          }
-        },
-        "zoomOnDataChange": {
-          "type": {
-            "bool": true
-          }
-        },
-        "projection": {
-          "type": {
-            "enumeration": [
-              {
-                "displayName": "Perspective",
-                "value": "perspective"
-              },
-              {
-                "displayName": "Orthographic",
-                "value": "orthographic"
-              }
-            ]
           }
         }
       }
@@ -205,16 +218,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": [
-        "https://app.speckle.systems",
-        "https://speckle.xyz",
-        "https://*.speckle.xyz",
-        "https://latest.speckle.systems",
-        "https://latest.speckle.dev",
-        "https://*.speckle.dev",
-        "https://analytics.speckle.systems",
-        "*"
-      ]
+      "parameters": ["https://analytics.speckle.systems", "http://localhost:29364", "*"]
     },
     {
       "essential": false,

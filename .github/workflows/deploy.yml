@@ -1,0 +1,159 @@
+name: Build and deploy Connector and Visual
+on:
+  push:
+    branches: ["installer-test/**"]
+    tags: ["v3.*.*"] # Manual delivery on every 3.x tag
+jobs:
+  build-connector:
+    runs-on: windows-latest
+    outputs:
+      semver: ${{ steps.set-version.outputs.semver }}
+      file-version: ${{ steps.set-version.outputs.file-version }}
+    env:
+      CertFile: "./speckle.pfx"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+
+      - id: set-version
+        name: Set version to output
+        shell: bash
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            TAG="v3.0.99.${{ github.run_number }}"
+          fi
+          SEMVER="${TAG#v}"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo $SEMVER
+          echo $FILE_VERSION
+
+      - name: Set connector version
+        run: |
+          python patch_version.py ${{steps.set-version.outputs.file-version}}
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Data Connector
+        working-directory: src/powerbi-data-connector
+        run: |
+          msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
+
+      - name: Setup Self-sign certificate
+        run: |
+          echo "${{ secrets.SELF_CERT_FILE_B64 }}" > "certificate.txt"
+          certutil -decode certificate.txt ${{ env.CertFile  }}
+
+      - name: Create PQX file
+        run: |
+          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate ${{env.CertFile}} --password ${{secrets.SELF_CERT_PASSWORD}}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerbi-connector
+          path: src/powerbi-data-connector/bin/Speckle.pqx
+          if-no-files-found: error
+          retention-days: 1
+
+  build-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - id: set-version
+        name: Set version to output
+        shell: bash
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            TAG="v3.0.99.${{ github.run_number }}"
+          fi
+          SEMVER="${TAG#v}"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+
+          echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
+          echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo $SEMVER
+          echo $FILE_VERSION
+
+      - run: npm ci
+        working-directory: src/powerbi-visual
+      - run: npm version ${{steps.set-version.outputs.semver}} --allow-same-version
+        working-directory: src/powerbi-visual
+      - run: npm run build
+        working-directory: src/powerbi-visual
+      - uses: actions/upload-artifact@v4
+        with:
+          name: powerbi-visual
+          path: src/powerbi-visual/dist/*.pbiviz
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-installers:
+    runs-on: ubuntu-latest
+    needs:
+      - build-connector
+      - build-visual
+    env:
+      IS_TAG_BUILD: ${{ github.ref_type == 'tag' }}
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: powerbi-connector
+          path: artifacts/
+      - name: download artifacts visual
+        uses: actions/download-artifact@v4
+        with:
+          name: powerbi-visual
+          path: artifacts/
+      - name: Zip artifacts
+        run: |
+          cd artifacts && zip -r ../powerbi.zip .
+      - name: upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-${{needs.build-connector.outputs.semver}}
+          path: powerbi.zip
+          if-no-files-found: error
+          retention-days: 1
+      - name: 🔫 Trigger Build Installer(s)
+        uses: the-actions-org/workflow-dispatch@v4.0.0
+        with:
+          workflow: Build Installers
+          repo: specklesystems/connector-installers
+          token: ${{ secrets.CONNECTORS_GH_TOKEN }}
+          inputs: '{
+            "run_id": "${{ github.run_id }}",
+            "semver": "${{ needs.build-connector.outputs.semver }}",
+            "file_version": "${{ needs.build-connector.outputs.file-version }}",
+            "repo": "${{ github.repository }}",
+            "is_public_release": ${{ env.IS_TAG_BUILD }}
+            }'
+          ref: main
+          wait-for-completion: true
+          wait-for-completion-interval: 10s
+          wait-for-completion-timeout: 10m
+          display-workflow-run-url: true
+          display-workflow-run-url-interval: 10s
+
+      - uses: geekyeggo/delete-artifact@v5
+        with:
+          name: output-*

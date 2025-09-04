@@ -1,0 +1,103 @@
+(url as text) as list =>
+    try let
+        // Import required functions
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
+        GetVersion = Extension.LoadFunction("GetVersion.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+
+         // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        modelInfo = GetModel(url),
+        parsedUrl = Parser(url),
+        userInfo = GetUser(url),
+
+        apiKey = userInfo[Token],
+        
+        userEmail = userInfo[UserEmail],
+
+        // get version from Speckle.pq - look GetVersion.pqm
+        connectorVersion = GetVersion(),
+
+        workspaceInfo = GetWorkspace(url),
+
+        // exchange powerful token for weak token via ds 
+        tokenExchangeData = Json.FromValue([
+            PowerfulToken = apiKey,
+            Scopes = {"profile:read", "streams:read", "users:read"},
+            ProjectId = parsedUrl[projectId],
+            ServerUrl = parsedUrl[baseUrl]
+        ]),
+        
+        tokenExchangeResponse = Web.Contents(
+            "http://127.0.0.1:29364/auth/exchange-token",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST"
+                ],
+                Content = tokenExchangeData,
+                ManualStatusHandling = {400, 401, 403, 404, 500}
+            ]
+        ),
+        
+        tokenExchangeJson = Json.Document(tokenExchangeResponse),
+        weakToken = tokenExchangeJson[token],
+
+        // prepare request data with weak token
+        requestData = Json.FromValue([
+            Url = url,
+            Server = parsedUrl[baseUrl],
+            Email = userEmail,
+            ProjectId = parsedUrl[projectId],
+            RootObjectId = modelInfo[rootObjectId],
+            SourceApplication = modelInfo[sourceApplication],
+            Token = weakToken,
+            Version = connectorVersion,
+            VersionId = parsedUrl[versionId],
+            WorkspaceId = workspaceInfo[workspaceId],
+            WorkspaceName = workspaceInfo[workspaceName],
+            WorkspaceLogo = workspaceInfo[workspaceLogo],
+            CanHideBranding = workspaceInfo[canHideBranding]
+        ]),
+        
+        // Send request to local server
+        Response = Web.Contents(
+            "http://127.0.0.1:29364/download",
+            [
+                Headers = [
+                    #"Content-Type" = "application/json",
+                    #"Method" = "POST"
+                ],
+                Content = requestData,
+                ManualStatusHandling = {400, 401, 403, 404, 500}
+            ]
+        ),
+        
+        // Parse response
+        JsonResponse = Json.Document(Response)
+
+    in
+        JsonResponse
+    otherwise
+        error [
+            Reason = "Desktop Service Not Available", 
+            Message = "Cannot connect to Speckle Desktop Service. Please ensure the Desktop Service is running and try again.",
+            Detail = "The Speckle Desktop Service must be running to load data from Speckle. Please start the Desktop Service application and refresh your data connection."
+        ]

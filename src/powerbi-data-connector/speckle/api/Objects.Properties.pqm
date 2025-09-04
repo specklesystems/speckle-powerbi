@@ -1,0 +1,257 @@
+// function for extracting and flattening properties from Speckle objects
+(inputRecord as any, optional filterKeys as list, optional parentPath as text, optional existingFields as list) as record =>
+let
+    // Define excluded paths
+    ExcludedPaths = {
+        "Composite Structure",
+        "Material Quantities", 
+        "Parameters.Type Parameters.Structure"
+    },
+    
+    // Helper function to check if a path should be excluded
+    IsPathExcluded = (currentPath as text) as logical =>
+        List.AnyTrue(List.Transform(ExcludedPaths, each Text.Contains(currentPath, _))),
+    
+    // Helper function to resolve naming conflicts
+    ResolveFieldName = (fieldName as text, parentPathParam as nullable text, existingFieldsParam as nullable list) as text =>
+        let
+            // Ensure we have valid inputs
+            parentPath = if parentPathParam = null then "" else parentPathParam,
+            existingFields = if existingFieldsParam = null then {} else existingFieldsParam,
+            
+            // Try original field name first
+            candidateName = fieldName,
+            
+            // If no conflict, return original name
+            finalName = if not List.Contains(existingFields, candidateName) then
+                candidateName
+            else if parentPath = "" then 
+                fieldName  // No parent path available, keep original
+            else
+                let
+                    // Split parent path and try adding parents one by one
+                    pathParts = Text.Split(parentPath, "."),
+                    reversedParts = List.Reverse(pathParts),  // Start with immediate parent
+                    
+                    // Use iteration instead of recursion
+                    ResolveWithIteration = () =>
+                        let
+                            // Generate all possible candidates
+                            candidates = List.Generate(
+                                () => [depth = 1, candidate = fieldName & "." & List.First(reversedParts)],
+                                each [depth] <= List.Count(reversedParts),
+                                each [
+                                    depth = [depth] + 1,
+                                    candidate = fieldName & "." & Text.Combine(List.FirstN(reversedParts, [depth]), ".")
+                                ],
+                                each [candidate]
+                            ),
+                            
+                            // Find first non-conflicting candidate
+                            firstNonConflicting = List.First(
+                                List.Select(candidates, each not List.Contains(existingFields, _)),
+                                // If all conflict, use full path
+                                fieldName & "." & Text.Combine(reversedParts, ".")
+                            )
+                        in
+                            firstNonConflicting,
+                    
+                    resolvedName = ResolveWithIteration()
+                in
+                    resolvedName
+        in
+            finalName,
+    
+    // Create the main flattening function with self-reference capability
+    FlattenRecordImpl = (
+        flattenFn as function,
+        inputRecord as any, 
+        filterKeys as nullable list, 
+        parentPathParam as nullable text, 
+        existingFieldsParam as nullable list
+    ) as record =>
+        let
+            // Ensure non-null values for internal use
+            currentParentPath = if parentPathParam = null then "" else parentPathParam,
+            currentExistingFields = if existingFieldsParam = null then {} else existingFieldsParam,
+            currentfilterKeys = filterKeys,
+            
+            // Check if record has "properties" field and use it instead of the root record
+            recordToProcess = if inputRecord = null then 
+                null
+            else if Value.Is(inputRecord, type record) and Record.HasFields(inputRecord, {"properties"}) then
+                Record.Field(inputRecord, "properties")
+            else
+                inputRecord,
+            
+            // Helper function to check if a field should be included
+            ShouldIncludeField = (fieldName as text) as logical =>
+                if currentfilterKeys = null then true
+                else List.Contains(currentfilterKeys, fieldName),
+            
+            // Handle different input types
+            result = if recordToProcess = null then
+                []
+            else if Value.Is(recordToProcess, type record) then
+                let
+                    fieldNames = Record.FieldNames(recordToProcess),
+                    
+                    // Process each field
+                    processedFields = List.Accumulate(
+                        fieldNames,
+                        [FlattenedRecord = [], ExistingFieldsList = currentExistingFields],
+                        (state, fieldName) =>
+                            let
+                                fieldValue = Record.Field(recordToProcess, fieldName),
+                                newPath = if currentParentPath = "" then fieldName else currentParentPath & "." & fieldName,
+                                
+                                // Skip if path is excluded
+                                shouldProcess = not IsPathExcluded(newPath),
+                                
+                                processResult = if not shouldProcess then
+                                    state
+                                else
+                                    let
+                                        // Check if this is a name/value record
+                                        hasNameValue = Value.Is(fieldValue, type record) and 
+                                                     Record.HasFields(fieldValue, {"name", "value"}),
+                                        
+                                        finalResult = if hasNameValue then
+                                            let
+                                                nameField = Record.Field(fieldValue, "name"),
+                                                valueField = Record.Field(fieldValue, "value"),
+                                                // Check if this name field should be included
+                                                shouldInclude = if nameField = null then false else ShouldIncludeField(nameField),
+                                                result = if shouldInclude and nameField <> null then
+                                                    let
+                                                        resolvedName = ResolveFieldName(nameField, currentParentPath, state[ExistingFieldsList]),
+                                                        newRecord = Record.AddField(state[FlattenedRecord], resolvedName, valueField),
+                                                        newFieldsList = state[ExistingFieldsList] & {resolvedName}
+                                                    in
+                                                        [FlattenedRecord = newRecord, ExistingFieldsList = newFieldsList]
+                                                else
+                                                    state
+                                            in
+                                                result
+                                        else if fieldValue = null then
+                                            let
+                                                shouldInclude = ShouldIncludeField(fieldName),
+                                                result = if shouldInclude then
+                                                    let
+                                                        resolvedName = ResolveFieldName(fieldName, currentParentPath, state[ExistingFieldsList]),
+                                                        newRecord = Record.AddField(state[FlattenedRecord], resolvedName, null),
+                                                        newFieldsList = state[ExistingFieldsList] & {resolvedName}
+                                                    in
+                                                        [FlattenedRecord = newRecord, ExistingFieldsList = newFieldsList]
+                                                else
+                                                    state
+                                            in
+                                                result
+                                        else if Value.Is(fieldValue, type record) then
+                                            let
+                                                // Skip empty records
+                                                fieldCount = Record.FieldCount(fieldValue),
+                                                recursiveResult = if fieldCount = 0 then
+                                                    state
+                                                else
+                                                    let
+                                                        // Call the function through the passed reference
+                                                        // IMPORTANT: Pass the current state's existing fields list
+                                                        flattened = flattenFn(flattenFn, fieldValue, currentfilterKeys, newPath, state[ExistingFieldsList]),
+                                                        // Get all field names from the flattened result
+                                                        flattenedFieldNames = Record.FieldNames(flattened),
+                                                        // Merge the flattened record with the current state
+                                                        combinedRecord = flattened & state[FlattenedRecord],
+                                                        // Update the existing fields list with ALL fields from both records
+                                                        allFieldNames = List.Distinct(state[ExistingFieldsList] & flattenedFieldNames)
+                                                    in
+                                                        [FlattenedRecord = combinedRecord, ExistingFieldsList = allFieldNames]
+                                            in
+                                                recursiveResult
+                                        else if Value.Is(fieldValue, type list) then
+                                            let
+                                                listLength = List.Count(fieldValue),
+                                                // Skip empty lists
+                                                listResult = if listLength = 0 then
+                                                    state
+                                                else
+                                                    List.Accumulate(
+                                                        List.Positions(fieldValue),
+                                                        state,
+                                                        (listState, index) =>
+                                                            let
+                                                                listItem = fieldValue{index},
+                                                                indexSuffix = Text.From(index + 1), // 1-based indexing
+                                                                listFieldName = fieldName & "." & indexSuffix,
+                                                                listPath = if currentParentPath = "" then listFieldName else currentParentPath & "." & listFieldName,
+                                                                
+                                                                itemResult = if Value.Is(listItem, type record) then
+                                                                    let
+                                                                        itemFieldCount = Record.FieldCount(listItem),
+                                                                        itemFlattened = if itemFieldCount = 0 then
+                                                                            listState
+                                                                        else
+                                                                            let
+                                                                                // Call the function through the passed reference
+                                                                                flattened = flattenFn(flattenFn, listItem, currentfilterKeys, listPath, listState[ExistingFieldsList]),
+                                                                                // Get all field names from the flattened result
+                                                                                flattenedFieldNames = Record.FieldNames(flattened),
+                                                                                // Merge the flattened record with the current state
+                                                                                combinedRecord = flattened & listState[FlattenedRecord],
+                                                                                // Update the existing fields list with ALL fields
+                                                                                allFieldNames = List.Distinct(listState[ExistingFieldsList] & flattenedFieldNames)
+                                                                            in
+                                                                                [FlattenedRecord = combinedRecord, ExistingFieldsList = allFieldNames]
+                                                                    in
+                                                                        itemFlattened
+                                                                else
+                                                                    let
+                                                                        shouldInclude = ShouldIncludeField(listFieldName),
+                                                                        result = if shouldInclude then
+                                                                            let
+                                                                                resolvedName = ResolveFieldName(listFieldName, currentParentPath, listState[ExistingFieldsList]),
+                                                                                newRecord = Record.AddField(listState[FlattenedRecord], resolvedName, listItem),
+                                                                                newFieldsList = listState[ExistingFieldsList] & {resolvedName}
+                                                                            in
+                                                                                [FlattenedRecord = newRecord, ExistingFieldsList = newFieldsList]
+                                                                        else
+                                                                            listState
+                                                                    in
+                                                                        result
+                                                            in
+                                                                itemResult
+                                                    )
+                                            in
+                                                listResult
+                                        else
+                                            // Handle primitive values
+                                            let
+                                                shouldInclude = ShouldIncludeField(fieldName),
+                                                result = if shouldInclude then
+                                                    let
+                                                        resolvedName = ResolveFieldName(fieldName, currentParentPath, state[ExistingFieldsList]),
+                                                        newRecord = Record.AddField(state[FlattenedRecord], resolvedName, fieldValue),
+                                                        newFieldsList = state[ExistingFieldsList] & {resolvedName}
+                                                    in
+                                                        [FlattenedRecord = newRecord, ExistingFieldsList = newFieldsList]
+                                                else
+                                                    state
+                                            in
+                                                result
+                                    in
+                                        finalResult
+                            in
+                                processResult
+                    )
+                in
+                    processedFields[FlattenedRecord]
+            else
+                // If input is not a record, return it as is in a record wrapper
+                [Value = recordToProcess]
+        in
+            result,
+    
+    // Call the implementation with self-reference
+    result = FlattenRecordImpl(FlattenRecordImpl, inputRecord, filterKeys, parentPath, existingFields)
+in
+    result

@@ -1,58 +1,137 @@
-let
-    Fetch = Extension.LoadFunction("Api.Fetch.pqm"),
-    GetObject = Extension.LoadFunction("Api.GetObject.pqm"),
-    GetAllObjectChildren = Extension.LoadFunction("Api.GetAllObjectChildren.pqm"),
-    GetObjectFromCommit = Extension.LoadFunction("GetObjectFromCommit.pqm"),
-    GetObjectFromBranch = Extension.LoadFunction("GetObjectFromBranch.pqm"),
-    CommitReceived = Extension.LoadFunction("Api.CommitReceived.pqm"),
-    ParseStreamUrl = Extension.LoadFunction("ParseStreamUrl.pqm"),
-    Extension.LoadFunction = (fileName as text) =>
-        let
-            binary = Extension.Contents(fileName), asText = Text.FromBinary(binary)
-        in
-            try
-                Expression.Evaluate(asText, #shared) catch (e) =>
+(url as text) as table =>
+    let
+        // import required functions
+        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
+        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
                     error
                         [
                             Reason = "Extension.LoadFunction Failure",
                             Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
-                        ]
-in
-    (url as text) as table =>
-        let
-            // Get server and streamId, and branchName / commitId / objectid from the input url
-            stream = ParseStreamUrl(url),
-            id = stream[id],
-            server = stream[server],
-            commitObjectsTable =
-                if (stream[urlType] = "Commit") then
-                    GetObjectFromCommit(server, id, stream[commit])
-                else if (stream[urlType] = "Object") then
-                    GetAllObjectChildren(server, id, stream[object])
-                else if (stream[urlType] = "Branch") then
-                    GetObjectFromBranch(server, id, stream[branch])
-                else
-                    GetObjectFromBranch(server, id, "main"),
-            addStreamUrl = Table.AddColumn(commitObjectsTable, "Model URL", each server & "/streams/" & id),
-            addParentObjectId = Table.AddColumn(
-                addStreamUrl, "Version Object ID", each Value.Metadata(commitObjectsTable)[objectId]
-            ),
-            addUrlType = Table.AddColumn(addParentObjectId, "URL Type", each stream[urlType]),
-            addObjectIdCol = Table.AddColumn(addUrlType, "Object ID", each try[data][id] otherwise null),
-            addSpeckleTypeCol = Table.AddColumn(
-                addObjectIdCol, "speckle_type", each try[data][speckle_type] otherwise null
-            ),
-            final = Table.ReorderColumns(
-                addSpeckleTypeCol, {
-                    "Model URL",
-                    "URL Type",
-                    "Version Object ID",
-                    "Object ID",
-                    "speckle_type",
-                    "data"
-                }
+                        ],
+
+        // parse the URL to determine if it's a federated model
+        parsedUrl = Parser(url),
+        
+        // check if user has permission to load the model
+        permissionCheck = CheckPermissions(url),
+        
+        // assert that permission check returned a valid result
+        permissionAssert = if not Record.HasFields(permissionCheck, {"authorized", "code", "message"}) then
+            error "Invalid permission check result"
+        else
+            null,
+        
+        // if not authorized, throw an error with the message from the server
+        authCheck = if not permissionCheck[authorized] then
+            error Text.Format(
+                "Permission denied: #{0} (Error code: #{1})", 
+                {permissionCheck[message], permissionCheck[code]}
             )
-        in
-            final
+        else
+            null,
+            
+        // only proceed if user has permisson to load
+        results = if permissionCheck[authorized] then
+            if parsedUrl[isFederated] = true then
+                // process each model in the federation
+                let
+                    modelsData = List.Transform(
+                        parsedUrl[federatedModels],
+                        each ProcessSingleModel(
+                            parsedUrl[baseUrl], 
+                            parsedUrl[projectId], 
+                            [modelId], 
+                            [versionId]
+                        )
+                    ),
+                    
+                    // extract all data tables
+                    allTables = List.Transform(modelsData, each [Data]),
+                    
+                    // extract all root object IDs
+                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
+                    
+                    // combine all root object IDs into a comma-separated string
+                    combinedRootIds = Text.Combine(allRootIds, ","),
+                    
+                    // combine all data tables
+                    combinedData = Table.Combine(allTables),
+                    
+                    // replace the "Version Object ID" column with the combined root IDs
+                    finalData = Table.TransformColumns(
+                        combinedData, 
+                        {"Version Object ID", each combinedRootIds}
+                    )
+                in
+                    finalData
+            else
+                // use existing functionality for single models
+                let
+                    // get model name
+                    modelInfo = GetModel(url),
+                    modelName = modelInfo[modelName],
+                    
+                    // get structured data
+                    structuredData = GetStructuredData(url),
+    
+                    // rename column based on send status
+                    newColumnName = "Version Object ID",
+                    result = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}})
+                in
+                    result
+        else
+            error Text.Format(
+                "Permission denied: #{0} (Error code: #{1})", 
+                {permissionCheck[message], permissionCheck[code]}
+            ),
+                
+        // function to process a single model and get its data
+        ProcessSingleModel = (baseUrl, projectId, modelId, versionId) => 
+            let
+                // construct a standard URL for the model
+                singleModelUrl = Text.Combine({
+                    baseUrl, 
+                    "/projects/", 
+                    projectId, 
+                    "/models/", 
+                    modelId,
+                    if versionId <> null then Text.Combine({"@", versionId}) else ""
+                }),
+                
+                // get model info
+                modelInfo = GetModel(singleModelUrl),
+                rootObjectId = modelInfo[rootObjectId],
+                modelName = modelInfo[modelName],
+                
+                // get structured data
+                structuredData = GetStructuredData(singleModelUrl),
+                
+                // add the model name as context
+                result = Table.AddColumn(
+                    structuredData, 
+                    "Source Model", 
+                    each modelName,
+                    type text
+                )
+            in
+                [
+                    Data = result,
+                    RootObjectId = rootObjectId
+                ]
+    in
+        results

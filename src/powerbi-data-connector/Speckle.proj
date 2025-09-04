@@ -12,7 +12,6 @@
   </PropertyGroup>
   <ItemGroup>
     <MezContent Include="Speckle.pq" />
-    <MezContent Include="utilities\**\*.pqm" />
     <MezContent Include="speckle\**\*.pqm" />
     <MezContent Include="assets\SpeckleLogo16.png" />
     <MezContent Include="assets\SpeckleLogo20.png" />

@@ -1,6 +1,8 @@
 (server as text, optional query as text, optional variables as record) as record =>
     let
-        apiKey = try Extension.CurrentCredential()[Key] otherwise null,
+        // Enhanced credential retrieval with OAuth2 support
+        apiKey = try Extension.CurrentCredential()[access_token] otherwise null,
+        
         defaultQuery = "query {
                 activeUser {
                     email 
@@ -12,7 +14,9 @@
                     version
                 }
             }",
-        Source = Web.Contents(
+        
+        // Enhanced API call with comprehensive error handling
+        Source = try Web.Contents(
             Text.Combine({server, "graphql"}, "/"),
             [
                 Headers = [
@@ -20,14 +24,56 @@
                     #"Content-Type" = "application/json",
                     #"Authorization" = if apiKey = null then "" else Text.Format("Bearer #{0}", {apiKey})
                 ],
-                ManualStatusHandling = {400},
+                ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
                 Content = Json.FromValue([query = Text.From(query ?? defaultQuery), variables = variables])
             ]
-        ),
-        #"JSON" = Json.Document(Source)
-    in
-        // Check if response contains errors, if so, return first error.
-        if Record.HasFields(#"JSON", {"errors"}) then
-            error #"JSON"[errors]{0}[message]
+        ) otherwise null,
+        
+        // Check if the HTTP request was successful
+        IsHttpSuccess = Source <> null,
+        
+        // Get HTTP status code for detailed error handling
+        StatusCode = if IsHttpSuccess then Value.Metadata(Source)[Response.Status] else null,
+        
+        // Parse JSON response if HTTP request was successful
+        #"JSON" = if IsHttpSuccess then
+            try Json.Document(Source) otherwise null
+        else
+            null,
+        
+        // Comprehensive error handling
+        // Comprehensive error handling
+        result = if not IsHttpSuccess then
+            error [
+                Reason = "HttpRequestFailed",
+                Message = "Failed to connect to Speckle server",
+                Detail = [Server = server, StatusCode = StatusCode]
+            ]
+        else if StatusCode = 401 then
+            error [
+                Reason = "AuthenticationFailed",
+                Message = "Invalid or expired authentication token",
+                Detail = [Server = server, HasToken = apiKey <> null]
+            ]
+        else if StatusCode = 403 then
+            error [
+                Reason = "AuthorizationFailed", 
+                Message = "Insufficient permissions for this operation",
+                Detail = [Server = server]
+            ]
+        else if #"JSON" = null then
+            error [
+                Reason = "InvalidJsonResponse",
+                Message = "Server returned invalid JSON response",
+                Detail = [Server = server, StatusCode = StatusCode]
+            ]
+        else if Record.HasFields(#"JSON", {"errors"}) then
+            error [
+                Reason = "GraphQLError",
+                Message = #"JSON"[errors]{0}[message],
+                Detail = [Server = server, Errors = #"JSON"[errors]]
+            ]
         else
             #"JSON"[data]
+    in
+        result

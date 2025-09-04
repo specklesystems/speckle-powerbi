@@ -1,0 +1,58 @@
+// function for parsing the url into base url, project id, model id and version id
+(url as text) as record =>
+    let
+        urlParts = Uri.Parts(url),
+        baseUrl = Text.Combine({urlParts[Scheme], "://", urlParts[Host]}),
+        
+        pathSegments = List.Select(Text.Split(urlParts[Path], "/"), each _ <> ""),
+        
+        // extract project ID if it exists
+        projectId = if List.Count(pathSegments) >= 2 and pathSegments{0} = "projects" 
+            then pathSegments{1} else null,
+            
+        // extract model ID and version ID if they exist
+        rawModelSegment = if List.Count(pathSegments) >= 4 and pathSegments{2} = "models"
+            then pathSegments{3} else "",
+            
+        // check if this is a federated model (contains commas)
+        isFederated = Text.Contains(rawModelSegment, ","),
+        
+        // if federated, split by comma to get multiple model IDs
+        modelSegments = if isFederated 
+            then Text.Split(rawModelSegment, ",") 
+            else {rawModelSegment},
+            
+        // process each model segment (could be modelID or modelID@versionID)
+        processedModels = List.Transform(
+            modelSegments,
+            each [
+                modelId = if Text.Contains(_, "@") 
+                    then Text.Split(_, "@"){0} 
+                    else _,
+                versionId = if Text.Contains(_, "@") 
+                    then Text.Split(_, "@"){1} 
+                    else null
+            ]
+        ),
+            
+        // extract model IDs and version IDs into separate lists
+        modelIds = List.Transform(processedModels, each [modelId]),
+        versionIds = List.Transform(processedModels, each [versionId]),
+            
+        // validate URL structure
+        isValid = projectId <> null and List.Count(modelIds) > 0 and List.First(modelIds) <> ""
+    in
+        if not isValid then
+            error [
+                Reason = "Invalid URL",
+                Message = "The URL must be in the format 'https://server/projects/PROJECT_ID/models/MODEL_ID' or 'https://server/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID' or 'https://server/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2'"
+            ]
+        else
+            [
+                baseUrl = baseUrl,
+                projectId = projectId,
+                modelId = if isFederated then null else processedModels{0}[modelId],
+                versionId = if isFederated then null else processedModels{0}[versionId],
+                isFederated = isFederated,
+                federatedModels = if isFederated then processedModels else null
+            ]

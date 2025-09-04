@@ -10,10 +10,10 @@ export interface IViewerTooltip {
 }
 
 export interface SpeckleDataInput {
-  objectsToLoad: string[]
+  modelObjects: object[][]
   objectIds: string[]
   selectedIds: string[]
   colorByIds: { objectIds: string[]; slice: fs.ColorPicker; color: string }[]
   objectTooltipData: Map<string, IViewerTooltip>
-  view: powerbi.DataViewMatrix
+  isFromStore: boolean
 }
