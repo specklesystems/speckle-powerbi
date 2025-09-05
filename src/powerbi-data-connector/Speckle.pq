@@ -189,6 +189,12 @@ shared Speckle.Models.MaterialQuantities = Value.ReplaceType(
     type function (inputTable as table, optional addPrefix as logical) as table
 );
 
+[DataSource.Kind = "Speckle"]
+shared Speckle.Project.Discussions = Value.ReplaceType(
+    Speckle.LoadFunction("Project.Discussions.pqm"),
+    type function (url as Uri.Type, optional getReplies as logical) as table
+);
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
