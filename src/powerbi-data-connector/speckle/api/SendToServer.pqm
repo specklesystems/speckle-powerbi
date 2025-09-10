@@ -1,5 +1,5 @@
 (url as text) as list =>
-    try let
+    let
         // Import required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -24,80 +24,145 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
+        // Get required information
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
         userInfo = GetUser(url),
-
         apiKey = userInfo[Token],
-        
         userEmail = userInfo[UserEmail],
-
-        // get version from Speckle.pq - look GetVersion.pqm
         connectorVersion = GetVersion(),
-
         workspaceInfo = GetWorkspace(url),
 
-        // exchange powerful token for weak token via ds 
-        tokenExchangeData = Json.FromValue([
-            PowerfulToken = apiKey,
-            Scopes = {"profile:read", "streams:read", "users:read"},
-            ProjectId = parsedUrl[projectId],
-            ServerUrl = parsedUrl[baseUrl]
-        ]),
-        
-        tokenExchangeResponse = Web.Contents(
-            "http://127.0.0.1:29364/auth/exchange-token",
-            [
-                Headers = [
-                    #"Content-Type" = "application/json",
-                    #"Method" = "POST"
-                ],
-                Content = tokenExchangeData,
-                ManualStatusHandling = {400, 401, 403, 404, 500}
-            ]
-        ),
-        
-        tokenExchangeJson = Json.Document(tokenExchangeResponse),
-        weakToken = tokenExchangeJson[token],
+        // Function to check if Desktop Service is available
+        IsDesktopServiceAvailable = () =>
+            try
+                let
+                    PingResponse = Web.Contents(
+                        "http://127.0.0.1:29364/ping",
+                        [
+                            Headers = [#"Method" = "GET"],
+                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
+                            Timeout = #duration(0, 0, 0, 2) // 2 second timeout for ping
+                        ]
+                    ),
+                    StatusCode = Value.Metadata(PingResponse)[Response.Status]
+                in
+                    StatusCode = 200
+            otherwise
+                false,
 
-        // prepare request data with weak token
-        requestData = Json.FromValue([
-            Url = url,
-            Server = parsedUrl[baseUrl],
-            Email = userEmail,
-            ProjectId = parsedUrl[projectId],
-            RootObjectId = modelInfo[rootObjectId],
-            SourceApplication = modelInfo[sourceApplication],
-            Token = weakToken,
-            Version = connectorVersion,
-            VersionId = parsedUrl[versionId],
-            WorkspaceId = workspaceInfo[workspaceId],
-            WorkspaceName = workspaceInfo[workspaceName],
-            WorkspaceLogo = workspaceInfo[workspaceLogo],
-            CanHideBranding = workspaceInfo[canHideBranding]
-        ]),
+        // Function to use Desktop Service approach (only called if available)
+        UseDesktopService = () =>
+            let
+                // exchange powerful token for weak token via ds 
+                tokenExchangeData = Json.FromValue([
+                    PowerfulToken = apiKey,
+                    Scopes = {"profile:read", "streams:read", "users:read"},
+                    ProjectId = parsedUrl[projectId],
+                    ServerUrl = parsedUrl[baseUrl]
+                ]),
+                
+                tokenExchangeResponse = Web.Contents(
+                    "http://127.0.0.1:29364/auth/exchange-token",
+                    [
+                        Headers = [
+                            #"Content-Type" = "application/json",
+                            #"Method" = "POST"
+                        ],
+                        Content = tokenExchangeData,
+                        ManualStatusHandling = {400, 401, 403, 404, 500}
+                    ]
+                ),
+                
+                tokenExchangeJson = Json.Document(tokenExchangeResponse),
+                weakToken = tokenExchangeJson[token],
+
+                // prepare request data with weak token
+                requestData = Json.FromValue([
+                    Url = url,
+                    Server = parsedUrl[baseUrl],
+                    Email = userEmail,
+                    ProjectId = parsedUrl[projectId],
+                    RootObjectId = modelInfo[rootObjectId],
+                    SourceApplication = modelInfo[sourceApplication],
+                    Token = weakToken,
+                    Version = connectorVersion,
+                    VersionId = parsedUrl[versionId],
+                    WorkspaceId = workspaceInfo[workspaceId],
+                    WorkspaceName = workspaceInfo[workspaceName],
+                    WorkspaceLogo = workspaceInfo[workspaceLogo],
+                    CanHideBranding = workspaceInfo[canHideBranding]
+                ]),
+                
+                // Send request to local server
+                Response = Web.Contents(
+                    "http://127.0.0.1:29364/download",
+                    [
+                        Headers = [
+                            #"Content-Type" = "application/json",
+                            #"Method" = "POST"
+                        ],
+                        Content = requestData,
+                        ManualStatusHandling = {400, 401, 403, 404, 500}
+                    ]
+                ),
+                
+                // Parse response
+                JsonResponse = Json.Document(Response)
+            in
+                JsonResponse,
+
+        // Function to fallback to direct JSON download from Speckle server
+        FallbackToDirectDownload = () =>
+            let
+                // Construct the direct object URL: {baseUrl}/objects/{projectId}/{rootObjectId}
+                objectUrl = Text.Combine({
+                    parsedUrl[baseUrl], 
+                    "/objects/", 
+                    parsedUrl[projectId], 
+                    "/", 
+                    modelInfo[rootObjectId]
+                }),
+                
+                // Download JSON directly from Speckle server
+                Response = Web.Contents(
+                    objectUrl,
+                    [
+                        Headers = [
+                            #"Authorization" = "Bearer " & apiKey,
+                            #"Accept" = "application/json"
+                        ],
+                        ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+                    ]
+                ),
+                
+                // Check response status
+                StatusCode = Value.Metadata(Response)[Response.Status],
+                
+                // Parse JSON response if successful
+                JsonResponse = if StatusCode >= 200 and StatusCode < 300 then
+                    Json.Document(Response)
+                else
+                    error [
+                        Reason = "DirectDownloadFailed",
+                        Message = "Failed to download model data directly from Speckle server",
+                        Detail = [
+                            StatusCode = StatusCode, 
+                            ObjectUrl = objectUrl,
+                            ProjectId = parsedUrl[projectId],
+                            RootObjectId = modelInfo[rootObjectId]
+                        ]
+                    ]
+            in
+                JsonResponse,
+
+        // Check Desktop Service availability and choose approach
+        DesktopServiceAvailable = IsDesktopServiceAvailable(),
         
-        // Send request to local server
-        Response = Web.Contents(
-            "http://127.0.0.1:29364/download",
-            [
-                Headers = [
-                    #"Content-Type" = "application/json",
-                    #"Method" = "POST"
-                ],
-                Content = requestData,
-                ManualStatusHandling = {400, 401, 403, 404, 500}
-            ]
-        ),
-        
-        // Parse response
-        JsonResponse = Json.Document(Response)
+        FinalResult = if DesktopServiceAvailable then
+            UseDesktopService()
+        else
+            FallbackToDirectDownload()
 
     in
-        JsonResponse
-    otherwise
-        error [
-            Reason = "Desktop Service Not Available", 
-            Message = "Cannot connect to Speckle Desktop Service. Please ensure the Desktop Service is running and try again.",
-            Detail = "The Speckle Desktop Service must be running to load data from Speckle. Please start the Desktop Service application and refresh your data connection."
-        ]
+        FinalResult
