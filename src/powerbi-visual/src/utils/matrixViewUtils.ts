@@ -170,13 +170,14 @@ async function getReceiveInfo(id) {
     const response = await fetch(`http://localhost:29364/user-info/${ids[0]}`)
     if (!response.body) {
       console.error('No response body')
-      return
+      return { desktopServiceError: true }
     }
 
     return await response.json()
   } catch (error) {
     console.log(error)
     console.log("User info couldn't retrieved from local server.")
+    return { desktopServiceError: true }
   }
 }
 
@@ -231,7 +232,11 @@ export async function processMatrixView(
 
   try {
     if (hasColorFilter) {
-      if (!localMatrixView[0].children || localMatrixView[0].children.length === 0 || !localMatrixView[0].children[0].values) {
+      if (
+        !localMatrixView[0].children ||
+        localMatrixView[0].children.length === 0 ||
+        !localMatrixView[0].children[0].values
+      ) {
         throw new Error('Matrix view structure is incomplete for color filter mode')
       }
       id = localMatrixView[0].children[0].values[0].value as unknown as string
@@ -258,7 +263,9 @@ export async function processMatrixView(
         // CRITICAL: Validate that internalized data matches current matrix data
         const internalizedRootId = (internalizedModelObjects[0][0] as any).id
         if (internalizedRootId !== id) {
-          console.log(`📁 Internalized data mismatch: stored=${internalizedRootId}, current=${id}. Using fresh data.`)
+          console.log(
+            `📁 Internalized data mismatch: stored=${internalizedRootId}, current=${id}. Using fresh data.`
+          )
           internalizedModelObjects = undefined // Clear internalized data - use fresh data instead
         } else {
           console.log(
@@ -270,7 +277,6 @@ export async function processMatrixView(
       }
 
       if (internalizedModelObjects && internalizedModelObjects.length > 0) {
-
         // Set dummy receiveInfo to prevent UI errors
         if (!visualStore.receiveInfo) {
           visualStore.setReceiveInfo({
@@ -288,7 +294,8 @@ export async function processMatrixView(
         }
 
         // Only reload if switching models or not already loaded
-        const needsReload = !visualStore.isViewerObjectsLoaded || visualStore.lastLoadedRootObjectId !== id
+        const needsReload =
+          !visualStore.isViewerObjectsLoaded || visualStore.lastLoadedRootObjectId !== id
         if (needsReload) {
           console.log('🔄 Forcing viewer reload for internalized data (model switch or first load)')
           visualStore.setViewerReloadNeeded()
@@ -321,7 +328,9 @@ export async function processMatrixView(
 
     // Get receive info from desktop service to populate visual store
     const receiveInfo = await getReceiveInfo(id)
-    if (receiveInfo) {
+    let desktopServiceUnavailable = false
+
+    if (receiveInfo && !receiveInfo.desktopServiceError) {
       visualStore.setReceiveInfo({
         userEmail: receiveInfo.email || receiveInfo.Email,
         serverUrl: receiveInfo.server || receiveInfo.Server,
@@ -337,6 +346,9 @@ export async function processMatrixView(
         projectId: receiveInfo.projectId || receiveInfo.ProjectId
       })
       console.log(`Receive info retrieved from desktop service - credentials loaded`)
+    } else {
+      desktopServiceUnavailable = true
+      console.log('Desktop service unavailable - cannot retrieve credentials')
     }
 
     // Now get the data from visual store for Speckle API download
@@ -345,9 +357,15 @@ export async function processMatrixView(
     const projectId = visualStore.receiveInfo?.projectId
 
     if (!token || !serverUrl || !projectId) {
-      visualStore.setCommonError(
-        'Missing Speckle credentials. Please refresh the data from the data connector.'
-      )
+      if (desktopServiceUnavailable) {
+        visualStore.setCommonError(
+          'Speckle Desktop Service is not running. Please start Speckle Desktop Services and refresh data.'
+        )
+      } else {
+        visualStore.setCommonError(
+          'Missing Speckle credentials. Please refresh the data from the data connector.'
+        )
+      }
       visualStore.setViewerReadyToLoad(false)
       return {
         modelObjects: [],
