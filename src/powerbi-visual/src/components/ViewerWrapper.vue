@@ -1,5 +1,5 @@
 <template>
-  <div class="border">
+  <div>
     <transition name="slide-fade">
       <nav
         v-show="!visualStore.isNavbarHidden"
