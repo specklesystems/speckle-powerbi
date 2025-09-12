@@ -1,7 +1,7 @@
 (server as text, optional query as text, optional variables as record) as record =>
     let
         // Enhanced credential retrieval with OAuth2 support
-        apiKey = try Extension.CurrentCredential()[access_token] otherwise null,
+        apiKey = try Extension.CurrentCredential()[Key] otherwise try Extension.CurrentCredential()[access_token] otherwise null,
         
         defaultQuery = "query {
                 activeUser {

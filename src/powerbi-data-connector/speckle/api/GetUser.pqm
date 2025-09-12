@@ -26,7 +26,7 @@ in
             parsedUrl = Parser(url),
             server = parsedUrl[baseUrl],
             
-            apiKey = try Extension.CurrentCredential()[access_token] otherwise "",
+            apiKey = try Extension.CurrentCredential()[Key] otherwise try Extension.CurrentCredential()[access_token] otherwise "",
             
             query = "query {
                     activeUser {
