@@ -131,7 +131,8 @@ function processObjectNode(
     console.log('⚠️ HAS objects', color)
     if (color) {
       res.color = color
-      res.shouldColor = true
+      // Don't override shouldColor for conditional formatting - keep the selection state
+      // res.shouldColor = true  // REMOVED: This was overriding cross-filter selection state
     }
   }
   return res
@@ -474,6 +475,7 @@ export async function processMatrixView(
     localMatrixView.forEach((obj) => {
       const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
+      // Apply conditional formatting color if present, regardless of selection state
       if (processedObjectIdLevels.color) {
         let group = colorByIds.find((g) => g.color === processedObjectIdLevels.color)
         if (!group) {
@@ -483,7 +485,11 @@ export async function processMatrixView(
           }
           colorByIds.push(group)
         }
+        // Always add to color group if color is specified (conditional formatting)
         group.objectIds.push(processedObjectIdLevels.id)
+      } else if (processedObjectIdLevels.shouldColor) {
+        // Only use shouldColor flag when there's no conditional formatting
+        // This preserves the original cross-filter coloring behavior
       }
 
       objectIds.push(processedObjectIdLevels.id)
