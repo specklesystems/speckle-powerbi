@@ -139,6 +139,23 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
+  const filterColorByIdsForSelection = (colorByIds: ColorBy[] | null | undefined, selectedIds: string[]): ColorBy[] => {
+    return colorByIds?.filter(colorGroup => {
+      const filteredObjectIds = colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+      if (filteredObjectIds.length > 0) {
+        return { ...colorGroup, objectIds: filteredObjectIds }
+      }
+      return false
+    }).map(colorGroup => ({
+      ...colorGroup,
+      objectIds: colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+    })) || []
+  }
+
   const clearLoadingProgress = () => {
     loadingProgress.value = undefined
   }
@@ -195,6 +212,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     if (dataInput.value.selectedIds.length > 0) {
       isFilterActive.value = true
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+      // When filtering, only apply colors to the selected/isolated objects
+      const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+      viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
@@ -205,8 +226,9 @@ export const useVisualStore = defineStore('visualStore', () => {
         // No object IDs provided - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
       }
+      // When not filtering, apply all colors including conditional formatting
+      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
     }
-    viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
   const writeObjectsToFile = (modelObjects: object[][]) => {
@@ -452,6 +474,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       // No object IDs provided - show all objects without any filtering
       viewerEmit.value('unIsolateObjects')
     }
+    // When resetting filters, apply all colors including conditional formatting
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }
@@ -477,6 +500,10 @@ export const useVisualStore = defineStore('visualStore', () => {
       if (dataInput.value.selectedIds.length > 0) {
         isFilterActive.value = true
         viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+        // When filtering, only apply colors to the selected/isolated objects
+        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+        viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
@@ -487,10 +514,10 @@ export const useVisualStore = defineStore('visualStore', () => {
           // No object IDs provided - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
         }
+
+        // Restore color grouping for all objects when not filtering
+        viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
       }
-      
-      // Restore color grouping
-      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
     }
     
     // Trigger host data refresh to synchronize with Power BI
