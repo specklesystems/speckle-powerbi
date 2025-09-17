@@ -139,6 +139,23 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
+  const filterColorByIdsForSelection = (colorByIds: ColorBy[] | null | undefined, selectedIds: string[]): ColorBy[] => {
+    return colorByIds?.filter(colorGroup => {
+      const filteredObjectIds = colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+      if (filteredObjectIds.length > 0) {
+        return { ...colorGroup, objectIds: filteredObjectIds }
+      }
+      return false
+    }).map(colorGroup => ({
+      ...colorGroup,
+      objectIds: colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+    })) || []
+  }
+
   const clearLoadingProgress = () => {
     loadingProgress.value = undefined
   }
@@ -197,23 +214,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
 
       // When filtering, only apply colors to the selected/isolated objects
-      // Filter colorByIds to only include colors for selected objects
-      const filteredColorByIds = dataInput.value.colorByIds?.filter(colorGroup => {
-        // Keep only color groups that have at least one object in the selected IDs
-        const filteredObjectIds = colorGroup.objectIds.filter(objId =>
-          dataInput.value.selectedIds.includes(objId)
-        )
-        if (filteredObjectIds.length > 0) {
-          return { ...colorGroup, objectIds: filteredObjectIds }
-        }
-        return false
-      }).map(colorGroup => ({
-        ...colorGroup,
-        objectIds: colorGroup.objectIds.filter(objId =>
-          dataInput.value.selectedIds.includes(objId)
-        )
-      }))
-
+      const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
       viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
     } else {
       isFilterActive.value = false
@@ -501,21 +502,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
 
         // When filtering, only apply colors to the selected/isolated objects
-        const filteredColorByIds = dataInput.value.colorByIds?.filter(colorGroup => {
-          const filteredObjectIds = colorGroup.objectIds.filter(objId =>
-            dataInput.value.selectedIds.includes(objId)
-          )
-          if (filteredObjectIds.length > 0) {
-            return { ...colorGroup, objectIds: filteredObjectIds }
-          }
-          return false
-        }).map(colorGroup => ({
-          ...colorGroup,
-          objectIds: colorGroup.objectIds.filter(objId =>
-            dataInput.value.selectedIds.includes(objId)
-          )
-        }))
-
+        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
         viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
       } else {
         isFilterActive.value = false
