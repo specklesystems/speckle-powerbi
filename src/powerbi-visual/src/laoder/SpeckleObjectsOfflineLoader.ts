@@ -1,4 +1,4 @@
-import ObjectLoader from '@speckle/objectloader'
+import { ObjectLoader2 } from '@speckle/objectloader2'
 import { SpeckleLoader, WorldTree } from '@speckle/viewer'
 
 export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
@@ -7,15 +7,13 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
   }
 
   protected initObjectLoader(
-    _resource: string,
-    _authToken?: string,
-    _enableCaching?: boolean,
-    resourceData?: string | ArrayBuffer
-  ): ObjectLoader {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    //@ts-ignore
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return ObjectLoader.createFromObjects(resourceData as unknown as [])
+    resource: string,
+    authToken?: string,
+    enableCaching?: boolean,
+    resourceData?: unknown
+  ): ReturnType<SpeckleLoader['initObjectLoader']> {
+    const data = (resourceData ?? this._resourceData) as unknown
+    return super.initObjectLoader(resource, authToken, enableCaching, data)
   }
 
   public async load(): Promise<boolean> {
@@ -25,7 +23,7 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
       return false
     }
     /** If not id is provided, we make one up based on the root object id */
-    this._resource = this._resource || `/json/${rootObject.id as string}`
+    this._resource = this._resource || `/json/${rootObject.baseId as string}`
     return super.load()
   }
 }

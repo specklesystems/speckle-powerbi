@@ -1,5 +1,5 @@
 import { useVisualStore } from '@src/store/visualStore'
-import ObjectLoader from '@speckle/objectloader' // Default import for v1
+import { ObjectLoader2Factory } from '@speckle/objectloader2'
 
 interface SpeckleObject {
   id: string
@@ -18,26 +18,26 @@ export class SpeckleApiLoader {
     this.projectId = projectId
     this.token = token
     this.headers = {
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json'
     }
   }
 
-  async downloadObjectsWithChildren(objectId: string, onProgress?: (loaded: number, total: number) => void): Promise<SpeckleObject[]> {
+  async downloadObjectsWithChildren(
+    objectId: string,
+    onProgress?: (loaded: number, total: number) => void
+  ): Promise<SpeckleObject[]> {
     const visualStore = useVisualStore()
 
     visualStore.setLoadingProgress('Initializing object loader', 0)
     console.log('Creating ObjectLoader v1 for Power BI environment')
 
-    // Create ObjectLoader v1 instance - use 'token' not 'authToken'
-    const loader = new ObjectLoader({
+    const loader = ObjectLoader2Factory.createFromUrl({
       serverUrl: this.serverUrl,
       streamId: this.projectId,
-      objectId: objectId,
+      objectId,
       token: this.token,
-      options: {
-        enableCaching: false, // Disable caching for Power BI environment
-      }
+      attributeMask: { exclude: ['properties', 'encodedValue'] }
     })
 
     try {
@@ -71,15 +71,9 @@ export class SpeckleApiLoader {
       visualStore.setLoadingProgress('Download complete', 1)
 
       return objects
-
     } catch (error) {
       console.error('Error loading objects:', error)
       throw error
-    } finally {
-      // ObjectLoader v1 cleanup
-      if (loader.dispose) {
-        loader.dispose()
-      }
     }
   }
 
@@ -91,13 +85,12 @@ export class SpeckleApiLoader {
 
   async downloadMultipleModels(objectIds: string[]): Promise<SpeckleObject[][]> {
     const allObjects: SpeckleObject[][] = []
-    
+
     for (const objectId of objectIds) {
       const objects = await this.downloadObjectsWithChildren(objectId)
       allObjects.push(objects)
     }
-    
+
     return allObjects
   }
-
 }
