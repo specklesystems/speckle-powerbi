@@ -1,5 +1,8 @@
-(url as text) as table =>
+(url as text, optional ExpandProperties as logical) as table =>
     let
+        // set default value for ExpandProperties
+        shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
+
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         SendToServer = Extension.LoadFunction("SendToServer.pqm"),
@@ -73,10 +76,19 @@
                     combinedData = Table.Combine(allTables),
                     
                     // replace the "Version Object ID" column with the combined root IDs
-                    finalData = Table.TransformColumns(
-                        combinedData, 
+                    transformedData = Table.TransformColumns(
+                        combinedData,
                         {"Version Object ID", each combinedRootIds}
-                    )
+                    ),
+
+                    // expand properties column if requested and if it exists
+                    finalData = if shouldExpandProperties and Table.HasColumns(transformedData, {"properties"}) then
+                        try
+                            Speckle.Utils.ExpandRecord(transformedData, "properties")
+                        otherwise
+                            transformedData  // fallback to original data if expansion fails
+                    else
+                        transformedData
                 in
                     finalData
             else
@@ -85,13 +97,22 @@
                     // get model name
                     modelInfo = GetModel(url),
                     modelName = modelInfo[modelName],
-                    
+
                     // get structured data
                     structuredData = GetStructuredData(url),
-    
+
                     // rename column based on send status
                     newColumnName = "Version Object ID",
-                    result = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}})
+                    renamedData = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}}),
+
+                    // expand properties column if requested and if it exists
+                    result = if shouldExpandProperties and Table.HasColumns(renamedData, {"properties"}) then
+                        try
+                            Speckle.Utils.ExpandRecord(renamedData, "properties")
+                        otherwise
+                            renamedData  // fallback to original data if expansion fails
+                    else
+                        renamedData
                 in
                     result
         else
