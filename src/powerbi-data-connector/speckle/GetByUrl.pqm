@@ -83,7 +83,10 @@
 
                     // expand properties column if requested and if it exists
                     finalData = if shouldExpandProperties and Table.HasColumns(transformedData, {"properties"}) then
-                        Speckle.Utils.ExpandRecord(transformedData, "properties")
+                        try
+                            Speckle.Utils.ExpandRecord(transformedData, "properties")
+                        otherwise
+                            transformedData  // fallback to original data if expansion fails
                     else
                         transformedData
                 in
@@ -104,7 +107,10 @@
 
                     // expand properties column if requested and if it exists
                     result = if shouldExpandProperties and Table.HasColumns(renamedData, {"properties"}) then
-                        Speckle.Utils.ExpandRecord(renamedData, "properties")
+                        try
+                            Speckle.Utils.ExpandRecord(renamedData, "properties")
+                        otherwise
+                            renamedData  // fallback to original data if expansion fails
                     else
                         renamedData
                 in
