@@ -1,7 +1,7 @@
 (url as text, optional ExpandProperties as logical) as table =>
     let
         // set default value for ExpandProperties
-        shouldExpandProperties = if ExpandProperties = null then true else ExpandProperties,
+        shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
 
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
