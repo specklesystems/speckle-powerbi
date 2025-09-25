@@ -30,21 +30,20 @@ export class SpeckleApiLoader {
     const visualStore = useVisualStore()
 
     visualStore.setLoadingProgress('Initializing object loader', 0)
-    console.log('Creating ObjectLoader v2 for Power BI environment')
+    console.log('Creating ObjectLoader v1 for Power BI environment')
 
     const loader = ObjectLoader2Factory.createFromUrl({
       serverUrl: this.serverUrl,
       streamId: this.projectId,
       objectId,
       token: this.token,
-      attributeMask: { exclude: ['properties', 'encodedValue'] },
-      options: { useCache: false }
+      attributeMask: { exclude: ['properties', 'encodedValue'] }
     })
 
     try {
       // Get total count for progress tracking
       const totalCount = await loader.getTotalObjectCount()
-      console.log(`Loading ${totalCount} objects using ObjectLoader v2`)
+      console.log(`Loading ${totalCount} objects using ObjectLoader v1`)
 
       const objects: SpeckleObject[] = []
       let loadedCount = 0
@@ -68,18 +67,13 @@ export class SpeckleApiLoader {
         }
       }
 
-      console.log(`Downloaded ${objects.length} objects using ObjectLoader v2`)
+      console.log(`Downloaded ${objects.length} objects using ObjectLoader v1`)
       visualStore.setLoadingProgress('Download complete', 1)
 
       return objects
     } catch (error) {
       console.error('Error loading objects:', error)
       throw error
-    } finally {
-      // ObjectLoader v2 cleanup
-      if (loader.disposeAsync) {
-        await loader.disposeAsync()
-      }
     }
   }
 
