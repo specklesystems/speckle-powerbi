@@ -199,6 +199,13 @@ shared Speckle.GetByUrl = Value.ReplaceType(
                 Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
                 Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
             ]
+        ),
+        optional ExpandProperties as (
+            type logical meta [
+                Documentation.FieldCaption = "Expand Properties (may slow query)",
+                Documentation.FieldDescription = "Default TRUE. Expand the properties column into individual columns for easier analysis. When checked, each property from the 'properties' record column will have its own column. This can slow down the query if you have a lot of properties.",
+                Documentation.AllowedValues = {true, false}
+            ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Data by URL",
