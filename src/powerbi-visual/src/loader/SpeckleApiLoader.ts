@@ -47,9 +47,18 @@ export class SpeckleApiLoader {
 
       const objects: SpeckleObject[] = []
       let loadedCount = 0
+      let first = true
+
+      const rootObject = await loader.getRootObject()
+      objects.push(rootObject.base as SpeckleObject)
 
       // Stream all objects using the async iterator
       for await (const obj of loader.getObjectIterator()) {
+        if (first) {
+          first = false
+          loadedCount++
+          continue
+        }
         objects.push(obj as SpeckleObject) // Type assertion since ObjectLoader v1 has different type
         loadedCount++
 
