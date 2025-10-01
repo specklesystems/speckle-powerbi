@@ -30,36 +30,28 @@ export class SpeckleApiLoader {
     const visualStore = useVisualStore()
 
     visualStore.setLoadingProgress('Initializing object loader', 0)
-    console.log('Creating ObjectLoader v1 for Power BI environment')
+    console.log('Creating ObjectLoader v2 for Power BI environment')
 
     const loader = ObjectLoader2Factory.createFromUrl({
       serverUrl: this.serverUrl,
       streamId: this.projectId,
       objectId,
       token: this.token,
-      attributeMask: { exclude: ['properties', 'encodedValue'] }
+      attributeMask: { exclude: ['properties', 'encodedValue'] },
+      options: { useCache: false }
     })
 
     try {
       // Get total count for progress tracking
       const totalCount = await loader.getTotalObjectCount()
-      console.log(`Loading ${totalCount} objects using ObjectLoader v1`)
+      console.log(`Loading ${totalCount} objects using ObjectLoader v2`)
 
       const objects: SpeckleObject[] = []
       let loadedCount = 0
-      let first = true
-
-      const rootObject = await loader.getRootObject()
-      objects.push(rootObject.base as SpeckleObject)
 
       // Stream all objects using the async iterator
       for await (const obj of loader.getObjectIterator()) {
-        if (first) {
-          first = false
-          loadedCount++
-          continue
-        }
-        objects.push(obj as SpeckleObject) // Type assertion since ObjectLoader v1 has different type
+        objects.push(obj as SpeckleObject) // Type assertion for SpeckleObject interface
         loadedCount++
 
         // Update progress
@@ -76,7 +68,93 @@ export class SpeckleApiLoader {
         }
       }
 
-      console.log(`Downloaded ${objects.length} objects using ObjectLoader v1`)
+      console.log(`Downloaded ${objects.length} objects using ObjectLoader v2`)
+
+      visualStore.setLoadingProgress('🔄 Finalizing object download...', 0.9)
+
+      // Recursively fetch all missing references until none remain
+      let iterationCount = 0
+      let totalFetched = 0
+
+      while (iterationCount < 10) {
+        // Safety limit to prevent infinite loops
+        iterationCount++
+
+        const objectIds = new Set(objects.map((obj) => obj.id))
+        const missingIds = new Set<string>()
+
+        // Check all objects for missing references
+        objects.forEach((obj) => {
+          Object.values(obj).forEach((value) => {
+            if (value && typeof value === 'object') {
+              if ('referencedId' in value && typeof value.referencedId === 'string') {
+                if (!objectIds.has(value.referencedId)) {
+                  missingIds.add(value.referencedId)
+                }
+              }
+            }
+            if (Array.isArray(value)) {
+              value.forEach((item) => {
+                if (item && typeof item === 'object' && 'referencedId' in item) {
+                  if (!objectIds.has(item.referencedId)) {
+                    missingIds.add(item.referencedId)
+                  }
+                }
+              })
+            }
+          })
+        })
+
+        if (missingIds.size === 0) {
+          console.log(
+            `✅ No more missing references. Complete after ${iterationCount} iteration(s)`
+          )
+          break
+        }
+
+        console.log(
+          `Iteration ${iterationCount}: Fetching ${missingIds.size} missing referenced objects...`
+        )
+
+        visualStore.setLoadingProgress(`🔄 Loading additional objects)`, 0.9)
+
+        // Fetch missing objects with progress tracking
+        const missingIdsArray = Array.from(missingIds)
+        let fetchedInIteration = 0
+
+        for (const missingId of missingIdsArray) {
+          try {
+            const missingObj = await loader.getObject({ id: missingId })
+            objects.push(missingObj as SpeckleObject)
+            totalFetched++
+            fetchedInIteration++
+
+            // Update progress within this iteration
+            const iterationProgress = fetchedInIteration / missingIdsArray.length
+            visualStore.setLoadingProgress(
+              `🔄 Loading objects (${objects.length} loaded)`,
+              0.9 + iterationProgress * 0.05 // Progress from 0.9 to 0.95
+            )
+          } catch (err) {
+            console.warn(`⚠️ Could not fetch missing object ${missingId}:`, err)
+          }
+        }
+
+        console.log(
+          `✅ Iteration ${iterationCount} complete. Fetched ${missingIdsArray.length} objects. Total: ${objects.length}`
+        )
+      }
+
+      if (iterationCount >= 10) {
+        console.warn(
+          '⚠️ Reached maximum iterations for fetching references. Some objects may still be missing.'
+        )
+      }
+
+      console.log(
+        `✅ Downloaded total of ${objects.length} objects (${totalFetched} additional references fetched)`
+      )
+
       visualStore.setLoadingProgress('Download complete', 1)
 
       return objects
