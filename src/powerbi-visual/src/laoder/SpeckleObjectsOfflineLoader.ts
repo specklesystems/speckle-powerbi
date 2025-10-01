@@ -98,4 +98,19 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
     // Since we're using MemoryDownloader, it won't actually download anything
     return super.load()
   }
+
+  /**
+   * Clean up the ObjectLoader2 resources
+   */
+  public async dispose(): Promise<void> {
+    try {
+      if (this.loader && 'disposeAsync' in this.loader) {
+        // @ts-ignore - disposeAsync exists on ObjectLoader2
+        await this.loader.disposeAsync()
+        console.log('SpeckleObjectsOfflineLoader: ObjectLoader2 disposed')
+      }
+    } catch (error) {
+      console.warn('Error disposing ObjectLoader2 in offline loader:', error)
+    }
+  }
 }

@@ -77,7 +77,8 @@ export class SpeckleApiLoader {
       let totalFetched = 0
 
       while (iterationCount < 10) {
-        // Safety limit to prevent infinite loops
+        // Safety limit: loop exits early when missingIds.size === 0 (line 108)
+        // This limit only prevents infinite loops if something goes wrong
         iterationCount++
 
         const objectIds = new Set(objects.map((obj) => obj.id))
@@ -161,6 +162,14 @@ export class SpeckleApiLoader {
     } catch (error) {
       console.error('Error loading objects:', error)
       throw error
+    } finally {
+      // Clean up the loader resources
+      try {
+        await loader.disposeAsync()
+        console.log('ObjectLoader2 disposed successfully')
+      } catch (disposeError) {
+        console.warn('Error disposing ObjectLoader2:', disposeError)
+      }
     }
   }
 
