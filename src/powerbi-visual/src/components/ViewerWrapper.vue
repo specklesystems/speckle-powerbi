@@ -29,7 +29,7 @@
 
           <div class="flex items-center space-x-2">
             <FormButton
-              v-if="visualStore.latestAvailableVersion && !visualStore.isConnectorUpToDate"
+              v-if="visualStore.latestAvailableVersion && !visualStore.isConnectorUpToDate && visualStore.isRunningInDesktop"
               v-tippy="{
                 content: 'New connector version is available.<br>Click to download.',
                 allowHTML: true
@@ -165,7 +165,7 @@ onMounted(async () => {
   
   // Set up event listener for object clicks from the FilteredSelectionExtension
   viewerHandler.emitter.on('objectClicked', handleObjectClicked)
-  
+
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
 

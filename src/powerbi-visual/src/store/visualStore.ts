@@ -111,6 +111,15 @@ export const useVisualStore = defineStore('visualStore', () => {
     return false
   })
 
+  // detecting the env to control the visibility of update button
+  // might use for different reasons in the future
+  const isRunningInDesktop = computed(() => {
+    // power bi hostEnv enum values:
+    // web = 1, desktop = 4
+    const hostEnv = host.value?.['hostEnv'] as number
+    return hostEnv === 4
+  })
+
   /**
    * Ideally one time set when onMounted of `ViewerWrapper.vue` component
    * @param emit picky emit function to trigger events under `IViewerEvents` interface
@@ -559,6 +568,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     isZoomOnFilterActive,
     latestAvailableVersion,
     isConnectorUpToDate,
+    isRunningInDesktop,
     commonError,
     previousToggleState,
     setCommonError,
