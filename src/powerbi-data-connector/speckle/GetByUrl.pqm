@@ -142,11 +142,14 @@
                 // get structured data
                 structuredData = GetStructuredData(singleModelUrl),
                 
-                // add the model name as context
+                // add the model name as context - with version id if exists
                 result = Table.AddColumn(
-                    structuredData, 
-                    "Source Model", 
-                    each modelName,
+                    structuredData,
+                    "Source Model",
+                    each if versionId <> null then
+                        Text.Combine({modelName, "-", versionId})
+                    else
+                        modelName,
                     type text
                 )
             in
