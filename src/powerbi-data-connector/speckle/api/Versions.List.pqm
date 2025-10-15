@@ -1,0 +1,151 @@
+// function for listing all versions of a model
+(url as text) as table =>
+    let
+        // import required functions
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        // parse the URL to extract necessary components
+        parsedUrl = Parser(url),
+        server = parsedUrl[baseUrl],
+        projectId = parsedUrl[projectId],
+        modelId = parsedUrl[modelId],
+
+        // validate that both projectId and modelId exist
+        urlValidation = if projectId = null or modelId = null then
+            error [
+                Reason = "Invalid URL",
+                Message = "The URL must contain both a project ID and a model ID. Federated models are not supported.",
+                Detail = [
+                    URL = url,
+                    ProjectId = projectId,
+                    ModelId = modelId,
+                    IsFederated = parsedUrl[isFederated]
+                ]
+            ]
+        else
+            null,
+
+        // check if user has permission to load the model
+        permissionCheck = CheckPermissions(url),
+
+        // if not authorized, throw an error with the message from the server
+        authCheck = if not permissionCheck[authorized] then
+            error [
+                Reason = "Permission denied",
+                Message = Text.Format(
+                    "#{0} (Error code: #{1})",
+                    {permissionCheck[message], permissionCheck[code]}
+                ),
+                Detail = [
+                    URL = url,
+                    Code = permissionCheck[code]
+                ]
+            ]
+        else
+            null,
+
+        // GraphQL query to get all versions
+        query = "query Query($projectId: String!, $modelId: String!, $limit: Int!) {
+            project(id: $projectId) {
+                model(id: $modelId) {
+                    versions(limit: $limit) {
+                        items {
+                            id
+                            message
+                            createdAt
+                            referencedObject
+                        }
+                    }
+                }
+            }
+        }",
+
+        // variables for the GraphQL query
+        variables = [
+            projectId = projectId,
+            modelId = modelId,
+            limit = 100
+        ],
+
+        // make the API request
+        result = try ApiFetch(server, query, variables) otherwise
+            error [
+                Reason = "API Request Failed",
+                Message = "Failed to fetch versions from the Speckle server",
+                Detail = [
+                    Server = server,
+                    ProjectId = projectId,
+                    ModelId = modelId
+                ]
+            ],
+
+        // validate response structure
+        responseValidation = if not (Record.HasFields(result, {"project"}) and
+                  Record.HasFields(result[project], {"model"}) and
+                  Record.HasFields(result[project][model], {"versions"}) and
+                  Record.HasFields(result[project][model][versions], {"items"})) then
+            error [
+                Reason = "Invalid Response",
+                Message = "Server returned unexpected response structure",
+                Detail = [Result = result]
+            ]
+        else
+            null,
+
+        // extract versions items
+        versionItems = result[project][model][versions][items],
+
+        // transform into table with Version ID, Version Message, Timestamp, Version Object ID, and Version URL
+        versionsTable = Table.FromRecords(
+            List.Transform(
+                versionItems,
+                each [
+                    #"Version ID" = [id],
+                    #"Version Message" = if [message] = null then "" else [message],
+                    #"Timestamp" = [createdAt],
+                    #"Version Object ID" = [referencedObject],
+                    #"Version URL" = Text.Combine({
+                        server,
+                        "/projects/",
+                        projectId,
+                        "/models/",
+                        modelId,
+                        "@",
+                        [id]
+                    })
+                ]
+            )
+        ),
+
+        // set column types for better Power BI integration
+        typedTable = Table.TransformColumnTypes(
+            versionsTable,
+            {
+                {"Version ID", type text},
+                {"Version Message", type text},
+                {"Timestamp", type datetimezone},
+                {"Version Object ID", type text},
+                {"Version URL", type text}
+            }
+        )
+    in
+        typedTable

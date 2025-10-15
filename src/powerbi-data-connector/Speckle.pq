@@ -148,6 +148,12 @@ shared Speckle.GetWorkspace = Value.ReplaceType(
     type function (url as Uri.Type) as record
 );
 
+[DataSource.Kind = "Speckle"]
+shared Speckle.Versions.List = Value.ReplaceType(
+    Speckle.LoadFunction("Versions.List.pqm"),
+    type function (url as Uri.Type) as table
+);
+
 shared Speckle.Objects.Properties = Value.ReplaceType(
     Speckle.LoadFunction("Objects.Properties.pqm"),
     type function (inputRecord as any, optional filterKeys as list, optional parentPath as text, optional existingFields as list) as record
