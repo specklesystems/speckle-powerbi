@@ -147,7 +147,7 @@ jobs:
             "repo": "${{ github.repository }}",
             "is_public_release": ${{ env.IS_TAG_BUILD }}
             }'
-          ref: main
+          ref: jedd/cnx-1303-opening-installation-location-post-install
           wait-for-completion: true
           wait-for-completion-interval: 10s
           wait-for-completion-timeout: 10m
