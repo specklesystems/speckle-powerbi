@@ -554,13 +554,13 @@ export const useVisualStore = defineStore('visualStore', () => {
     contextModeSettings.value = settings
   }
 
-  const setModelContextMode = (modelId: string, settings: ModelContextSettings) => {
-    contextModeSettings.value[modelId] = settings
+  const setModelContextMode = (rootObjectId: string, settings: ModelContextSettings) => {
+    contextModeSettings.value[rootObjectId] = settings
   }
 
-  const getModelContextSettings = (modelId: string): ModelContextSettings => {
+  const getModelContextSettings = (rootObjectId: string): ModelContextSettings => {
     // return existing settings or default to visible and unlocked
-    return contextModeSettings.value[modelId] || { visible: true, locked: false }
+    return contextModeSettings.value[rootObjectId] || { visible: true, locked: false }
   }
 
   const setModelMetadata = (metadata: ModelMetadata[]) => {

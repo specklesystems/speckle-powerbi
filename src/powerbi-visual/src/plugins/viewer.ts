@@ -56,7 +56,7 @@ export interface IViewerEvents {
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
-  applyContextMode: (modelId: string, settings: ModelContextSettings) => void
+  applyContextMode: (rootObjectId: string, settings: ModelContextSettings) => void
 }
 
 export type ColorBy = {
@@ -245,8 +245,14 @@ export class ViewerHandler {
 
       // track which objects belong to which model
       if (modelMetadata[i]) {
-        const modelId = modelMetadata[i].modelId
+        const rootObjectId = modelMetadata[i].rootObjectId
         const objectIds = new Set<string>()
+
+        // find root object and extract name
+        const rootObject = objects.find((obj: any) => obj.id === rootObjectId)
+        if (rootObject && (rootObject as any).name) {
+          modelMetadata[i].modelName = (rootObject as any).name
+        }
 
         // collect all object IDs from this model
         objects.forEach((obj: any) => {
@@ -255,8 +261,8 @@ export class ViewerHandler {
           }
         })
 
-        this.modelObjectsMap.set(modelId, objectIds)
-        console.log(`📦 Mapped ${objectIds.size} objects to model: ${modelId}`)
+        this.modelObjectsMap.set(rootObjectId, objectIds)
+        console.log(`📦 Mapped ${objectIds.size} objects to root object: ${rootObjectId} (${modelMetadata[i].modelName})`)
       }
 
       // Since you are setting another camera position, maybe you want the second argument to false
@@ -335,7 +341,7 @@ export class ViewerHandler {
     this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
   }
 
-  public applyContextMode = (modelId: string, settings: ModelContextSettings) => {
+  public applyContextMode = (rootObjectId: string, settings: ModelContextSettings) => {
 
     const store = useVisualStore()
     const allVisibleObjects: string[] = []
@@ -345,8 +351,8 @@ export class ViewerHandler {
     this.lockedObjects.clear()
 
     // collect objects of visible and hidden models
-    for (const [mid, objectIds] of this.modelObjectsMap.entries()) {
-      const modelSettings = store.getModelContextSettings(mid)
+    for (const [objId, objectIds] of this.modelObjectsMap.entries()) {
+      const modelSettings = store.getModelContextSettings(objId)
       const objectIdsArray = Array.from(objectIds)
 
       if (modelSettings.visible) {

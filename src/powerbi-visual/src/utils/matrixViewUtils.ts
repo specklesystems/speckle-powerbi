@@ -354,11 +354,11 @@ export async function processMatrixView(
 
     // parse model metadata for federated models
     if (id.includes(',')) {
-      const modelIds = id.split(',')
-      const metadata = modelIds.map((modelId) => {
+      const rootObjectIds = id.split(',')
+      const metadata = rootObjectIds.map((rootObjectId) => {
         return {
-          modelId: modelId,
-          modelName: modelId // TODO: use model name instead, this is just a placeholder for now
+          rootObjectId: rootObjectId,
+          modelName: rootObjectId // placeholder, will be replaced with actual name from root object
         }
       })
       visualStore.setModelMetadata(metadata)

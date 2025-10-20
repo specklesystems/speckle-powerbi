@@ -5,20 +5,20 @@
     </template>
     <template #title>Context Mode</template>
     <div class="p-1 space-y-2">
-      <div v-for="model in modelMetadata" :key="model.modelId" class="pb-2 border-b border-outline-2 last:border-0">
+      <div v-for="model in modelMetadata" :key="model.rootObjectId" class="pb-2 border-b border-outline-2 last:border-0">
         <div class="flex items-center gap-1">
           <div class="text-xs font-medium text-foreground truncate max-w-[80px]">{{ model.modelName }}</div>
           <!-- Visibility toggle -->
           <button
             class="p-1 rounded transition flex items-center justify-center"
             :class="
-              getSettings(model.modelId).visible
+              getSettings(model.rootObjectId).visible
                 ? 'bg-primary text-white'
                 : 'bg-foundation-2 text-foreground hover:bg-highlight-1'
             "
-            @click="toggleVisibility(model.modelId)"
+            @click="toggleVisibility(model.rootObjectId)"
           >
-            <EyeIcon v-if="getSettings(model.modelId).visible" class="h-4 w-4" />
+            <EyeIcon v-if="getSettings(model.rootObjectId).visible" class="h-4 w-4" />
             <EyeSlashIcon v-else class="h-4 w-4" />
           </button>
 
@@ -26,14 +26,14 @@
           <button
             class="p-1 rounded transition flex items-center justify-center"
             :class="
-              getSettings(model.modelId).locked
+              getSettings(model.rootObjectId).locked
                 ? 'bg-foundation-2 text-foreground hover:bg-highlight-1'
                 : 'bg-primary text-white'
             "
-            :disabled="!getSettings(model.modelId).visible"
-            @click="toggleLock(model.modelId)"
+            :disabled="!getSettings(model.rootObjectId).visible"
+            @click="toggleLock(model.rootObjectId)"
           >
-            <LockClosedIcon v-if="getSettings(model.modelId).locked" class="h-4 w-4" />
+            <LockClosedIcon v-if="getSettings(model.rootObjectId).locked" class="h-4 w-4" />
             <LockOpenIcon v-else class="h-4 w-4" />
           </button>
         </div>
@@ -66,25 +66,25 @@ const open = computed({
 
 const modelMetadata = computed(() => visualStore.modelMetadata)
 
-const getSettings = (modelId: string) => {
-  return visualStore.getModelContextSettings(modelId)
+const getSettings = (rootObjectId: string) => {
+  return visualStore.getModelContextSettings(rootObjectId)
 }
 
-const toggleVisibility = (modelId: string) => {
-  const current = getSettings(modelId)
+const toggleVisibility = (rootObjectId: string) => {
+  const current = getSettings(rootObjectId)
   const newSettings = { ...current, visible: !current.visible }
 
-  visualStore.setModelContextMode(modelId, newSettings)
-  visualStore.viewerEmit('applyContextMode', modelId, newSettings)
+  visualStore.setModelContextMode(rootObjectId, newSettings)
+  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
   visualStore.writeContextModeToFile()
 }
 
-const toggleLock = (modelId: string) => {
-  const current = getSettings(modelId)
+const toggleLock = (rootObjectId: string) => {
+  const current = getSettings(rootObjectId)
   const newSettings = { ...current, locked: !current.locked }
 
-  visualStore.setModelContextMode(modelId, newSettings)
-  visualStore.viewerEmit('applyContextMode', modelId, newSettings)
+  visualStore.setModelContextMode(rootObjectId, newSettings)
+  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
   visualStore.writeContextModeToFile()
 }
 </script>

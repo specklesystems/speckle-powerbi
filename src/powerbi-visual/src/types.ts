@@ -24,10 +24,10 @@ export interface ModelContextSettings {
 }
 
 export interface ContextModeSettings {
-  [modelId: string]: ModelContextSettings
+  [rootObjectId: string]: ModelContextSettings
 }
 
 export interface ModelMetadata {
-  modelId: string
+  rootObjectId: string
   modelName: string
 }
