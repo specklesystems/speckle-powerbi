@@ -21,6 +21,7 @@ import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { Vector3 } from 'three'
+import type { ModelContextSettings } from '@src/types'
 
 export interface IViewer {
   /**
@@ -55,6 +56,7 @@ export interface IViewerEvents {
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
+  applyContextMode: (modelId: string, settings: ModelContextSettings) => void
 }
 
 export type ColorBy = {
@@ -69,6 +71,8 @@ export class ViewerHandler {
   public filtering: FilteringExtension
   public selection: FilteredSelectionExtension
   private filteringState: FilteringState
+  public modelObjectsMap: Map<string, Set<string>> = new Map()
+  private lockedObjects: Set<string> = new Set()
 
   constructor() {
     this.emitter = createNanoEvents()
@@ -87,6 +91,7 @@ export class ViewerHandler {
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
+    this.emitter.on('applyContextMode', this.applyContextMode)
   }
 
   async init(parent: HTMLElement) {
@@ -94,6 +99,9 @@ export class ViewerHandler {
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(FilteredSelectionExtension)
+
+    // provide locked objects to selection extension
+    this.selection.setLockedObjectsGetter(() => this.lockedObjects)
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
@@ -217,8 +225,15 @@ export class ViewerHandler {
     const store = useVisualStore()
     const speckleViews = []
 
+    // clear existing model objects map
+    this.modelObjectsMap.clear()
+
+    // get model metadata to map objects to models
+    const modelMetadata = store.modelMetadata
+
     // Use for...of loop to properly handle async operations
-    for (const objects of modelObjects) {
+    for (let i = 0; i < modelObjects.length; i++) {
+      const objects = modelObjects[i]
       //@ts-ignore
       const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
 
@@ -227,6 +242,22 @@ export class ViewerHandler {
         (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
       ) as SpeckleView[]
       speckleViews.concat(speckleViewsInModel)
+
+      // track which objects belong to which model
+      if (modelMetadata[i]) {
+        const modelId = modelMetadata[i].modelId
+        const objectIds = new Set<string>()
+
+        // collect all object IDs from this model
+        objects.forEach((obj: any) => {
+          if (obj.id) {
+            objectIds.add(obj.id)
+          }
+        })
+
+        this.modelObjectsMap.set(modelId, objectIds)
+        console.log(`📦 Mapped ${objectIds.size} objects to model: ${modelId}`)
+      }
 
       // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
@@ -279,11 +310,11 @@ export class ViewerHandler {
 
   private handleFilteredSelection = (selection: SelectionEvent | null) => {
     console.log('🎯 Filtered selection event received:', selection)
-    
+
     let hit: Hit | null = null
     let isMultiSelect = false
     let mouseEvent: PointerEvent | undefined = undefined
-    
+
     if (selection && selection.hits.length > 0) {
       // Convert the first hit to the Hit format expected by ViewerWrapper
       const firstHit = selection.hits[0]
@@ -299,9 +330,49 @@ export class ViewerHandler {
       isMultiSelect = selection.multiple
       mouseEvent = selection.event
     }
-    
+
     // Emit the objectClicked event for ViewerWrapper to handle
     this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
+  }
+
+  public applyContextMode = (modelId: string, settings: ModelContextSettings) => {
+
+    const store = useVisualStore()
+    const allVisibleObjects: string[] = []
+    const allHiddenObjects: string[] = []
+
+    // clear and rebuild locked objects set
+    this.lockedObjects.clear()
+
+    // collect objects of visible and hidden models
+    for (const [mid, objectIds] of this.modelObjectsMap.entries()) {
+      const modelSettings = store.getModelContextSettings(mid)
+      const objectIdsArray = Array.from(objectIds)
+
+      if (modelSettings.visible) {
+        allVisibleObjects.push(...objectIdsArray)
+        // track locked objects
+        if (modelSettings.locked) {
+          objectIdsArray.forEach((id) => this.lockedObjects.add(id))
+        }
+      } else {
+        allHiddenObjects.push(...objectIdsArray)
+      }
+    }
+
+    // first unisolate all objects to reset state
+    const allObjects = [...allVisibleObjects, ...allHiddenObjects]
+    if (allObjects.length > 0) {
+      this.filtering.unIsolateObjects(allObjects, 'context-mode', true)
+    }
+
+    // hide the hidden objects
+    if (allHiddenObjects.length > 0) {
+      this.filtering.hideObjects(allHiddenObjects, 'context-mode', true)
+    }
+
+    // Request to update the view
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
   }
 
 

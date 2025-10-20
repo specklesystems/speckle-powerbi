@@ -2,7 +2,7 @@ import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { Version } from '@src/composables/useUpdateConnector'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
-import { SpeckleDataInput } from '@src/types'
+import { SpeckleDataInput, ContextModeSettings, ModelContextSettings, ModelMetadata } from '@src/types'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { zipModelObjects } from '@src/utils/compression'
 import { defineStore } from 'pinia'
@@ -77,6 +77,17 @@ export const useVisualStore = defineStore('visualStore', () => {
   const dataInput = shallowRef<SpeckleDataInput | null>()
   const dataInputStatus = ref<InputState>('incomplete')
   const latestColorBy = ref<ColorBy[] | null | undefined>([])
+
+  // context mode states
+  const contextModeSettings = ref<ContextModeSettings>({})
+  const modelMetadata = ref<ModelMetadata[]>([])
+  const modelObjectsMap = ref<Map<string, Set<string>>>(new Map())
+
+  // here identify if a model is single or federated
+  const isFederatedModel = computed(() => {
+    if (!lastLoadedRootObjectId.value) return false
+    return lastLoadedRootObjectId.value.includes(',')
+  })
 
   /**
    * Ideally one time setup on initialization.
@@ -538,6 +549,47 @@ export const useVisualStore = defineStore('visualStore', () => {
     previousToggleState.value = state
   }
 
+  // context mode methods for federated models
+  const setContextModeSettings = (settings: ContextModeSettings) => {
+    contextModeSettings.value = settings
+  }
+
+  const setModelContextMode = (modelId: string, settings: ModelContextSettings) => {
+    contextModeSettings.value[modelId] = settings
+  }
+
+  const getModelContextSettings = (modelId: string): ModelContextSettings => {
+    // return existing settings or default to visible and unlocked
+    return contextModeSettings.value[modelId] || { visible: true, locked: false }
+  }
+
+  const setModelMetadata = (metadata: ModelMetadata[]) => {
+    modelMetadata.value = metadata
+  }
+
+  const setModelObjectsMap = (map: Map<string, Set<string>>) => {
+    modelObjectsMap.value = map
+  }
+
+  const getModelObjectsMap = (): Map<string, Set<string>> => {
+    return modelObjectsMap.value
+  }
+
+  const writeContextModeToFile = () => {
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'contextMode',
+          properties: {
+            settings: JSON.stringify(contextModeSettings.value)
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   return {
     host,
     receiveInfo,
@@ -612,6 +664,17 @@ export const useVisualStore = defineStore('visualStore', () => {
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete,
-    setPreviousToggleState
+    setPreviousToggleState,
+    contextModeSettings,
+    modelMetadata,
+    modelObjectsMap,
+    isFederatedModel,
+    setContextModeSettings,
+    setModelContextMode,
+    getModelContextSettings,
+    setModelMetadata,
+    setModelObjectsMap,
+    getModelObjectsMap,
+    writeContextModeToFile
   }
 })

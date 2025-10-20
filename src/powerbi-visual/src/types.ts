@@ -17,3 +17,17 @@ export interface SpeckleDataInput {
   objectTooltipData: Map<string, IViewerTooltip>
   isFromStore: boolean
 }
+
+export interface ModelContextSettings {
+  visible: boolean
+  locked: boolean
+}
+
+export interface ContextModeSettings {
+  [modelId: string]: ModelContextSettings
+}
+
+export interface ModelMetadata {
+  modelId: string
+  modelName: string
+}

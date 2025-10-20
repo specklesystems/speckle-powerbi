@@ -33,6 +33,29 @@
         connectorVersion = GetVersion(),
         workspaceInfo = GetWorkspace(url),
 
+        // get model names 
+        modelNames = if parsedUrl[isFederated] = true then
+            // for federated models, loop through
+            List.Transform(
+                parsedUrl[federatedModels],
+                each
+                    let
+                        singleModelUrl = Text.Combine({
+                            parsedUrl[baseUrl],
+                            "/projects/",
+                            parsedUrl[projectId],
+                            "/models/",
+                            [modelId],
+                            if [versionId] <> null then Text.Combine({"@", [versionId]}) else ""
+                        }),
+                        singleModelInfo = GetModel(singleModelUrl)
+                    in
+                        singleModelInfo[modelName]
+            )
+        else
+            // single model
+            {modelInfo[modelName]},
+
         // Function to check if Desktop Service is available
         IsDesktopServiceAvailable = () =>
             try

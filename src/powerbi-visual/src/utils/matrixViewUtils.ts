@@ -352,6 +352,19 @@ export async function processMatrixView(
       console.log('Desktop service unavailable - cannot retrieve credentials')
     }
 
+    // parse model metadata for federated models
+    if (id.includes(',')) {
+      const modelIds = id.split(',')
+      const metadata = modelIds.map((modelId) => {
+        return {
+          modelId: modelId,
+          modelName: modelId // TODO: use model name instead, this is just a placeholder for now
+        }
+      })
+      visualStore.setModelMetadata(metadata)
+      console.log('Federated model detected. Model metadata:', metadata)
+    }
+
     // Now get the data from visual store for Speckle API download
     const token = visualStore.receiveInfo?.token
     const serverUrl = visualStore.receiveInfo?.serverUrl
