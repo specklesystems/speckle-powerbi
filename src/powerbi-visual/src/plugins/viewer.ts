@@ -280,6 +280,9 @@ export class ViewerHandler {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
 
+    // sync the map to store filtering
+    store.setModelObjectsMap(this.modelObjectsMap)
+
     Tracker.dataLoaded({
       sourceHostApp: store.receiveInfo.sourceApplication,
       workspace_id: store.receiveInfo.workspaceId,

@@ -21,6 +21,7 @@ export interface SpeckleDataInput {
 export interface ModelContextSettings {
   visible: boolean
   locked: boolean
+  interactive: boolean
 }
 
 export interface ContextModeSettings {

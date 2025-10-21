@@ -471,7 +471,13 @@ export async function processMatrixView(
         const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
         objectIds.push(processedObjectIdLevels.id)
-        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+
+        // note: on first load, modelObjectsMap may be empty, so we default to registering all objects
+        // when user toggles interactive state, refreshHostData with filtering
+        if (visualStore.isObjectInteractive(processedObjectIdLevels.id)) {
+          onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+        }
+
         if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
         if (processedObjectIdLevels.shouldColor) {
           colorGroup.objectIds.push(processedObjectIdLevels.id)
@@ -506,7 +512,13 @@ export async function processMatrixView(
       }
 
       objectIds.push(processedObjectIdLevels.id)
-      onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+
+      // note: on first load, modelObjectsMap may be empty, so we default to registering all objects
+      // when user toggles interactive state, refreshHostData with filtering
+      if (visualStore.isObjectInteractive(processedObjectIdLevels.id)) {
+        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+      }
+
       if (processedObjectIdLevels.shouldSelect) {
         selectedIds.push(processedObjectIdLevels.id)
       }

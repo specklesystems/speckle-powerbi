@@ -230,18 +230,59 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
 
     if (dataInput.value.selectedIds.length > 0) {
-      isFilterActive.value = true
-      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+      // filter out non-interactive objects and hidden objects
+      const interactiveSelectedIds = dataInput.value.selectedIds.filter(id => {
+        if (!isObjectInteractive(id)) return false
 
-      // When filtering, only apply colors to the selected/isolated objects
-      const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
-      viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
+        const modelId = getModelForObject(id)
+        if (modelId) {
+          const settings = getModelContextSettings(modelId)
+          if (!settings.visible) return false // explicitly exclude hidden objects
+        }
+
+        return true
+      })
+
+      if (interactiveSelectedIds.length > 0) {
+        isFilterActive.value = true
+        viewerEmit.value('filterSelection', interactiveSelectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, interactiveSelectedIds)
+        viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
+      } else {
+        // all selected objects are non-interactive, treat as no selection
+        isFilterActive.value = false
+        latestColorBy.value = dataInput.value.colorByIds
+        if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+          // filter out hidden objects before resetting filter
+          // otherwise they keep coming to life
+          const visibleObjectIds = dataInput.value.objectIds.filter(id => {
+            const modelId = getModelForObject(id)
+            if (modelId) {
+              const settings = getModelContextSettings(modelId)
+              return settings.visible
+            }
+            return true
+          })
+          viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
+        } else {
+          viewerEmit.value('unIsolateObjects')
+        }
+        viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+      }
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
-      // Only apply filtering if object IDs are available, otherwise show all objects normally
       if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
+        const visibleObjectIds = dataInput.value.objectIds.filter(id => {
+          const modelId = getModelForObject(id)
+          if (modelId) {
+            const settings = getModelContextSettings(modelId)
+            return settings.visible
+          }
+          return true
+        })
+        viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
       } else {
         // No object IDs provided - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
@@ -489,7 +530,15 @@ export const useVisualStore = defineStore('visualStore', () => {
   const resetFilters = () => {
     // Only apply filtering if object IDs are available, otherwise show all objects normally
     if (fieldInputState.value.objectIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
+      const visibleObjectIds = dataInput.value.objectIds.filter(id => {
+        const modelId = getModelForObject(id)
+        if (modelId) {
+          const settings = getModelContextSettings(modelId)
+          return settings.visible
+        }
+        return true
+      })
+      viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
     } else {
       // No object IDs provided - show all objects without any filtering
       viewerEmit.value('unIsolateObjects')
@@ -511,25 +560,78 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const handleObjectsLoadedComplete = () => {
     console.log('🔄 Objects loaded - handling state restoration')
-    
+
+    // check if any models are set to non-interactive
+    // if so, we need to refresh data to re-register only interactive selections
+    const hasNonInteractiveModels = Object.values(contextModeSettings.value).some(
+      settings => !settings.interactive || !settings.visible
+    )
+
+    if (hasNonInteractiveModels && modelObjectsMap.value.size > 0) {
+      console.log('🔄 Non-interactive models detected after first load - refreshing selection registration')
+      // delay the refresh to ensure all loading is complete
+      setTimeout(() => {
+        host.value.refreshHostData()
+      }, 500)
+      return
+    }
+
     // If we have current data input with selections, restore them
     if (dataInput.value) {
       console.log('🔄 Restoring selection state after object load')
       
-      // Restore selection filters if they exist
+      // restore selection filters if they exist
       if (dataInput.value.selectedIds.length > 0) {
-        isFilterActive.value = true
-        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+        const interactiveSelectedIds = dataInput.value.selectedIds.filter(id => {
+          if (!isObjectInteractive(id)) return false
 
-        // When filtering, only apply colors to the selected/isolated objects
-        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
-        viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
+          const modelId = getModelForObject(id)
+          if (modelId) {
+            const settings = getModelContextSettings(modelId)
+            if (!settings.visible) return false // explicitly exclude hidden objects
+          }
+
+          return true
+        })
+
+        if (interactiveSelectedIds.length > 0) {
+          isFilterActive.value = true
+          viewerEmit.value('filterSelection', interactiveSelectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+          // When filtering, only apply colors to the selected/isolated objects
+          const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, interactiveSelectedIds)
+          viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
+        } else {
+          isFilterActive.value = false
+          latestColorBy.value = dataInput.value.colorByIds
+          if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+            const visibleObjectIds = dataInput.value.objectIds.filter(id => {
+              const modelId = getModelForObject(id)
+              if (modelId) {
+                const settings = getModelContextSettings(modelId)
+                return settings.visible
+              }
+              return true
+            })
+            viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
+          } else {
+            viewerEmit.value('unIsolateObjects')
+          }
+          viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+        }
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
-        // Only apply filtering if object IDs are available, otherwise show all objects normally
         if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
+          const visibleObjectIds = dataInput.value.objectIds.filter(id => {
+            const modelId = getModelForObject(id)
+            if (modelId) {
+              const settings = getModelContextSettings(modelId)
+              return settings.visible
+            }
+            return true
+          })
+          viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
         } else {
           // No object IDs provided - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
@@ -539,7 +641,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
       }
     }
-    
+
     // Trigger host data refresh to synchronize with Power BI
     host.value.refreshHostData()
   }
@@ -559,8 +661,8 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const getModelContextSettings = (rootObjectId: string): ModelContextSettings => {
-    // return existing settings or default to visible and unlocked
-    return contextModeSettings.value[rootObjectId] || { visible: true, locked: false }
+    // return existing settings or default to visible, unlocked and interactive
+    return contextModeSettings.value[rootObjectId] || { visible: true, locked: false, interactive: true }
   }
 
   const setModelMetadata = (metadata: ModelMetadata[]) => {
@@ -573,6 +675,29 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const getModelObjectsMap = (): Map<string, Set<string>> => {
     return modelObjectsMap.value
+  }
+
+  const isObjectInteractive = (objectId: string): boolean => {
+    // find which model this object belongs to
+    for (const [rootObjectId, objectIds] of modelObjectsMap.value) {
+      if (objectIds.has(objectId)) {
+        const settings = getModelContextSettings(rootObjectId)
+        // hidden objects are always non-interactive
+        return settings.visible && settings.interactive
+      }
+    }
+    // default to interactive if object not found in any model
+    return true
+  }
+
+  const getModelForObject = (objectId: string): string | null => {
+    // find which model this object belongs to
+    for (const [rootObjectId, objectIds] of modelObjectsMap.value) {
+      if (objectIds.has(objectId)) {
+        return rootObjectId
+      }
+    }
+    return null
   }
 
   const writeContextModeToFile = () => {
@@ -675,6 +800,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     setModelMetadata,
     setModelObjectsMap,
     getModelObjectsMap,
+    isObjectInteractive,
+    getModelForObject,
     writeContextModeToFile
   }
 })
