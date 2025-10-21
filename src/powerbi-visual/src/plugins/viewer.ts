@@ -103,6 +103,9 @@ export class ViewerHandler {
     // provide locked objects to selection extension
     this.selection.setLockedObjectsGetter(() => this.lockedObjects)
 
+    // provide non-interactive objects getter to selection extension (for preventing double-click zoom)
+    this.selection.setNonInteractiveObjectsGetter(() => this.getNonInteractiveObjectIds())
+
     const store = useVisualStore()
     if (store.isOrthoProjection) {
       this.cameraControls.toggleCameras()
@@ -171,7 +174,14 @@ export class ViewerHandler {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.unIsolateObjects()
-      this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+
+      // include non-interactive model objects so they remain visible during filtering
+      const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+      const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
+
+      console.log(`📊 Filtering: ${objectIds.length} selected + ${nonInteractiveObjectIds.length} non-interactive = ${allVisibleIds.length} total visible`)
+
+      this.filteringState = this.filtering.isolateObjects(allVisibleIds, 'powerbi', true, ghost)
       if (zoom) {
         this.zoomObjects(objectIds, true)
       }
@@ -181,11 +191,33 @@ export class ViewerHandler {
   public resetFilter = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
-      this.isolateObjects(objectIds, ghost)
+      const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+      const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
+
+      console.log(`📊 Reset filter: ${objectIds.length} objects + ${nonInteractiveObjectIds.length} non-interactive = ${allVisibleIds.length} total visible`)
+
+      this.isolateObjects(allVisibleIds, ghost)
       if (zoom) {
         this.zoomObjects(objectIds, true)
       }
     }
+  }
+
+  private getNonInteractiveObjectIds(): string[] {
+    const store = useVisualStore()
+    const nonInteractiveIds: string[] = []
+
+    // get all models and check their interactive status
+    for (const [rootObjectId, objectIds] of this.modelObjectsMap) {
+      const settings = store.getModelContextSettings(rootObjectId)
+
+      // only include visible but non-interactive models
+      if (settings.visible && !settings.interactive) {
+        nonInteractiveIds.push(...Array.from(objectIds))
+      }
+    }
+
+    return nonInteractiveIds
   }
 
   public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
@@ -198,8 +230,14 @@ export class ViewerHandler {
   }
 
   public toggleGhostHidden = (ghost: boolean) => {
+    // include non-interactive objects when toggling ghost mode
+    const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+    const currentlyIsolated = this.filteringState?.isolatedObjects || []
+
+    const allVisibleIds = [...currentlyIsolated, ...nonInteractiveObjectIds]
+
     this.filteringState = this.filtering.isolateObjects(
-      this.filteringState.isolatedObjects,
+      allVisibleIds,
       'powerbi',
       true,
       ghost
