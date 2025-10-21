@@ -274,7 +274,6 @@ export class Visual implements IVisual {
             // reset selection handler if we're reprocessing data (not first load)
             // this ensures only interactive objects get registered
             if (visualStore.isViewerObjectsLoaded && visualStore.getModelObjectsMap().size > 0) {
-              console.log('🔄 Resetting selection handler for interactive mode update')
               this.selectionHandler.reset()
             }
 

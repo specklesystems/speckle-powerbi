@@ -192,7 +192,7 @@ async function handleObjectClicked(hit: any, isMultiSelect: boolean, mouseEvent?
         await selectionHandler.select(id, isMultiSelect)
       }
     } else {
-      console.log(`🚫 Object ${id} is from a non-interactive model, skipping PowerBI selection`)
+      console.log(`Object ${id} is from a non-interactive model, skipping selection`)
     }
 
     // Show tooltip if we have mouse coordinates

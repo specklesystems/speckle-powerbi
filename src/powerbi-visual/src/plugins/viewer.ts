@@ -179,8 +179,6 @@ export class ViewerHandler {
       const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
       const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
 
-      console.log(`📊 Filtering: ${objectIds.length} selected + ${nonInteractiveObjectIds.length} non-interactive = ${allVisibleIds.length} total visible`)
-
       this.filteringState = this.filtering.isolateObjects(allVisibleIds, 'powerbi', true, ghost)
       if (zoom) {
         this.zoomObjects(objectIds, true)
@@ -193,8 +191,6 @@ export class ViewerHandler {
     if (objectIds) {
       const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
       const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
-
-      console.log(`📊 Reset filter: ${objectIds.length} objects + ${nonInteractiveObjectIds.length} non-interactive = ${allVisibleIds.length} total visible`)
 
       this.isolateObjects(allVisibleIds, ghost)
       if (zoom) {
@@ -300,7 +296,6 @@ export class ViewerHandler {
         })
 
         this.modelObjectsMap.set(rootObjectId, objectIds)
-        console.log(`📦 Mapped ${objectIds.size} objects to root object: ${rootObjectId} (${modelMetadata[i].modelName})`)
       }
 
       // Since you are setting another camera position, maybe you want the second argument to false

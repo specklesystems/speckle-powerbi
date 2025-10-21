@@ -163,7 +163,6 @@ export class FilteredSelectionExtension extends SelectionExtension {
   }
 
   protected onObjectDoubleClick(selection: SelectionEvent | null) {
-    console.log('🎯 FilteredSelectionExtension.onObjectDoubleClick called with:', selection)
 
     if (!selection || !selection.hits || selection.hits.length === 0) {
       super.onObjectDoubleClick(selection)
@@ -174,7 +173,6 @@ export class FilteredSelectionExtension extends SelectionExtension {
     for (const hit of selection.hits) {
       const objectId = hit.node.model.id
       if (this.isNonInteractiveObject(objectId)) {
-        console.log('🚫 Preventing zoom on non-interactive object:', objectId)
         return
       }
     }
