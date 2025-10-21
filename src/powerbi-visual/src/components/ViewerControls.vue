@@ -48,6 +48,12 @@
         @update:open="(value) => toggleActiveControl(value ? 'views' : 'none')"
         @view-clicked="(view) => $emit('view-clicked', view)"
       />
+      <!-- Context Mode -->
+      <ViewerContextModeMenu
+        v-if="visualStore.isFederatedModel"
+        :open="contextModeOpen"
+        @update:open="(value) => toggleActiveControl(value ? 'contextMode' : 'none')"
+      />
       <!-- Perspective/Ortho -->
       <ViewerControlsButtonToggle
         flat
@@ -73,6 +79,7 @@ import ViewerControlsButtonToggle from './viewer/controls/ViewerControlsButtonTo
 
 import ViewerViewModesMenu from './viewer/view-modes/ViewerViewModesMenu.vue'
 import ViewerViewsMenu from './viewer/views/ViewerViewsMenu.vue'
+import ViewerContextModeMenu from './viewer/context-mode/ViewerContextModeMenu.vue'
 
 import Perspective from '../components/global/icon/Perspective.vue'
 import PerspectiveMore from '../components/global/icon/PerspectiveMore.vue'
@@ -97,6 +104,7 @@ type ActiveControl =
   | 'none'
   | 'viewModes'
   | 'views'
+  | 'contextMode'
   | 'sun'
   | 'projection'
   | 'sectionBox'
@@ -141,6 +149,13 @@ const viewsOpen = computed({
   get: () => activeControl.value === 'views',
   set: (value) => {
     activeControl.value = value ? 'views' : 'none'
+  }
+})
+
+const contextModeOpen = computed({
+  get: () => activeControl.value === 'contextMode',
+  set: (value) => {
+    activeControl.value = value ? 'contextMode' : 'none'
   }
 })
 </script>

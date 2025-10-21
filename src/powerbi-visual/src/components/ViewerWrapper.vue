@@ -176,21 +176,30 @@ onBeforeUnmount(async () => {
 async function handleObjectClicked(hit: any, isMultiSelect: boolean, mouseEvent?: PointerEvent) {
   // Skip if dragging occurred
   if (dragged.value) return
-  
+
   console.log('🎯 Object clicked in ViewerWrapper:', hit, isMultiSelect)
-  
+
   if (hit) {
     visualStore.setPostClickSkipNeeded(true)
     const id = hit.object.id as string
-    if (isMultiSelect || !selectionHandler.isSelected(id)) {
-      await selectionHandler.select(id, isMultiSelect)
+
+    // check if the objects are set to interactive before triggering selection
+    const isInteractive = visualStore.isObjectInteractive(id)
+
+    if (isInteractive) {
+      // only register selection if object is from a interactive model
+      if (isMultiSelect || !selectionHandler.isSelected(id)) {
+        await selectionHandler.select(id, isMultiSelect)
+      }
+    } else {
+      console.log(`Object ${id} is from a non-interactive model, skipping selection`)
     }
-    
+
     // Show tooltip if we have mouse coordinates
     if (mouseEvent) {
       tooltipHandler.show(hit, { x: mouseEvent.clientX, y: mouseEvent.clientY })
     }
-    
+
     const selection = selectionHandler.getCurrentSelection()
     const ids = selection.map((s) => s.id)
     await viewerHandler.selectObjects(ids)

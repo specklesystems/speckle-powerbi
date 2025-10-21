@@ -21,6 +21,7 @@ import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { Vector3 } from 'three'
+import type { ModelContextSettings } from '@src/types'
 
 export interface IViewer {
   /**
@@ -55,6 +56,7 @@ export interface IViewerEvents {
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
+  applyContextMode: (rootObjectId: string, settings: ModelContextSettings) => void
 }
 
 export type ColorBy = {
@@ -69,6 +71,8 @@ export class ViewerHandler {
   public filtering: FilteringExtension
   public selection: FilteredSelectionExtension
   private filteringState: FilteringState
+  public modelObjectsMap: Map<string, Set<string>> = new Map()
+  private lockedObjects: Set<string> = new Set()
 
   constructor() {
     this.emitter = createNanoEvents()
@@ -87,6 +91,7 @@ export class ViewerHandler {
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
+    this.emitter.on('applyContextMode', this.applyContextMode)
   }
 
   async init(parent: HTMLElement) {
@@ -94,6 +99,12 @@ export class ViewerHandler {
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(FilteredSelectionExtension)
+
+    // provide locked objects to selection extension
+    this.selection.setLockedObjectsGetter(() => this.lockedObjects)
+
+    // provide non-interactive objects getter to selection extension (for preventing double-click zoom)
+    this.selection.setNonInteractiveObjectsGetter(() => this.getNonInteractiveObjectIds())
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
@@ -163,7 +174,12 @@ export class ViewerHandler {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
       this.unIsolateObjects()
-      this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
+
+      // include non-interactive model objects so they remain visible during filtering
+      const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+      const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
+
+      this.filteringState = this.filtering.isolateObjects(allVisibleIds, 'powerbi', true, ghost)
       if (zoom) {
         this.zoomObjects(objectIds, true)
       }
@@ -173,11 +189,31 @@ export class ViewerHandler {
   public resetFilter = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
     console.log('🔗 Handling filterSelection inside ViewerHandler')
     if (objectIds) {
-      this.isolateObjects(objectIds, ghost)
+      const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+      const allVisibleIds = [...objectIds, ...nonInteractiveObjectIds]
+
+      this.isolateObjects(allVisibleIds, ghost)
       if (zoom) {
         this.zoomObjects(objectIds, true)
       }
     }
+  }
+
+  private getNonInteractiveObjectIds(): string[] {
+    const store = useVisualStore()
+    const nonInteractiveIds: string[] = []
+
+    // get all models and check their interactive status
+    for (const [rootObjectId, objectIds] of this.modelObjectsMap) {
+      const settings = store.getModelContextSettings(rootObjectId)
+
+      // only include visible but non-interactive models
+      if (settings.visible && !settings.interactive) {
+        nonInteractiveIds.push(...Array.from(objectIds))
+      }
+    }
+
+    return nonInteractiveIds
   }
 
   public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
@@ -190,8 +226,14 @@ export class ViewerHandler {
   }
 
   public toggleGhostHidden = (ghost: boolean) => {
+    // include non-interactive objects when toggling ghost mode
+    const nonInteractiveObjectIds = this.getNonInteractiveObjectIds()
+    const currentlyIsolated = this.filteringState?.isolatedObjects || []
+
+    const allVisibleIds = [...currentlyIsolated, ...nonInteractiveObjectIds]
+
     this.filteringState = this.filtering.isolateObjects(
-      this.filteringState.isolatedObjects,
+      allVisibleIds,
       'powerbi',
       true,
       ghost
@@ -217,8 +259,15 @@ export class ViewerHandler {
     const store = useVisualStore()
     const speckleViews = []
 
+    // clear existing model objects map
+    this.modelObjectsMap.clear()
+
+    // get model metadata to map objects to models
+    const modelMetadata = store.modelMetadata
+
     // Use for...of loop to properly handle async operations
-    for (const objects of modelObjects) {
+    for (let i = 0; i < modelObjects.length; i++) {
+      const objects = modelObjects[i]
       //@ts-ignore
       const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
 
@@ -227,6 +276,27 @@ export class ViewerHandler {
         (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
       ) as SpeckleView[]
       speckleViews.concat(speckleViewsInModel)
+
+      // track which objects belong to which model
+      if (modelMetadata[i]) {
+        const rootObjectId = modelMetadata[i].rootObjectId
+        const objectIds = new Set<string>()
+
+        // find root object and extract name
+        const rootObject = objects.find((obj: any) => obj.id === rootObjectId)
+        if (rootObject && (rootObject as any).name) {
+          modelMetadata[i].modelName = (rootObject as any).name
+        }
+
+        // collect all object IDs from this model
+        objects.forEach((obj: any) => {
+          if (obj.id) {
+            objectIds.add(obj.id)
+          }
+        })
+
+        this.modelObjectsMap.set(rootObjectId, objectIds)
+      }
 
       // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
@@ -242,6 +312,9 @@ export class ViewerHandler {
     if (store.defaultViewModeInFile) {
       this.setViewMode(Number(store.defaultViewModeInFile))
     }
+
+    // sync the map to store filtering
+    store.setModelObjectsMap(this.modelObjectsMap)
 
     Tracker.dataLoaded({
       sourceHostApp: store.receiveInfo.sourceApplication,
@@ -279,11 +352,11 @@ export class ViewerHandler {
 
   private handleFilteredSelection = (selection: SelectionEvent | null) => {
     console.log('🎯 Filtered selection event received:', selection)
-    
+
     let hit: Hit | null = null
     let isMultiSelect = false
     let mouseEvent: PointerEvent | undefined = undefined
-    
+
     if (selection && selection.hits.length > 0) {
       // Convert the first hit to the Hit format expected by ViewerWrapper
       const firstHit = selection.hits[0]
@@ -299,9 +372,49 @@ export class ViewerHandler {
       isMultiSelect = selection.multiple
       mouseEvent = selection.event
     }
-    
+
     // Emit the objectClicked event for ViewerWrapper to handle
     this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
+  }
+
+  public applyContextMode = (rootObjectId: string, settings: ModelContextSettings) => {
+
+    const store = useVisualStore()
+    const allVisibleObjects: string[] = []
+    const allHiddenObjects: string[] = []
+
+    // clear and rebuild locked objects set
+    this.lockedObjects.clear()
+
+    // collect objects of visible and hidden models
+    for (const [objId, objectIds] of this.modelObjectsMap.entries()) {
+      const modelSettings = store.getModelContextSettings(objId)
+      const objectIdsArray = Array.from(objectIds)
+
+      if (modelSettings.visible) {
+        allVisibleObjects.push(...objectIdsArray)
+        // track locked objects
+        if (modelSettings.locked) {
+          objectIdsArray.forEach((id) => this.lockedObjects.add(id))
+        }
+      } else {
+        allHiddenObjects.push(...objectIdsArray)
+      }
+    }
+
+    // first unisolate all objects to reset state
+    const allObjects = [...allVisibleObjects, ...allHiddenObjects]
+    if (allObjects.length > 0) {
+      this.filtering.unIsolateObjects(allObjects, 'context-mode', true)
+    }
+
+    // hide the hidden objects
+    if (allHiddenObjects.length > 0) {
+      this.filtering.hideObjects(allHiddenObjects, 'context-mode', true)
+    }
+
+    // Request to update the view
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
   }
 
 

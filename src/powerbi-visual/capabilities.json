@@ -142,6 +142,13 @@
         }
       }
     },
+    "contextMode": {
+      "properties": {
+        "settings": {
+          "type": { "text": true }
+        }
+      }
+    },
     "color": {
       "properties": {
         "enabled": {

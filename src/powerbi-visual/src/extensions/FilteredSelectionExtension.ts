@@ -20,6 +20,9 @@ export interface FilteredSelectionEventPayload {
 }
 
 export class FilteredSelectionExtension extends SelectionExtension {
+  private lockedObjectsGetter: (() => Set<string>) | null = null
+  private nonInteractiveObjectsGetter: (() => string[]) | null = null
+
   // We're adding the Filtering Extension
   public get inject(): Array<new (viewer: IViewer, ...args: any[]) => any> {
     return [...super.inject, FilteringExtension]
@@ -31,6 +34,22 @@ export class FilteredSelectionExtension extends SelectionExtension {
     protected filtering: FilteringExtension
   ) {
     super(viewer, cameraProvider)
+  }
+
+  public setLockedObjectsGetter(getter: () => Set<string>): void {
+    this.lockedObjectsGetter = getter
+  }
+
+  public setNonInteractiveObjectsGetter(getter: () => string[]): void {
+    this.nonInteractiveObjectsGetter = getter
+  }
+
+  private isNonInteractiveObject(id: string): boolean {
+    if (this.nonInteractiveObjectsGetter) {
+      const nonInteractiveIds = this.nonInteractiveObjectsGetter()
+      return nonInteractiveIds.includes(id)
+    }
+    return false
   }
 
   public on<T extends FilteredSelectionEvent>(
@@ -49,6 +68,14 @@ export class FilteredSelectionExtension extends SelectionExtension {
   }
 
   protected isVisibleForSelectionId(id: string): boolean {
+    // check if object is locked
+    if (this.lockedObjectsGetter) {
+      const lockedObjects = this.lockedObjectsGetter()
+      if (lockedObjects.has(id)) {
+        return false
+      }
+    }
+
     // The current filtering state
     const filteringState = this.filtering.filteringState
 
@@ -62,6 +89,21 @@ export class FilteredSelectionExtension extends SelectionExtension {
   }
 
   protected isVisibleForSelectionRv(rv: NodeRenderView): boolean {
+    // check if object is locked by checking all object IDs
+    if (this.lockedObjectsGetter) {
+      const lockedObjects = this.lockedObjectsGetter()
+      const filteringState = this.filtering.filteringState
+
+      // Check if this render view belongs to any locked object
+      for (const lockedId of lockedObjects) {
+        const rvs = this.viewer
+          .getWorldTree()
+          .getRenderTree()
+          .getRenderViewsForNodeId(lockedId)
+        if (rvs.includes(rv)) return false
+      }
+    }
+
     // The current filtering state
     const filteringState = this.filtering.filteringState
 
@@ -70,7 +112,7 @@ export class FilteredSelectionExtension extends SelectionExtension {
       return true
     }
 
-    // Check if this render view belongs to any of the isolated objects
+    // check if this view belongs to any of the isolated objects
     for (let k = 0; k < filteringState.isolatedObjects.length; k++) {
       const rvs = this.viewer
         .getWorldTree()
@@ -83,7 +125,7 @@ export class FilteredSelectionExtension extends SelectionExtension {
 
   protected onObjectClicked(selection: SelectionEvent | null) {
     console.log('🎯 FilteredSelectionExtension.onObjectClicked called with:', selection)
-    
+
     if (!selection) {
       console.log('🎯 No selection, calling super with null')
       super.onObjectClicked(selection)
@@ -118,6 +160,25 @@ export class FilteredSelectionExtension extends SelectionExtension {
       // If no valid hits, treat as empty selection
       super.onObjectClicked(null)
     }
+  }
+
+  protected onObjectDoubleClick(selection: SelectionEvent | null) {
+
+    if (!selection || !selection.hits || selection.hits.length === 0) {
+      super.onObjectDoubleClick(selection)
+      return
+    }
+
+    // check if any of the double-clicked objects are from non-interactive models
+    for (const hit of selection.hits) {
+      const objectId = hit.node.model.id
+      if (this.isNonInteractiveObject(objectId)) {
+        return
+      }
+    }
+
+    // if all objects are interactive, allow normal double-click zoom
+    super.onObjectDoubleClick(selection)
   }
 
   protected onPointerMove(e: Vector2 & { event: Event }) {

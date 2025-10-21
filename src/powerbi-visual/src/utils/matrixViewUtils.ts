@@ -352,6 +352,19 @@ export async function processMatrixView(
       console.log('Desktop service unavailable - cannot retrieve credentials')
     }
 
+    // parse model metadata for federated models
+    if (id.includes(',')) {
+      const rootObjectIds = id.split(',')
+      const metadata = rootObjectIds.map((rootObjectId) => {
+        return {
+          rootObjectId: rootObjectId,
+          modelName: rootObjectId // placeholder, will be replaced with actual name from root object
+        }
+      })
+      visualStore.setModelMetadata(metadata)
+      console.log('Federated model detected. Model metadata:', metadata)
+    }
+
     // Now get the data from visual store for Speckle API download
     const token = visualStore.receiveInfo?.token
     const serverUrl = visualStore.receiveInfo?.serverUrl
@@ -458,7 +471,13 @@ export async function processMatrixView(
         const processedObjectIdLevels = processObjectIdLevel(obj, host, matrixView)
 
         objectIds.push(processedObjectIdLevels.id)
-        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+
+        // note: on first load, modelObjectsMap may be empty, so we default to registering all objects
+        // when user toggles interactive state, refreshHostData with filtering
+        if (visualStore.isObjectInteractive(processedObjectIdLevels.id)) {
+          onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+        }
+
         if (processedObjectIdLevels.shouldSelect) selectedIds.push(processedObjectIdLevels.id)
         if (processedObjectIdLevels.shouldColor) {
           colorGroup.objectIds.push(processedObjectIdLevels.id)
@@ -493,7 +512,13 @@ export async function processMatrixView(
       }
 
       objectIds.push(processedObjectIdLevels.id)
-      onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+
+      // note: on first load, modelObjectsMap may be empty, so we default to registering all objects
+      // when user toggles interactive state, refreshHostData with filtering
+      if (visualStore.isObjectInteractive(processedObjectIdLevels.id)) {
+        onSelectionPair(processedObjectIdLevels.id, processedObjectIdLevels.selectionId)
+      }
+
       if (processedObjectIdLevels.shouldSelect) {
         selectedIds.push(processedObjectIdLevels.id)
       }

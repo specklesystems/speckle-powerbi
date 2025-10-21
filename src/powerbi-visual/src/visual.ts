@@ -7,7 +7,7 @@ import App from './App.vue'
 import VueTippy from 'vue-tippy'
 import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
-import { SpeckleDataInput } from './types'
+import { SpeckleDataInput, ContextModeSettings } from './types'
 import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
 import { unzipModelObjects } from './utils/compression'
@@ -254,11 +254,28 @@ export class Visual implements IVisual {
                 console.warn(error)
                 console.log('missing stored receive info')
               }
+
+              // load context mode settings from file
+              try {
+                const contextModeFromFile = JSON.parse(
+                  options.dataViews[0].metadata.objects.contextMode?.settings as string
+                ) as ContextModeSettings
+                visualStore.setContextModeSettings(contextModeFromFile)
+                console.log('Loaded context mode settings from file:', contextModeFromFile)
+              } catch (error) {
+                console.log('No stored context mode settings found')
+              }
             }
 
             // Check for internalized data
             const internalizedData = options.dataViews[0].metadata.objects?.storedData
               ?.speckleObjects as string
+
+            // reset selection handler if we're reprocessing data (not first load)
+            // this ensures only interactive objects get registered
+            if (visualStore.isViewerObjectsLoaded && visualStore.getModelObjectsMap().size > 0) {
+              this.selectionHandler.reset()
+            }
 
             const input = await processMatrixView(
               matrixView,
