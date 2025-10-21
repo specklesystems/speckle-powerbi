@@ -61,6 +61,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
+import type { ModelContextSettings } from '@src/types'
 import ViewerMenu from '../menu/ViewerMenu.vue'
 import Context from '../../global/icon/Context.vue'
 import { LockClosedIcon, LockOpenIcon, EyeIcon, EyeSlashIcon, LinkIcon, LinkSlashIcon } from '@heroicons/vue/24/outline'
@@ -86,44 +87,44 @@ const getSettings = (rootObjectId: string) => {
   return visualStore.getModelContextSettings(rootObjectId)
 }
 
+// generic function to update model context settings
+const updateModelSettings = (
+  rootObjectId: string,
+  updates: Partial<ModelContextSettings>,
+  shouldRefreshHost = false
+) => {
+  const current = getSettings(rootObjectId)
+  const newSettings = { ...current, ...updates }
+
+  visualStore.setModelContextMode(rootObjectId, newSettings)
+  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
+  visualStore.writeContextModeToFile()
+
+  if (shouldRefreshHost) {
+    visualStore.setPostClickSkipNeeded(false)
+    visualStore.host.refreshHostData()
+  }
+}
+
 const toggleVisibility = (rootObjectId: string) => {
   const current = getSettings(rootObjectId)
   const newVisible = !current.visible
 
   // hidden models get non-interactive automatically
   // ux would be very confusing otherwise
-  const newSettings = {
-    ...current,
+  updateModelSettings(rootObjectId, {
     visible: newVisible,
     interactive: newVisible ? current.interactive : false
-  }
-
-  visualStore.setModelContextMode(rootObjectId, newSettings)
-  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
-  visualStore.writeContextModeToFile()
+  })
 }
 
 const toggleLock = (rootObjectId: string) => {
   const current = getSettings(rootObjectId)
-  const newSettings = { ...current, locked: !current.locked }
-
-  visualStore.setModelContextMode(rootObjectId, newSettings)
-  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
-  visualStore.writeContextModeToFile()
+  updateModelSettings(rootObjectId, { locked: !current.locked })
 }
 
 const toggleInteractive = (rootObjectId: string) => {
   const current = getSettings(rootObjectId)
-  const newSettings = { ...current, interactive: !current.interactive }
-
-  visualStore.setModelContextMode(rootObjectId, newSettings)
-  visualStore.viewerEmit('applyContextMode', rootObjectId, newSettings)
-  visualStore.writeContextModeToFile()
-
-  // need to rebuild selection registrations
-  visualStore.setPostClickSkipNeeded(false)
-
-  // need to refresh host data for selection registration
-  visualStore.host.refreshHostData()
+  updateModelSettings(rootObjectId, { interactive: !current.interactive }, true)
 }
 </script>

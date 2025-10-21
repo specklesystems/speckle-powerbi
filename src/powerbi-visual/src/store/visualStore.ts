@@ -231,17 +231,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     if (dataInput.value.selectedIds.length > 0) {
       // filter out non-interactive objects and hidden objects
-      const interactiveSelectedIds = dataInput.value.selectedIds.filter(id => {
-        if (!isObjectInteractive(id)) return false
-
-        const modelId = getModelForObject(id)
-        if (modelId) {
-          const settings = getModelContextSettings(modelId)
-          if (!settings.visible) return false // explicitly exclude hidden objects
-        }
-
-        return true
-      })
+      const interactiveSelectedIds = getInteractiveAndVisibleObjectIds(dataInput.value.selectedIds)
 
       if (interactiveSelectedIds.length > 0) {
         isFilterActive.value = true
@@ -256,14 +246,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
           // filter out hidden objects before resetting filter
           // otherwise they keep coming to life
-          const visibleObjectIds = dataInput.value.objectIds.filter(id => {
-            const modelId = getModelForObject(id)
-            if (modelId) {
-              const settings = getModelContextSettings(modelId)
-              return settings.visible
-            }
-            return true
-          })
+          const visibleObjectIds = getVisibleObjectIds(dataInput.value.objectIds)
           viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
         } else {
           viewerEmit.value('unIsolateObjects')
@@ -274,14 +257,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
       if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-        const visibleObjectIds = dataInput.value.objectIds.filter(id => {
-          const modelId = getModelForObject(id)
-          if (modelId) {
-            const settings = getModelContextSettings(modelId)
-            return settings.visible
-          }
-          return true
-        })
+        const visibleObjectIds = getVisibleObjectIds(dataInput.value.objectIds)
         viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
       } else {
         // No object IDs provided - show all objects without any filtering
@@ -530,14 +506,7 @@ export const useVisualStore = defineStore('visualStore', () => {
   const resetFilters = () => {
     // Only apply filtering if object IDs are available, otherwise show all objects normally
     if (fieldInputState.value.objectIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-      const visibleObjectIds = dataInput.value.objectIds.filter(id => {
-        const modelId = getModelForObject(id)
-        if (modelId) {
-          const settings = getModelContextSettings(modelId)
-          return settings.visible
-        }
-        return true
-      })
+      const visibleObjectIds = getVisibleObjectIds(dataInput.value.objectIds)
       viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
     } else {
       // No object IDs provided - show all objects without any filtering
@@ -582,17 +551,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       
       // restore selection filters if they exist
       if (dataInput.value.selectedIds.length > 0) {
-        const interactiveSelectedIds = dataInput.value.selectedIds.filter(id => {
-          if (!isObjectInteractive(id)) return false
-
-          const modelId = getModelForObject(id)
-          if (modelId) {
-            const settings = getModelContextSettings(modelId)
-            if (!settings.visible) return false // explicitly exclude hidden objects
-          }
-
-          return true
-        })
+        const interactiveSelectedIds = getInteractiveAndVisibleObjectIds(dataInput.value.selectedIds)
 
         if (interactiveSelectedIds.length > 0) {
           isFilterActive.value = true
@@ -605,14 +564,7 @@ export const useVisualStore = defineStore('visualStore', () => {
           isFilterActive.value = false
           latestColorBy.value = dataInput.value.colorByIds
           if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-            const visibleObjectIds = dataInput.value.objectIds.filter(id => {
-              const modelId = getModelForObject(id)
-              if (modelId) {
-                const settings = getModelContextSettings(modelId)
-                return settings.visible
-              }
-              return true
-            })
+            const visibleObjectIds = getVisibleObjectIds(dataInput.value.objectIds)
             viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
           } else {
             viewerEmit.value('unIsolateObjects')
@@ -623,14 +575,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
         if (fieldInputState.value.objectIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-          const visibleObjectIds = dataInput.value.objectIds.filter(id => {
-            const modelId = getModelForObject(id)
-            if (modelId) {
-              const settings = getModelContextSettings(modelId)
-              return settings.visible
-            }
-            return true
-          })
+          const visibleObjectIds = getVisibleObjectIds(dataInput.value.objectIds)
           viewerEmit.value('resetFilter', visibleObjectIds, isGhostActive.value, isZoomOnFilterActive.value)
         } else {
           // No object IDs provided - show all objects without any filtering
@@ -698,6 +643,35 @@ export const useVisualStore = defineStore('visualStore', () => {
       }
     }
     return null
+  }
+
+
+   // filters object IDs to only include those from visible models
+  const getVisibleObjectIds = (objectIds: string[]): string[] => {
+    return objectIds.filter(id => {
+      const modelId = getModelForObject(id)
+      if (modelId) {
+        const settings = getModelContextSettings(modelId)
+        return settings.visible
+      }
+      return true
+    })
+  }
+
+ 
+  // filters object IDs to only include those from interactive AND visible models
+  const getInteractiveAndVisibleObjectIds = (objectIds: string[]): string[] => {
+    return objectIds.filter(id => {
+      if (!isObjectInteractive(id)) return false
+
+      const modelId = getModelForObject(id)
+      if (modelId) {
+        const settings = getModelContextSettings(modelId)
+        if (!settings.visible) return false
+      }
+
+      return true
+    })
   }
 
   const writeContextModeToFile = () => {
@@ -802,6 +776,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     getModelObjectsMap,
     isObjectInteractive,
     getModelForObject,
+    getVisibleObjectIds,
+    getInteractiveAndVisibleObjectIds,
     writeContextModeToFile
   }
 })
