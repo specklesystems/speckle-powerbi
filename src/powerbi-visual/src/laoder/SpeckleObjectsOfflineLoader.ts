@@ -41,26 +41,8 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
 
     console.log(`Creating offline loader with ${objects.length} objects, root: ${objects[0].id}`)
 
-    // remove encodedValue properties
-    objects.forEach((obj) => {
-      if (obj.encodedValue) {
-        delete obj.encodedValue
-      }
-    })
-
     // Create a Set of all object IDs for quick lookup
     const objectIds = new Set(objects.map((obj) => obj.id))
-
-    // clean up closure tables to remove missing object IDs
-    objects.forEach((obj) => {
-      if (obj.__closure && typeof obj.__closure === 'object') {
-        Object.keys(obj.__closure).forEach((closureId) => {
-          if (!objectIds.has(closureId)) {
-            delete obj.__closure[closureId]
-          }
-        })
-      }
-    })
 
     // Check for references to objects that aren't in the array
     const missingReferences = new Set<string>()
@@ -92,17 +74,6 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
         `⚠️ Found ${missingReferences.size} missing object references:`,
         Array.from(missingReferences).slice(0, 10)
       )
-
-      // clean up __closure
-      objects.forEach((obj) => {
-        if (obj.__closure && typeof obj.__closure === 'object') {
-          missingReferences.forEach((refId) => {
-            if (refId in obj.__closure) {
-              delete obj.__closure[refId]
-            }
-          })
-        }
-      })
     } else {
       console.log('✅ All object references are present')
     }

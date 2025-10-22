@@ -70,32 +70,6 @@ export class SpeckleApiLoader {
 
       console.log(`Downloaded ${objects.length} objects using ObjectLoader v2`)
 
-      // filter out masked objects
-      const validObjects = objects.filter((obj) => obj !== undefined && obj !== null)
-      const skippedCount = objects.length - validObjects.length
-
-      // only do it if there is skipped objects
-      if (skippedCount > 0) {
-        console.warn(`Filtered out ${skippedCount} undefined objects - cleaning up references`)
-
-        const validObjectIds = new Set(validObjects.map(o => o.id))
-        validObjects.forEach((obj) => {
-          // remove encodedValue property
-          if (obj.encodedValue) {
-            delete obj.encodedValue
-          }
-
-          // clean closure
-          if (obj.__closure && typeof obj.__closure === 'object') {
-            Object.keys(obj.__closure).forEach((closureId) => {
-              if (!validObjectIds.has(closureId)) {
-                delete obj.__closure[closureId]
-              }
-            })
-          }
-        })
-      }
-
       visualStore.setLoadingProgress('🔄 Finalizing object download...', 0.9)
 
       // Recursively fetch all missing references until none remain
@@ -107,11 +81,11 @@ export class SpeckleApiLoader {
         // This limit only prevents infinite loops if something goes wrong
         iterationCount++
 
-        const objectIds = new Set(validObjects.map((obj) => obj.id))
+        const objectIds = new Set(objects.map((obj) => obj.id))
         const missingIds = new Set<string>()
 
         // Check all objects for missing references
-        validObjects.forEach((obj) => {
+        objects.forEach((obj) => {
           Object.values(obj).forEach((value) => {
             if (value && typeof value === 'object') {
               if ('referencedId' in value && typeof value.referencedId === 'string') {
@@ -152,14 +126,14 @@ export class SpeckleApiLoader {
         for (const missingId of missingIdsArray) {
           try {
             const missingObj = await loader.getObject({ id: missingId })
-            validObjects.push(missingObj as SpeckleObject)
+            objects.push(missingObj as SpeckleObject)
             totalFetched++
             fetchedInIteration++
 
             // Update progress within this iteration
             const iterationProgress = fetchedInIteration / missingIdsArray.length
             visualStore.setLoadingProgress(
-              `🔄 Loading objects (${validObjects.length} loaded)`,
+              `🔄 Loading objects (${objects.length} loaded)`,
               0.9 + iterationProgress * 0.05 // Progress from 0.9 to 0.95
             )
           } catch (err) {
@@ -168,7 +142,7 @@ export class SpeckleApiLoader {
         }
 
         console.log(
-          `✅ Iteration ${iterationCount} complete. Fetched ${fetchedInIteration} objects. Total: ${validObjects.length}`
+          `✅ Iteration ${iterationCount} complete. Fetched ${missingIdsArray.length} objects. Total: ${objects.length}`
         )
       }
 
@@ -179,12 +153,12 @@ export class SpeckleApiLoader {
       }
 
       console.log(
-        `✅ Downloaded total of ${validObjects.length} objects (${totalFetched} additional references fetched)`
+        `✅ Downloaded total of ${objects.length} objects (${totalFetched} additional references fetched)`
       )
 
       visualStore.setLoadingProgress('Download complete', 1)
 
-      return validObjects
+      return objects
     } catch (error) {
       console.error('Error loading objects:', error)
       throw error
