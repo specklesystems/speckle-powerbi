@@ -44,6 +44,17 @@ export class SpeckleObjectsOfflineLoader extends SpeckleLoader {
     // Create a Set of all object IDs for quick lookup
     const objectIds = new Set(objects.map((obj) => obj.id))
 
+    // remove missing objects from closure table
+    objects.forEach((obj) => {
+      if (obj.__closure && typeof obj.__closure === 'object') {
+        Object.keys(obj.__closure).forEach((closureId) => {
+          if (!objectIds.has(closureId)) {
+            delete obj.__closure[closureId]
+          }
+        })
+      }
+    })
+
     // Check for references to objects that aren't in the array
     const missingReferences = new Set<string>()
     objects.forEach((obj) => {

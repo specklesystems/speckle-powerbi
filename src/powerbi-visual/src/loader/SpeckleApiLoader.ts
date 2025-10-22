@@ -51,6 +51,12 @@ export class SpeckleApiLoader {
 
       // Stream all objects using the async iterator
       for await (const obj of loader.getObjectIterator()) {
+        // skip undefined objects
+        if (obj === undefined || obj === null) {
+          loadedCount++
+          continue
+        }
+
         objects.push(obj as SpeckleObject) // Type assertion for SpeckleObject interface
         loadedCount++
 
@@ -69,6 +75,14 @@ export class SpeckleApiLoader {
       }
 
       console.log(`Downloaded ${objects.length} objects using ObjectLoader v2`)
+
+      // log if any objects skipped - rawEncodings
+      const skippedCount = loadedCount - objects.length
+      if (skippedCount > 0) {
+        console.warn(
+          `Skipped ${skippedCount} objects (likely RawEncoding objects)`
+        )
+      }
 
       visualStore.setLoadingProgress('🔄 Finalizing object download...', 0.9)
 
