@@ -64,7 +64,7 @@
       field is needed for interactivity with other visuals.
     </div>
 
-    <div v-if="visualStore.isNavbarHidden" class="fixed top-0 right-0 z-20">
+    <div v-if="visualStore.isNavbarHidden" class="fixed top-4 right-2 z-20">
       <button
         class="transition opacity-50 hover:opacity-100"
         title="Show navbar"
