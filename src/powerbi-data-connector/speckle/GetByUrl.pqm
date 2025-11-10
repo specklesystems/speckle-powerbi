@@ -102,10 +102,10 @@
                     // combine all data tables
                     combinedData = Table.Combine(allTables),
 
-                    // replace the "Version Object ID" column with the combined encoded strings
+                    // replace the "Metadata" column with the combined encoded strings
                     transformedData = Table.TransformColumns(
                         combinedData,
-                        {"Version Object ID", each combinedEncodedUserInfos}
+                        {"Metadata", each combinedEncodedUserInfos}
                     ),
 
                     // expand properties column if requested and if it exists
@@ -151,10 +151,10 @@
                     // encode userInfoData as base64 JSON string
                     encodedUserInfo = EncodeUserInfo(userInfoData),
 
-                    // replace "Version Object ID" column with encoded string
+                    // replace "Metadata" column with encoded string
                     transformedData = Table.TransformColumns(
                         structuredData,
-                        {"Version Object ID", each encodedUserInfo}
+                        {"Metadata", each encodedUserInfo}
                     ),
 
                     // expand properties column if requested and if it exists
