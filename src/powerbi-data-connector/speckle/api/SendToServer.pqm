@@ -3,8 +3,7 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         GetUser = Extension.LoadFunction("GetUser.pqm"),
-        GetVersion = Extension.LoadFunction("GetVersion.pqm"),
-        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
 
         // helper function to load .pqm modules dynamically
         Extension.LoadFunction = (fileName as text) =>
@@ -26,92 +25,24 @@
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
         userInfo = GetUser(url),
-        apiKey = userInfo[Token],
-        userEmail = userInfo[UserEmail],
-        connectorVersion = GetVersion(),
-        workspaceInfo = GetWorkspace(url),
+        powerfulToken = userInfo[Token],
 
-        // attempts to exchange powerful token for weak token via desktop service
-        // returns [Success = true/false, Token = weak_token/null]
-        TryTokenExchange = () =>
-            try
-                let
-                    tokenExchangeData = Json.FromValue([
-                        PowerfulToken = apiKey,
-                        Scopes = {"profile:read", "streams:read", "users:read"},
-                        ProjectId = parsedUrl[projectId],
-                        ServerUrl = parsedUrl[baseUrl]
-                    ]),
+        // exchange powerful token for weak token using GraphQL
+        // this replaces the desktop service token exchange
+        tokenExchangeResult = ExchangeToken(
+            powerfulToken,
+            {"profile:read", "streams:read", "users:read"},
+            parsedUrl[projectId],
+            parsedUrl[baseUrl]
+        ),
 
-                    tokenExchangeResponse = Web.Contents(
-                        "http://127.0.0.1:29364/auth/exchange-token",
-                        [
-                            Headers = [
-                                #"Content-Type" = "application/json",
-                                #"Method" = "POST"
-                            ],
-                            Content = tokenExchangeData,
-                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
-                            Timeout = #duration(0, 0, 0, 5)
-                        ]
-                    ),
+        // use weak token if exchange succeeded, otherwise use powerful token (fallback)
+        tokenToUse = if tokenExchangeResult[Success] then
+            tokenExchangeResult[Token]
+        else
+            powerfulToken,
 
-                    StatusCode = Value.Metadata(tokenExchangeResponse)[Response.Status],
-
-                    Result = if StatusCode >= 200 and StatusCode < 300 then
-                        let
-                            tokenExchangeJson = Json.Document(tokenExchangeResponse),
-                            weakToken = tokenExchangeJson[token]
-                        in
-                            [Success = true, Token = weakToken]
-                    else
-                        [Success = false, Token = null]
-                in
-                    Result
-            otherwise
-                [Success = false, Token = null],
-
-        // stores user info to desktop service for power bi visual consumption
-        // returns status code (or 0 on failure)
-        SendTelemetry = (token as text) =>
-            try
-                let
-                    userInfoData = Json.FromValue([
-                        Url = url,
-                        Server = parsedUrl[baseUrl],
-                        Email = userEmail,
-                        ProjectId = parsedUrl[projectId],
-                        RootObjectId = modelInfo[rootObjectId],
-                        SourceApplication = modelInfo[sourceApplication],
-                        Token = token,
-                        Version = connectorVersion,
-                        VersionId = parsedUrl[versionId],
-                        WorkspaceId = workspaceInfo[workspaceId],
-                        WorkspaceName = workspaceInfo[workspaceName],
-                        WorkspaceLogo = workspaceInfo[workspaceLogo],
-                        CanHideBranding = workspaceInfo[canHideBranding]
-                    ]),
-
-                    userInfoResponse = Web.Contents(
-                        "http://127.0.0.1:29364/store-user-info",
-                        [
-                            Headers = [
-                                #"Content-Type" = "application/json",
-                                #"Method" = "POST"
-                            ],
-                            Content = userInfoData,
-                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
-                            Timeout = #duration(0, 0, 0, 3)
-                        ]
-                    ),
-
-                    statusCode = Value.Metadata(userInfoResponse)[Response.Status]
-                in
-                    statusCode
-            otherwise
-                0,
-
-        // downloads data directly from server without desktop service
+        // downloads data directly from server
         DirectDownload = (token as text) =>
             let
                 objectUrl = Text.Combine({
@@ -146,29 +77,14 @@
                             StatusCode = StatusCode,
                             ObjectUrl = objectUrl,
                             ProjectId = parsedUrl[projectId],
-                            RootObjectId = modelInfo[rootObjectId],
-                            UsedWeakToken = token <> apiKey
+                            RootObjectId = modelInfo[rootObjectId]
                         ]
                     ]
             in
                 JsonResponse,
 
-        // try token exchange, use weak token if successful, otherwise use powerful token
-        // powerful token just for data connector, never stored in visual
-        TokenExchangeResult = TryTokenExchange(),
-        TokenToUse = if TokenExchangeResult[Success] then
-            TokenExchangeResult[Token]
-        else
-            apiKey,
-
-        // send user info to desktop service
-        TelemetryStatusCode = SendTelemetry(TokenToUse),
-
-        // download data
-        FinalResult = if TelemetryStatusCode >= 0 then
-            DirectDownload(TokenToUse)
-        else
-            DirectDownload(TokenToUse)
+        // download data using the token (weak if exchange succeeded, powerful otherwise)
+        FinalResult = DirectDownload(tokenToUse)
 
     in
         FinalResult

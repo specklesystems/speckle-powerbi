@@ -13,6 +13,7 @@ import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
 import { useUpdateConnector } from '@src/composables/useUpdateConnector'
 import { SpeckleApiLoader } from '@src/loader/SpeckleApiLoader'
 import { unzipModelObjects } from './compression'
+import { decodeUserInfoSafe, DecodedUserInfo } from './decodeUserInfo'
 
 export class AsyncPause {
   private lastPauseTime = 0
@@ -165,20 +166,16 @@ export type ReceiveInfo = {
   projectId?: string
 }
 
-async function getReceiveInfo(id) {
+/**
+ * Extracts userInfoData from encoded string
+ * Returns array of DecodedUserInfo for federated models, single item for single models
+ */
+function decodeUserInfoFromId(encodedId: string): DecodedUserInfo[] {
   try {
-    const ids = (id as string).split(',')
-    const response = await fetch(`http://localhost:29364/user-info/${ids[0]}`)
-    if (!response.body) {
-      console.error('No response body')
-      return { desktopServiceError: true }
-    }
-
-    return await response.json()
+    return decodeUserInfoSafe(encodedId)
   } catch (error) {
-    console.log(error)
-    console.log("User info couldn't retrieved from local server.")
-    return { desktopServiceError: true }
+    console.error('Failed to decode user info from encoded ID:', error)
+    throw new Error(`Invalid encoded user info data: ${error.message}`)
   }
 }
 
@@ -262,18 +259,27 @@ export async function processMatrixView(
 
       if (internalizedModelObjects && internalizedModelObjects.length > 0) {
         // CRITICAL: Validate that internalized data matches current matrix data
-        const internalizedRootId = (internalizedModelObjects[0][0] as any).id
-        if (internalizedRootId !== id) {
-          console.log(
-            `📁 Internalized data mismatch: stored=${internalizedRootId}, current=${id}. Using fresh data.`
-          )
-          internalizedModelObjects = undefined // Clear internalized data - use fresh data instead
-        } else {
-          console.log(
-            '📁 Successfully validated internalized data matches current matrix:',
-            internalizedModelObjects.length,
-            'models'
-          )
+        // Need to decode id first to get actual root object IDs for comparison
+        try {
+          const decodedForCheck = decodeUserInfoFromId(id)
+          const actualRootIds = decodedForCheck.map((info) => info.rootObjectId).join(',')
+          const internalizedRootId = (internalizedModelObjects[0][0] as any).id
+
+          if (internalizedRootId !== actualRootIds.split(',')[0]) {
+            console.log(
+              `📁 Internalized data mismatch: stored=${internalizedRootId}, current=${actualRootIds}. Using fresh data.`
+            )
+            internalizedModelObjects = undefined // Clear internalized data - use fresh data instead
+          } else {
+            console.log(
+              '📁 Successfully validated internalized data matches current matrix:',
+              internalizedModelObjects.length,
+              'models'
+            )
+          }
+        } catch (error) {
+          console.error('📁 Failed to decode ID for internalized data check:', error)
+          internalizedModelObjects = undefined
         }
       }
 
@@ -295,17 +301,26 @@ export async function processMatrixView(
         }
 
         // Only reload if switching models or not already loaded
-        const needsReload =
-          !visualStore.isViewerObjectsLoaded || visualStore.lastLoadedRootObjectId !== id
-        if (needsReload) {
-          console.log('🔄 Forcing viewer reload for internalized data (model switch or first load)')
-          visualStore.setViewerReloadNeeded()
-          visualStore.setViewerReadyToLoad(true)
-          visualStore.setLoadingProgress('📁 Loading from file', null)
-        } else {
-          console.log('📁 Internalized data already loaded, skipping reload')
+        // Need to decode to get actual root object ID for comparison
+        try {
+          const decodedForReload = decodeUserInfoFromId(id)
+          const actualRootIds = decodedForReload.map((info) => info.rootObjectId).join(',')
+
+          const needsReload =
+            !visualStore.isViewerObjectsLoaded ||
+            visualStore.lastLoadedRootObjectId !== actualRootIds
+          if (needsReload) {
+            console.log('🔄 Forcing viewer reload for internalized data (model switch or first load)')
+            visualStore.setViewerReloadNeeded()
+            visualStore.setViewerReadyToLoad(true)
+            visualStore.setLoadingProgress('📁 Loading from file', null)
+          } else {
+            console.log('📁 Internalized data already loaded, skipping reload')
+          }
+          visualStore.lastLoadedRootObjectId = actualRootIds // Set to actual root IDs to skip API calls
+        } catch (error) {
+          console.error('📁 Failed to decode ID for reload check:', error)
         }
-        visualStore.lastLoadedRootObjectId = id // Set to current ID to skip API calls
       } else {
         console.error('📁 Failed to unzip internalized data')
       }
@@ -314,59 +329,72 @@ export async function processMatrixView(
     }
   }
 
-  // const id = localMatrixView[0].values[0].value as unknown as string
-  console.log('🗝️ Root Object Id: ', id)
-  console.log('Last laoded root object id', visualStore.lastLoadedRootObjectId)
+  // Extract the encoded string from matrix (id is now the base64 encoded userInfo)
+  const encodedId = id
+  console.log('🗝️ Encoded ID: ', encodedId.substring(0, 50) + '...')
+  console.log('Last loaded root object id', visualStore.lastLoadedRootObjectId)
 
   let modelObjects: object[][] = undefined
 
+  // Decode userInfo first to get actual root object IDs for comparison
+  let decodedUserInfos: DecodedUserInfo[]
+  let actualRootObjectIds: string
+
+  try {
+    decodedUserInfos = decodeUserInfoFromId(encodedId)
+    // Build comma-separated list of actual root object IDs
+    actualRootObjectIds = decodedUserInfos.map((info) => info.rootObjectId).join(',')
+    console.log(`🔓 Decoded ${decodedUserInfos.length} userInfo(s) - Root IDs: ${actualRootObjectIds}`)
+  } catch (error) {
+    console.error('Failed to decode user info:', error)
+    visualStore.setCommonError(
+      'Failed to decode user info from data connector. Please refresh the data.'
+    )
+    visualStore.setViewerReadyToLoad(false)
+    return {
+      modelObjects: [],
+      objectIds: [],
+      selectedIds: [],
+      colorByIds: null,
+      objectTooltipData: new Map(),
+      isFromStore: false
+    }
+  }
+
+  // Check if we need to reload (compare actual root object IDs, not encoded strings)
   if (
-    visualStore.lastLoadedRootObjectId !== id &&
+    visualStore.lastLoadedRootObjectId !== actualRootObjectIds &&
     !visualStore.isLoadingFromFile &&
     !internalizedModelObjects
   ) {
     const start = performance.now()
 
-    // Get receive info from desktop service to populate visual store
-    const receiveInfo = await getReceiveInfo(id)
-    let desktopServiceUnavailable = false
+    // Use the first decoded userInfo for visual store (for federated, all have same credentials)
+    const primaryUserInfo = decodedUserInfos[0]
 
-    if (receiveInfo && !receiveInfo.desktopServiceError) {
-      visualStore.setReceiveInfo({
-        userEmail: receiveInfo.email || receiveInfo.Email,
-        serverUrl: receiveInfo.server || receiveInfo.Server,
-        sourceApplication: getSlugFromHostAppNameAndVersion(
-          receiveInfo.sourceApplication || receiveInfo.SourceApplication
-        ),
-        workspaceId: receiveInfo.workspaceId || receiveInfo.WorkspaceId,
-        workspaceName: receiveInfo.workspaceName || receiveInfo.WorkspaceName,
-        workspaceLogo: receiveInfo.workspaceLogo || receiveInfo.WorkspaceLogo,
-        version: receiveInfo.version || receiveInfo.Version,
-        canHideBranding: receiveInfo.canHideBranding ?? receiveInfo.CanHideBranding,
-        token: receiveInfo.weakToken || receiveInfo.WeakToken,
-        projectId: receiveInfo.projectId || receiveInfo.ProjectId
-      })
-      console.log(`Receive info retrieved from desktop service - credentials loaded`)
-    } else {
-      desktopServiceUnavailable = true
-      console.log('Desktop service unavailable - cannot retrieve credentials')
-    }
+    visualStore.setReceiveInfo({
+      userEmail: primaryUserInfo.email,
+      serverUrl: primaryUserInfo.server,
+      sourceApplication: getSlugFromHostAppNameAndVersion(primaryUserInfo.sourceApplication || ''),
+      workspaceId: primaryUserInfo.workspaceId || undefined,
+      workspaceName: primaryUserInfo.workspaceName || undefined,
+      workspaceLogo: primaryUserInfo.workspaceLogo || undefined,
+      version: primaryUserInfo.version,
+      canHideBranding: primaryUserInfo.canHideBranding || false,
+      token: primaryUserInfo.token,
+      projectId: primaryUserInfo.projectId
+    })
+    console.log(`✅ Credentials loaded from encoded data`)
 
-    // Now get the data from visual store for Speckle API download
-    const token = visualStore.receiveInfo?.token
-    const serverUrl = visualStore.receiveInfo?.serverUrl
-    const projectId = visualStore.receiveInfo?.projectId
+    // Get credentials for Speckle API download
+    const token = primaryUserInfo.token
+    const serverUrl = primaryUserInfo.server
+    const projectId = primaryUserInfo.projectId
 
     if (!token || !serverUrl || !projectId) {
-      if (desktopServiceUnavailable) {
-        visualStore.setCommonError(
-          'Speckle Desktop Service is not running. Please start Speckle Desktop Services and refresh data.'
-        )
-      } else {
-        visualStore.setCommonError(
-          'Missing Speckle credentials. Please refresh the data from the data connector.'
-        )
-      }
+      visualStore.setCommonError(
+        'Missing required credentials in encoded data. Please refresh the data from the data connector.'
+      )
       visualStore.setViewerReadyToLoad(false)
       return {
         modelObjects: [],
@@ -381,9 +409,9 @@ export async function processMatrixView(
     visualStore.setViewerReadyToLoad(true)
 
     console.log('Downloading objects directly from Speckle API...')
-    console.log(`Server: ${serverUrl}, Project: ${projectId}, Object: ${id}`)
+    console.log(`Server: ${serverUrl}, Project: ${projectId}, Objects: ${actualRootObjectIds}`)
     try {
-      modelObjects = await fetchFromSpeckleApi(id, serverUrl, projectId, token)
+      modelObjects = await fetchFromSpeckleApi(actualRootObjectIds, serverUrl, projectId, token)
       console.log('Successfully downloaded from Speckle API')
 
       // Debug: Check what we're passing to the viewer
