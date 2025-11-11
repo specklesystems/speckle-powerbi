@@ -68,11 +68,20 @@
             parsedUrl[baseUrl]
         ),
 
-        // use weak token if exchange succeeded, otherwise use powerful token (fallback)
+        // throw error if token exchange failed - do NOT use powerful token as fallback
         tokenToUse = if tokenExchangeResult[Success] then
             tokenExchangeResult[Token]
         else
-            powerfulToken,
+            error [
+                Reason = "TokenExchangeFailed",
+                Message.Format = "Failed to exchange token for limited scope token: #{0}",
+                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
+                Detail = [
+                    ErrorMessage = tokenExchangeResult[ErrorMessage],
+                    ProjectId = parsedUrl[projectId],
+                    ServerUrl = parsedUrl[baseUrl]
+                ]
+            ],
             
         // only proceed if user has permisson to load
         results = if permissionCheck[authorized] then
