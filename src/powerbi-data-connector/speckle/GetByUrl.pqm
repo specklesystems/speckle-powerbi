@@ -9,6 +9,11 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
+        EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
+        GetVersion = Extension.LoadFunction("GetVersion.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -29,24 +34,54 @@
 
         // parse the URL to determine if it's a federated model
         parsedUrl = Parser(url),
-        
+
         // check if user has permission to load the model
         permissionCheck = CheckPermissions(url),
-        
+
         // assert that permission check returned a valid result
         permissionAssert = if not Record.HasFields(permissionCheck, {"authorized", "code", "message"}) then
             error "Invalid permission check result"
         else
             null,
-        
+
         // if not authorized, throw an error with the message from the server
         authCheck = if not permissionCheck[authorized] then
             error Text.Format(
-                "Permission denied: #{0} (Error code: #{1})", 
+                "Permission denied: #{0} (Error code: #{1})",
                 {permissionCheck[message], permissionCheck[code]}
             )
         else
             null,
+
+        // get user info, connector version, and workspace info for encoding
+        userInfo = GetUser(url),
+        powerfulToken = userInfo[Token],
+        userEmail = userInfo[UserEmail],
+        connectorVersion = GetVersion(),
+        workspaceInfo = GetWorkspace(url),
+
+        // exchange powerful token for weak token with limited scopes
+        tokenExchangeResult = ExchangeToken(
+            powerfulToken,
+            {"profile:read", "streams:read", "users:read"},
+            parsedUrl[projectId],
+            parsedUrl[baseUrl]
+        ),
+
+        // throw error if token exchange failed - do NOT use powerful token as fallback
+        tokenToUse = if tokenExchangeResult[Success] then
+            tokenExchangeResult[Token]
+        else
+            error [
+                Reason = "TokenExchangeFailed",
+                Message.Format = "Failed to exchange token for limited scope token: #{0}",
+                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
+                Detail = [
+                    ErrorMessage = tokenExchangeResult[ErrorMessage],
+                    ProjectId = parsedUrl[projectId],
+                    ServerUrl = parsedUrl[baseUrl]
+                ]
+            ],
             
         // only proceed if user has permisson to load
         results = if permissionCheck[authorized] then
@@ -56,29 +91,30 @@
                     modelsData = List.Transform(
                         parsedUrl[federatedModels],
                         each ProcessSingleModel(
-                            parsedUrl[baseUrl], 
-                            parsedUrl[projectId], 
-                            [modelId], 
+                            parsedUrl[baseUrl],
+                            parsedUrl[projectId],
+                            [modelId],
                             [versionId]
                         )
                     ),
-                    
+
                     // extract all data tables
                     allTables = List.Transform(modelsData, each [Data]),
-                    
-                    // extract all root object IDs
-                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
-                    
-                    // combine all root object IDs into a comma-separated string
-                    combinedRootIds = Text.Combine(allRootIds, ","),
-                    
+
+                    // extract all encoded userInfo strings
+                    allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
+
+                    // combine all encoded userInfo strings with delimiter |||
+                    // (delimiter chosen to avoid conflicts with base64 characters)
+                    combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
+
                     // combine all data tables
                     combinedData = Table.Combine(allTables),
-                    
-                    // replace the "Version Object ID" column with the combined root IDs
+
+                    // replace the "Model Info" column with the combined encoded strings
                     transformedData = Table.TransformColumns(
                         combinedData,
-                        {"Version Object ID", each combinedRootIds}
+                        {"Model Info", each combinedEncodedUserInfos}
                     ),
 
                     // expand properties column if requested and if it exists
@@ -94,25 +130,50 @@
             else
                 // use existing functionality for single models
                 let
-                    // get model name
+                    // get model info
                     modelInfo = GetModel(url),
                     modelName = modelInfo[modelName],
+                    rootObjectId = modelInfo[rootObjectId],
+                    sourceApplication = modelInfo[sourceApplication],
+                    versionId = modelInfo[versionId],
 
                     // get structured data
                     structuredData = GetStructuredData(url),
 
-                    // rename column based on send status
-                    newColumnName = "Version Object ID",
-                    renamedData = Table.RenameColumns(structuredData, {{"Version Object ID", newColumnName}}),
+                    // build userInfoData record for this model
+                    userInfoData = [
+                        rootObjectId = rootObjectId,
+                        server = parsedUrl[baseUrl],
+                        email = userEmail,
+                        projectId = parsedUrl[projectId],
+                        token = tokenToUse,
+                        workspaceId = workspaceInfo[workspaceId],
+                        workspaceName = workspaceInfo[workspaceName],
+                        workspaceLogo = workspaceInfo[workspaceLogo],
+                        version = connectorVersion,
+                        sourceApplication = sourceApplication,
+                        canHideBranding = workspaceInfo[canHideBranding],
+                        versionId = versionId,
+                        url = url
+                    ],
+
+                    // encode userInfoData as base64 JSON string
+                    encodedUserInfo = EncodeUserInfo(userInfoData),
+
+                    // replace "Model Info" column with encoded string
+                    transformedData = Table.TransformColumns(
+                        structuredData,
+                        {"Model Info", each encodedUserInfo}
+                    ),
 
                     // expand properties column if requested and if it exists
-                    result = if shouldExpandProperties and Table.HasColumns(renamedData, {"properties"}) then
+                    result = if shouldExpandProperties and Table.HasColumns(transformedData, {"properties"}) then
                         try
-                            Speckle.Utils.ExpandRecord(renamedData, "properties")
+                            Speckle.Utils.ExpandRecord(transformedData, "properties")
                         otherwise
-                            renamedData  // fallback to original data if expansion fails
+                            transformedData  // fallback to original data if expansion fails
                     else
-                        renamedData
+                        transformedData
                 in
                     result
         else
@@ -122,26 +183,47 @@
             ),
                 
         // function to process a single model and get its data
-        ProcessSingleModel = (baseUrl, projectId, modelId, versionId) => 
+        ProcessSingleModel = (baseUrl, projectId, modelId, versionId) =>
             let
                 // construct a standard URL for the model
                 singleModelUrl = Text.Combine({
-                    baseUrl, 
-                    "/projects/", 
-                    projectId, 
-                    "/models/", 
+                    baseUrl,
+                    "/projects/",
+                    projectId,
+                    "/models/",
                     modelId,
                     if versionId <> null then Text.Combine({"@", versionId}) else ""
                 }),
-                
+
                 // get model info
                 modelInfo = GetModel(singleModelUrl),
                 rootObjectId = modelInfo[rootObjectId],
                 modelName = modelInfo[modelName],
-                
+                sourceApplication = modelInfo[sourceApplication],
+
                 // get structured data
                 structuredData = GetStructuredData(singleModelUrl),
-                
+
+                // build userInfoData record for this model
+                userInfoData = [
+                    rootObjectId = rootObjectId,
+                    server = baseUrl,
+                    email = userEmail,
+                    projectId = projectId,
+                    token = tokenToUse,
+                    workspaceId = workspaceInfo[workspaceId],
+                    workspaceName = workspaceInfo[workspaceName],
+                    workspaceLogo = workspaceInfo[workspaceLogo],
+                    version = connectorVersion,
+                    sourceApplication = sourceApplication,
+                    canHideBranding = workspaceInfo[canHideBranding],
+                    versionId = if versionId <> null then versionId else modelInfo[versionId],
+                    url = singleModelUrl
+                ],
+
+                // encode userInfoData as base64 JSON string
+                encodedUserInfo = EncodeUserInfo(userInfoData),
+
                 // add the model name as context - with version id if exists
                 result = Table.AddColumn(
                     structuredData,
@@ -155,7 +237,8 @@
             in
                 [
                     Data = result,
-                    RootObjectId = rootObjectId
+                    RootObjectId = rootObjectId,
+                    EncodedUserInfo = encodedUserInfo
                 ]
     in
         results

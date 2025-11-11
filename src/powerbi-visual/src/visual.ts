@@ -22,6 +22,7 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
+import { SpeckleApiLoader } from './loader/SpeckleApiLoader'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
@@ -353,97 +354,54 @@ export class Visual implements IVisual {
     }
 
     try {
-      console.log('📁 Starting internalization via desktop service streaming...')
+      console.log('📁 Starting internalization via Speckle API...')
 
       visualStore.setLoadingProgress('📦 Internalizing data...', null)
 
-      // Use desktop service for internalization
-      // TBD: getting objects from viewer caused two issue:
-      // - Data format -> we need to make an extra operation to match with the offline loader
-      // - Memory -> need to save data two times so sometimes causes memory issues
-      const rootObjectIds = visualStore.lastLoadedRootObjectId
+      // Get credentials from visualStore (already loaded from encoded data)
+      const token = visualStore.receiveInfo?.token
+      const serverUrl = visualStore.receiveInfo?.serverUrl
       const projectId = visualStore.receiveInfo?.projectId
-      
-      // Handle federated models by processing each object ID separately
-      const objectIds = rootObjectIds.split(',')
-      let allStreamedObjects = []
-      
-      for (const objectId of objectIds) {
-        console.log(`📁 Fetching objects for ID: ${objectId}`)
-        
-        // For federated models, pass project ID explicitly to avoid "project id is not set" error
-        const url = projectId 
-          ? `http://localhost:29364/get-objects/${objectId}?projectId=${projectId}`
-          : `http://localhost:29364/get-objects/${objectId}`
-        
-        const response = await fetch(url)
-        
-        if (!response.body) {
-          console.error(`📁 No response body from desktop service for ${objectId}`)
-          continue
-        }
+      const rootObjectIds = visualStore.lastLoadedRootObjectId
 
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let allObjectsData = ''
-
-        console.log(`📁 Streaming objects from desktop service for ${objectId}...`)
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          allObjectsData += decoder.decode(value, { stream: true })
-        }
-
-        // Parse NDJSON (newline-delimited JSON) format
-        const lines = allObjectsData.trim().split('\n')
-        const objectsForThisId = lines.map((line) => JSON.parse(line))
-        
-        console.log(`📁 Streamed ${objectsForThisId.length} objects for ID ${objectId}`)
-        allStreamedObjects.push(...objectsForThisId)
-      }
-      
-      const streamedObjects = allStreamedObjects
-      
-      if (streamedObjects.length === 0) {
-        console.error('📁 No objects retrieved from desktop service')
+      if (!token || !serverUrl || !projectId) {
+        console.error('📁 Missing credentials for internalization')
         visualStore.clearLoadingProgress()
         return
       }
-      
-      console.log(`📁 Retrieved ${streamedObjects.length} total objects from desktop service`)
 
-      // Clean up objects to reduce file size (same as desktop service does)
-      const cleanedObjects = streamedObjects.map((obj: any, index: number) => {
-        // Skip first object (root), clean others
-        if (index === 0) return obj
+      // Handle federated models by processing each object ID separately
+      const objectIds = rootObjectIds.split(',')
+      let allObjects = []
 
-        const cleanedObj = { ...obj }
+      for (const objectId of objectIds) {
+        console.log(`📁 Downloading objects for ID: ${objectId}`)
 
-        // Remove unnecessary properties
-        if (cleanedObj.speckle_type?.includes('Objects.Data.DataObject')) {
-          delete cleanedObj.properties
-        }
-        delete cleanedObj.__closure
+        const loader = new SpeckleApiLoader(serverUrl, projectId, token)
+        const objects = await loader.downloadObjectsWithChildren(objectId)
 
-        return cleanedObj
-      })
+        console.log(`📁 Downloaded ${objects.length} objects for ID ${objectId}`)
+        allObjects.push(objects)
+      }
 
-      console.log(`📁 Cleaned objects: ${cleanedObjects.length} total`)
+      if (allObjects.length === 0 || allObjects.every((arr) => arr.length === 0)) {
+        console.error('📁 No objects retrieved from Speckle API')
+        visualStore.clearLoadingProgress()
+        return
+      }
 
-      // Wrap in array format expected by viewer (object[][])
-      const modelObjectsArray = [cleanedObjects]
+      console.log(`📁 Retrieved ${allObjects.reduce((sum, arr) => sum + arr.length, 0)} total objects from Speckle API`)
 
       // Use existing writeObjectsToFile method from visualStore
-      visualStore.writeObjectsToFile(modelObjectsArray)
+      // allObjects is already in the format object[][] expected by viewer
+      visualStore.writeObjectsToFile(allObjects)
 
       // Clear loading message immediately when done
       visualStore.clearLoadingProgress()
 
-      console.log('📁 Successfully internalized data via desktop service!')
+      console.log('📁 Successfully internalized data via Speckle API!')
     } catch (error) {
-      console.error('📁 Failed to internalize via desktop service:', error)
+      console.error('📁 Failed to internalize via Speckle API:', error)
 
       // Clear loading message immediately on error
       visualStore.clearLoadingProgress()

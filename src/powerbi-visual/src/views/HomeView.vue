@@ -21,7 +21,7 @@
       <div class="flex flex-col justify-center space-y-1">
         <div class="flex flex-row space-x-2">
           <EyeIcon class="w-6"></EyeIcon>
-          <p><b>Version Object ID</b></p>
+          <p><b>Model Info</b></p>
           <ArrowRightIcon class="w-4"></ArrowRightIcon>
           <p>View your model</p>
         </div>
