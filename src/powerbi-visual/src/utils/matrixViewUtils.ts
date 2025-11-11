@@ -179,22 +179,84 @@ function decodeUserInfoFromId(encodedId: string): DecodedUserInfo[] {
   }
 }
 
+// Mark version as received
+async function markVersionAsReceived(
+  versionId: string,
+  projectId: string,
+  serverUrl: string,
+  token: string
+): Promise<void> {
+  try {
+    const mutation = `
+      mutation MarkVersionReceived($input: MarkReceivedVersionInput!) {
+        versionMutations {
+          markReceived(input: $input)
+        }
+      }
+    `
+
+    const variables = {
+      input: {
+        versionId: versionId,
+        projectId: projectId,
+        sourceApplication: 'powerbi'
+      }
+    }
+
+    const response = await fetch(`${serverUrl}/graphql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: variables
+      })
+    })
+
+    if (!response.ok) {
+      console.warn(
+        `Failed to mark version as received (status ${response.status}). This is non-critical.`
+      )
+      return
+    }
+
+    const result = await response.json()
+    if (result.errors) {
+      console.warn('Failed to mark version as received:', result.errors)
+    } else {
+      console.log(`✅ Marked version ${versionId} as received in PowerBI`)
+    }
+  } catch (error) {
+    // Non-critical error - log but don't throw
+    console.warn('Failed to mark version as received:', error)
+  }
+}
+
 async function fetchFromSpeckleApi(
   objectIds: string,
   serverUrl: string,
   projectId: string,
-  token: string
+  token: string,
+  versionIds?: string[]
 ): Promise<object[][]> {
   const ids = objectIds.split(',')
   const modelObjects = []
 
-  for (const objectId of ids) {
+  for (let i = 0; i < ids.length; i++) {
+    const objectId = ids[i]
     try {
       console.log(`Downloading from Speckle API: ${objectId}`)
       const loader = new SpeckleApiLoader(serverUrl, projectId, token)
       const objects = await loader.downloadObjectsWithChildren(objectId)
       modelObjects.push(objects)
       console.log(`Downloaded ${objects.length} objects from Speckle`)
+
+      // Mark version as received (non-blocking, best effort)
+      if (versionIds && versionIds[i]) {
+        markVersionAsReceived(versionIds[i], projectId, serverUrl, token)
+      }
     } catch (error) {
       console.error(`Failed to download objects from Speckle:`, error)
       throw error
@@ -411,7 +473,16 @@ export async function processMatrixView(
     console.log('Downloading objects directly from Speckle API...')
     console.log(`Server: ${serverUrl}, Project: ${projectId}, Objects: ${actualRootObjectIds}`)
     try {
-      modelObjects = await fetchFromSpeckleApi(actualRootObjectIds, serverUrl, projectId, token)
+      // Extract versionIds for markAsReceived
+      const versionIds = decodedUserInfos.map((info) => info.versionId).filter(Boolean) as string[]
+
+      modelObjects = await fetchFromSpeckleApi(
+        actualRootObjectIds,
+        serverUrl,
+        projectId,
+        token,
+        versionIds.length > 0 ? versionIds : undefined
+      )
       console.log('Successfully downloaded from Speckle API')
 
       // Debug: Check what we're passing to the viewer
