@@ -111,10 +111,10 @@
                     // combine all data tables
                     combinedData = Table.Combine(allTables),
 
-                    // replace the "Metadata" column with the combined encoded strings
+                    // replace the "Model Info" column with the combined encoded strings
                     transformedData = Table.TransformColumns(
                         combinedData,
-                        {"Metadata", each combinedEncodedUserInfos}
+                        {"Model Info", each combinedEncodedUserInfos}
                     ),
 
                     // expand properties column if requested and if it exists
@@ -160,10 +160,10 @@
                     // encode userInfoData as base64 JSON string
                     encodedUserInfo = EncodeUserInfo(userInfoData),
 
-                    // replace "Metadata" column with encoded string
+                    // replace "Model Info" column with encoded string
                     transformedData = Table.TransformColumns(
                         structuredData,
-                        {"Metadata", each encodedUserInfo}
+                        {"Model Info", each encodedUserInfo}
                     ),
 
                     // expand properties column if requested and if it exists

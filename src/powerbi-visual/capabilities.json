@@ -1,7 +1,7 @@
 {
   "dataRoles": [
     {
-      "displayName": "Metadata",
+      "displayName": "Model Info",
       "kind": "Measure",
       "name": "rootObjectId"
     },

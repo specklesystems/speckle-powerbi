@@ -1,4 +1,4 @@
-// function for federating multiple tables by combining them and creating a concatenated Metadata field
+// function for federating multiple tables by combining them and creating a concatenated Model Info field
 (tables as list, optional excludeData as logical) as table =>
 let
     ViewerOnly = if excludeData = null then false else excludeData,
@@ -8,23 +8,23 @@ let
         tables,
         each
             if ViewerOnly then
-                Table.SelectColumns(_, {"Metadata", "Object IDs"}, MissingField.Ignore)
+                Table.SelectColumns(_, {"Model Info", "Object IDs"}, MissingField.Ignore)
             else
                 _
     ),
 
     CombinedTable = Table.Combine(ProcessedTables),
 
-    DistinctMetadata = List.Distinct(CombinedTable[Metadata]),
-    ConcatenatedMetadata = Text.Combine(DistinctMetadata, ","),
+    DistinctModelInfo = List.Distinct(CombinedTable[Model Info]),
+    ConcatenatedModelInfo = Text.Combine(DistinctModelInfo, ","),
 
     // Replace all Metadata values with the concatenated string
     FederatedTable = Table.ReplaceValue(
         CombinedTable,
-        each [Metadata],
-        ConcatenatedMetadata,
+        each [Model Info],
+        ConcatenatedModelInfo,
         Replacer.ReplaceText,
-        {"Metadata"}
+        {"Model Info"}
     )
 in
     FederatedTable
