@@ -101,8 +101,14 @@
                     // extract all data tables
                     allTables = List.Transform(modelsData, each [Data]),
 
+                    // extract all root object IDs
+                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
+
                     // extract all encoded userInfo strings
                     allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
+
+                    // combine all root object IDs into a comma-separated string
+                    combinedRootIds = Text.Combine(allRootIds, ","),
 
                     // combine all encoded userInfo strings with delimiter |||
                     // (delimiter chosen to avoid conflicts with base64 characters)
@@ -111,10 +117,13 @@
                     // combine all data tables
                     combinedData = Table.Combine(allTables),
 
-                    // replace the "Model Info" column with the combined encoded strings
+                    // replace both columns with combined values
                     transformedData = Table.TransformColumns(
                         combinedData,
-                        {"Model Info", each combinedEncodedUserInfos}
+                        {
+                            {"Version Object ID", each combinedRootIds},
+                            {"Model Info", each combinedEncodedUserInfos}
+                        }
                     ),
 
                     // expand properties column if requested and if it exists
@@ -157,13 +166,20 @@
                         url = url
                     ],
 
+                    // try to send to desktop service for backward compatibility (non-blocking)
+                    // must be called BEFORE encoding to ensure it executes
+                    desktopServiceSent = TrySendToDesktopService(userInfoData),
+
                     // encode userInfoData as base64 JSON string
                     encodedUserInfo = EncodeUserInfo(userInfoData),
 
-                    // replace "Model Info" column with encoded string
+                    // replace both columns with appropriate values
                     transformedData = Table.TransformColumns(
                         structuredData,
-                        {"Model Info", each encodedUserInfo}
+                        {
+                            {"Version Object ID", each rootObjectId},
+                            {"Model Info", each if desktopServiceSent or not desktopServiceSent then encodedUserInfo else encodedUserInfo}
+                        }
                     ),
 
                     // expand properties column if requested and if it exists
@@ -182,6 +198,30 @@
                 {permissionCheck[message], permissionCheck[code]}
             ),
                 
+        // helper function to try sending user info to desktop service for backward compatibility
+        // returns true if successful, false otherwise (non-blocking)
+        TrySendToDesktopService = (userInfoData as record) =>
+            try
+                let
+                    userInfoJson = Json.FromValue(userInfoData),
+                    response = Web.Contents(
+                        "http://127.0.0.1:29364/store-user-info",
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json",
+                                #"Method" = "POST"
+                            ],
+                            Content = userInfoJson,
+                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
+                            Timeout = #duration(0, 0, 0, 2)
+                        ]
+                    ),
+                    statusCode = Value.Metadata(response)[Response.Status]
+                in
+                    statusCode >= 200 and statusCode < 300
+            otherwise
+                false,
+
         // function to process a single model and get its data
         ProcessSingleModel = (baseUrl, projectId, modelId, versionId) =>
             let
@@ -221,15 +261,22 @@
                     url = singleModelUrl
                 ],
 
+                // try to send to desktop service for backward compatibility (non-blocking)
+                // must be called BEFORE encoding to ensure it executes
+                desktopServiceSent = TrySendToDesktopService(userInfoData),
+
                 // encode userInfoData as base64 JSON string
                 encodedUserInfo = EncodeUserInfo(userInfoData),
 
                 // add the model name as context - with version id if exists
+                // reference desktopServiceSent to force evaluation
                 result = Table.AddColumn(
                     structuredData,
                     "Source Model",
                     each if versionId <> null then
                         Text.Combine({modelName, "-", versionId})
+                    else if desktopServiceSent or not desktopServiceSent then
+                        modelName
                     else
                         modelName,
                     type text

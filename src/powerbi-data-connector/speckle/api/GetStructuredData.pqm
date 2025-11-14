@@ -55,6 +55,7 @@
                     [
                         #"Object IDs" = record[id], // Object IDs
                         #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Version Object ID" = rootId,
                         #"Model Info" = rootId,
                         data = cleanedRecord // Data
                     ]
