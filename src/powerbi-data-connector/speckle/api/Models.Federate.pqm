@@ -19,7 +19,7 @@ let
     ConcatenatedVersionObjectIDs = Text.Combine(DistinctVersionObjectIDs, ","),
 
     DistinctModelInfo = List.Distinct(CombinedTable[Model Info]),
-    ConcatenatedModelInfo = Text.Combine(DistinctModelInfo, ","),
+    ConcatenatedModelInfo = Text.Combine(DistinctModelInfo, "|||"),
 
     // Replace all Version Object ID values with the concatenated string
     TableWithVersionObjectID = Table.ReplaceValue(
