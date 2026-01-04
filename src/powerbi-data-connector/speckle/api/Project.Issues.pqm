@@ -1,0 +1,127 @@
+// Function for getting issues from Speckle projects, models, or versions
+(url as text) as table =>
+    let
+        // Import required functions
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+    
+        // Extension.LoadFunction logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+        
+        // Parse the URL to get necessary components with fallback for project-only URLs
+        parsedUrl = try Parser(url) otherwise 
+            // Custom parsing for project-only URLs
+            let
+                urlParts = Uri.Parts(url),
+                baseUrl = Text.Combine({urlParts[Scheme], "://", urlParts[Host]}),
+                pathSegments = List.Select(Text.Split(urlParts[Path], "/"), each _ <> ""),
+                projectId = if List.Count(pathSegments) >= 2 and pathSegments{0} = "projects" 
+                    then pathSegments{1} else null
+            in
+                if projectId = null then
+                    error [
+                        Reason = "Invalid URL",
+                        Message = "The URL must be a valid Speckle project URL in the format 'https://server/projects/PROJECT_ID' or include models/versions"
+                    ]
+                else
+                    [
+                        baseUrl = baseUrl,
+                        projectId = projectId,
+                        modelId = null,
+                        versionId = null
+                    ],
+        
+        server = parsedUrl[baseUrl],
+        projectId = parsedUrl[projectId],
+        modelId = parsedUrl[modelId],
+        versionId = parsedUrl[versionId],
+        
+        // Define the GraphQL query (single query for all scopes)
+        issuesQuery = "query Project($projectId: String!, $input: ProjectIssuesInput) {
+            project(id: $projectId) {
+                issues(input: $input) {
+                    items {
+                        identifier
+                        title
+                        rawDescription
+                        status
+                        priority
+                        assignee {
+                            user {
+                                name
+                            }
+                        }
+                        dueDate
+                        labels {
+                            name
+                        }
+                        createdAt
+                        updatedAt
+                    }
+                }
+            }
+        }",
+        
+        // Build input variable dynamically based on URL scope
+        inputVariable = 
+            if versionId <> null then
+                // Version URL: resourceIdString = "MODEL_ID@VERSION_ID"
+                [
+                    limit = 10000,
+                    resourceIdString = modelId & "@" & versionId
+                ]
+            else if modelId <> null then
+                // Model URL: resourceIdString = MODEL_ID
+                [
+                    limit = 10000,
+                    resourceIdString = modelId
+                ]
+            else
+                // Project URL: no resourceIdString
+                [
+                    limit = 10000
+                ],
+        
+        // Build query variables
+        queryVariables = [
+            projectId = projectId,
+            input = inputVariable
+        ],
+        
+        // Make the API request using ApiFetch
+        result = ApiFetch(server, issuesQuery, queryVariables),
+        
+        // Extract issues from the response
+        issues = result[project][issues][items],
+        
+        // Transform to table structure with specified columns
+        issuesTable = Table.FromRecords(
+            List.Transform(issues, (issue) => [
+                ID = issue[identifier],
+                Title = issue[title],
+                Description = try issue[rawDescription] otherwise null,
+                Status = try issue[status] otherwise null,
+                Priority = try issue[priority] otherwise null,
+                Assignee = try issue[assignee][user][name] otherwise null,
+                #"Due Date" = try DateTime.From(issue[dueDate]) otherwise null,
+                Labels = try List.Transform(issue[labels], each _[name]) otherwise {},
+                #"Created at" = try DateTime.From(issue[createdAt]) otherwise null,
+                #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null
+            ])
+        )
+    in
+        issuesTable
