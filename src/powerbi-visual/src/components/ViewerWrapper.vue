@@ -1,5 +1,5 @@
 <template>
-  <div class="border">
+  <div>
     <transition name="slide-fade">
       <nav
         v-show="!visualStore.isNavbarHidden"
@@ -29,7 +29,7 @@
 
           <div class="flex items-center space-x-2">
             <FormButton
-              v-if="visualStore.latestAvailableVersion && !visualStore.isConnectorUpToDate"
+              v-if="visualStore.latestAvailableVersion && !visualStore.isConnectorUpToDate && visualStore.isRunningInDesktop"
               v-tippy="{
                 content: 'New connector version is available.<br>Click to download.',
                 allowHTML: true
@@ -64,7 +64,7 @@
       field is needed for interactivity with other visuals.
     </div>
 
-    <div v-if="visualStore.isNavbarHidden" class="fixed top-0 right-0 z-20">
+    <div v-if="visualStore.isNavbarHidden" class="fixed top-4 right-2 z-20">
       <button
         class="transition opacity-50 hover:opacity-100"
         title="Show navbar"
@@ -165,7 +165,7 @@ onMounted(async () => {
   
   // Set up event listener for object clicks from the FilteredSelectionExtension
   viewerHandler.emitter.on('objectClicked', handleObjectClicked)
-  
+
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
 

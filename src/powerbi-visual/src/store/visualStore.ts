@@ -3,8 +3,8 @@ import { Version } from '@src/composables/useUpdateConnector'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
-import { zipModelObjects } from '@src/utils/compression'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
+import { zipModelObjects } from '@src/utils/compression'
 import { defineStore } from 'pinia'
 import { Vector3 } from 'three'
 import { computed, ref, shallowRef } from 'vue'
@@ -26,7 +26,10 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<LoadingProgress>(undefined)
-  const objectsFromStore = ref<object[]>(undefined)
+  const objectsFromStore = ref<object[][]>(undefined)
+
+  // State tracking for toggle reset prevention
+  const previousToggleState = ref<boolean | undefined>(undefined)
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
   const postClickSkipNeeded = ref<boolean>(false)
@@ -83,7 +86,19 @@ export const useVisualStore = defineStore('visualStore', () => {
     host.value = hostToSet
   }
 
-  const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => (receiveInfo.value = newReceiveInfo)
+  const setReceiveInfo = (newReceiveInfo: ReceiveInfo) => {
+    receiveInfo.value = newReceiveInfo
+    
+    // Always save receiveInfo to file for credentials persistence (contains token and metadata)
+    // This ensures weak tokens are available even when desktop service is unavailable
+    if (formattingSettings.value?.dataLoading.internalizeData.value && objectsFromStore.value) {
+      // If internalize is ON and we have objects, save both objects and receiveInfo together
+      writeObjectsToFile(objectsFromStore.value)
+    } else {
+      // Otherwise just save receiveInfo alone (credentials only)
+      writeReceiveInfoToFile()
+    }
+  }
 
   const setLatestAvailableVersion = (version: Version | null) => {
     latestAvailableVersion.value = version
@@ -94,6 +109,15 @@ export const useVisualStore = defineStore('visualStore', () => {
       return receiveInfo.value.version === latestAvailableVersion.value?.Number
     }
     return false
+  })
+
+  // detecting the env to control the visibility of update button
+  // might use for different reasons in the future
+  const isRunningInDesktop = computed(() => {
+    // power bi hostEnv enum values:
+    // web = 1, desktop = 4
+    const hostEnv = host.value?.['hostEnv'] as number
+    return hostEnv === 4
   })
 
   /**
@@ -113,7 +137,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     }
   }
 
-  const setObjectsFromStore = (newObjectsFromStore: object[]) => {
+  const setObjectsFromStore = (newObjectsFromStore: object[][]) => {
     objectsFromStore.value = newObjectsFromStore
   }
 
@@ -122,6 +146,23 @@ export const useVisualStore = defineStore('visualStore', () => {
     if (loadingProgress.value.progress >= 1) {
       clearLoadingProgress()
     }
+  }
+
+  const filterColorByIdsForSelection = (colorByIds: ColorBy[] | null | undefined, selectedIds: string[]): ColorBy[] => {
+    return colorByIds?.filter(colorGroup => {
+      const filteredObjectIds = colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+      if (filteredObjectIds.length > 0) {
+        return { ...colorGroup, objectIds: filteredObjectIds }
+      }
+      return false
+    }).map(colorGroup => ({
+      ...colorGroup,
+      objectIds: colorGroup.objectIds.filter(objId =>
+        selectedIds.includes(objId)
+      )
+    })) || []
   }
 
   const clearLoadingProgress = () => {
@@ -134,16 +175,23 @@ export const useVisualStore = defineStore('visualStore', () => {
   }
 
   const loadObjectsFromFile = async (objects: object[][]) => {
+    console.log('📁 loadObjectsFromFile called with:', objects.length, 'models')
     const savedVersionObjectId = objects.map((o) => (o[0] as SpeckleObject).id).join(',')
     lastLoadedRootObjectId.value = savedVersionObjectId
     viewerReloadNeeded.value = false
     console.log(`📦 Loading viewer from cached data with ${lastLoadedRootObjectId.value} id.`)
+    console.log('📁 About to call viewerEmit loadObjects...')
     await viewerEmit.value('loadObjects', objects)
+    console.log('📁 viewerEmit loadObjects completed')
     objectsFromStore.value = objects
     isViewerObjectsLoaded.value = true
     viewerReloadNeeded.value = false
     setIsLoadingFromFile(false)
+    console.log('📁 loadObjectsFromFile completed successfully')
   }
+
+  const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
+
 
   /**
    * Sets upcoming data input into store to be able to pass it through viewer by evaluating the data.
@@ -159,14 +207,24 @@ export const useVisualStore = defineStore('visualStore', () => {
       await viewerEmit.value('loadObjects', dataInput.value.modelObjects)
       viewerReloadNeeded.value = false
       isViewerObjectsLoaded.value = true
-      setLoadingProgress('Storing objects into file', null)
-      writeObjectsToFile(dataInput.value.modelObjects)
+      
+      // Store the model objects for potential internalization
+      if (dataInput.value.modelObjects && dataInput.value.modelObjects.length > 0) {
+        console.log('📦 Storing modelObjects in visualStore for internalization:', dataInput.value.modelObjects.length, 'models')
+        objectsFromStore.value = dataInput.value.modelObjects
+      }
+      
+      // Note: Object internalization is now handled by toggle in visual.ts
       loadingProgress.value = undefined
     }
 
     if (dataInput.value.selectedIds.length > 0) {
       isFilterActive.value = true
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+      // When filtering, only apply colors to the selected/isolated objects
+      const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+      viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
@@ -177,8 +235,9 @@ export const useVisualStore = defineStore('visualStore', () => {
         // No object IDs provided - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
       }
+      // When not filtering, apply all colors including conditional formatting
+      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
     }
-    viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
   }
 
   const writeObjectsToFile = (modelObjects: object[][]) => {
@@ -192,6 +251,23 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'storedData',
           properties: {
             speckleObjects: compressedChunks,
+            receiveInfo: JSON.stringify(receiveInfo.value) // Keep receiveInfo in sync when storing objects
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
+  const writeReceiveInfoToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'storedData',
+          properties: {
             receiveInfo: JSON.stringify(receiveInfo.value)
           },
           selector: null
@@ -312,6 +388,22 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeDataLoadingModeToFile = (internalizeData: boolean) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'dataLoading',
+          properties: {
+            internalizeData: internalizeData
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
@@ -338,7 +430,6 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const clearDataInput = () => (dataInput.value = null)
 
-  const setIsLoadingFromFile = (newValue: boolean) => (isLoadingFromFile.value = newValue)
 
   const setViewerReadyToLoad = (newValue: boolean) => (isViewerReadyToLoad.value = newValue)
 
@@ -392,6 +483,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       // No object IDs provided - show all objects without any filtering
       viewerEmit.value('unIsolateObjects')
     }
+    // When resetting filters, apply all colors including conditional formatting
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }
@@ -417,6 +509,10 @@ export const useVisualStore = defineStore('visualStore', () => {
       if (dataInput.value.selectedIds.length > 0) {
         isFilterActive.value = true
         viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+
+        // When filtering, only apply colors to the selected/isolated objects
+        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+        viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
@@ -427,14 +523,19 @@ export const useVisualStore = defineStore('visualStore', () => {
           // No object IDs provided - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
         }
+
+        // Restore color grouping for all objects when not filtering
+        viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
       }
-      
-      // Restore color grouping
-      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
     }
     
     // Trigger host data refresh to synchronize with Power BI
     host.value.refreshHostData()
+  }
+
+  // Toggle state tracking functions
+  const setPreviousToggleState = (state: boolean) => {
+    previousToggleState.value = state
   }
 
   return {
@@ -467,7 +568,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     isZoomOnFilterActive,
     latestAvailableVersion,
     isConnectorUpToDate,
+    isRunningInDesktop,
     commonError,
+    previousToggleState,
     setCommonError,
     setLatestAvailableVersion,
     setIsOrthoProjection,
@@ -495,6 +598,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     writeCameraPositionToFile,
     writeHideBrandingToFile,
     writeNavbarVisibilityToFile,
+    writeDataLoadingModeToFile,
     toggleBranding,
     toggleNavbar,
     setViewerEmitter,
@@ -507,6 +611,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setIsLoadingFromFile,
     resetFilters,
     downloadLatestVersion,
-    handleObjectsLoadedComplete
+    handleObjectsLoadedComplete,
+    setPreviousToggleState
   }
 })

@@ -1,0 +1,146 @@
+// Function to exchange powerful token for weak limited token
+(powerfulToken as text, scopes as list, projectId as text, serverUrl as text) as record =>
+    let
+        // Import the parser function for URL handling
+        Parser = Extension.LoadFunction("Parser.pqm"),
+
+        // Helper function to load .pqm modules dynamically
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        // Validate inputs
+        ValidationError = if Text.Length(powerfulToken) = 0 then
+            "PowerfulToken is required"
+        else if List.Count(scopes) = 0 then
+            "Scopes are required"
+        else if Text.Length(projectId) = 0 then
+            "ProjectId is required"
+        else if Text.Length(serverUrl) = 0 then
+            "ServerUrl is required"
+        else
+            null,
+
+        // Token lifetime: 10 years (315,360,000,000 milliseconds)
+        TokenLifespanMs = 10 * 365 * 24 * 3600 * 1000,
+
+        // Generate token name with timestamp
+        TokenName = "Limited Power BI Visual Token - " & DateTime.ToText(DateTime.LocalNow(), "yyyy-MM-dd HH:mm"),
+
+        // Build scopes array string for GraphQL (e.g., ["profile:read", "streams:read"])
+        ScopesArray = Text.Combine(
+            List.Transform(scopes, each """" & _ & """"),
+            ", "
+        ),
+
+        // Build GraphQL mutation
+        GraphQLMutation = "
+            mutation {
+                apiTokenCreate(token: {
+                    name: """ & TokenName & """,
+                    scopes: [" & ScopesArray & "],
+                    lifespan: " & Number.ToText(TokenLifespanMs) & ",
+                    limitResources: [{
+                        type: project,
+                        id: """ & projectId & """
+                    }]
+                })
+            }",
+
+        // Execute token exchange if validation passes
+        Result = if ValidationError <> null then
+            [
+                Success = false,
+                Token = null,
+                ErrorMessage = ValidationError
+            ]
+        else
+            try
+                let
+                    // Ensure serverUrl ends with /
+                    NormalizedServerUrl = if Text.End(serverUrl, 1) = "/" then
+                        serverUrl
+                    else
+                        serverUrl & "/",
+
+                    // Make GraphQL request
+                    Response = Web.Contents(
+                        NormalizedServerUrl & "graphql",
+                        [
+                            Headers = [
+                                #"Method" = "POST",
+                                #"Content-Type" = "application/json",
+                                #"Authorization" = "Bearer " & powerfulToken
+                            ],
+                            Content = Json.FromValue([
+                                query = GraphQLMutation
+                            ]),
+                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
+                            Timeout = #duration(0, 0, 0, 10)
+                        ]
+                    ),
+
+                    StatusCode = Value.Metadata(Response)[Response.Status],
+
+                    // Parse response if successful
+                    ParsedResult = if StatusCode >= 200 and StatusCode < 300 then
+                        let
+                            JsonResponse = Json.Document(Response),
+
+                            // Check for GraphQL errors
+                            HasErrors = Record.HasFields(JsonResponse, {"errors"}),
+
+                            // Extract token from response
+                            WeakToken = if not HasErrors then
+                                JsonResponse[data][apiTokenCreate]
+                            else
+                                null,
+
+                            ErrorMsg = if HasErrors then
+                                try
+                                    JsonResponse[errors]{0}[message]
+                                otherwise
+                                    "GraphQL mutation failed with unknown error"
+                            else
+                                null
+                        in
+                            if WeakToken <> null then
+                                [
+                                    Success = true,
+                                    Token = WeakToken,
+                                    ErrorMessage = null
+                                ]
+                            else
+                                [
+                                    Success = false,
+                                    Token = null,
+                                    ErrorMessage = ErrorMsg
+                                ]
+                    else
+                        [
+                            Success = false,
+                            Token = null,
+                            ErrorMessage = "GraphQL request failed with status " & Number.ToText(StatusCode)
+                        ]
+                in
+                    ParsedResult
+            otherwise
+                [
+                    Success = false,
+                    Token = null,
+                    ErrorMessage = "Token exchange request failed with exception"
+                ]
+    in
+        Result

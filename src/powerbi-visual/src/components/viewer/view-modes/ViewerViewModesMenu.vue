@@ -34,11 +34,9 @@ import ViewModes from '../../global/icon/ViewModes.vue'
 
 const viewModes = {
   [ViewMode.DEFAULT]: 'Default',
-  [ViewMode.DEFAULT_EDGES]: 'Edges',
   [ViewMode.SHADED]: 'Shaded',
   [ViewMode.PEN]: 'Pen',
-  [ViewMode.ARCTIC]: 'Arctic',
-  [ViewMode.COLORS]: 'Colors'
+  [ViewMode.ARCTIC]: 'Arctic'
 }
 
 const visualStore = useVisualStore()

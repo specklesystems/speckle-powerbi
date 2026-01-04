@@ -41,8 +41,12 @@ export function useUpdateConnector() {
       return new Date(b.Date).getTime() - new Date(a.Date).getTime()
     })
     versions.value = sortedVersions
-    const sanitizedVersion = sanitizeVersion(sortedVersions[0].Number)
-    latestAvailableVersion.value = { ...sortedVersions[0], Number: sanitizedVersion }
+
+    // Filter out prerelease versions
+    const stableVersions = sortedVersions.filter((v) => !v.Prerelease)
+    const latestVersion = stableVersions[0]
+    const sanitizedVersion = sanitizeVersion(latestVersion.Number)
+    latestAvailableVersion.value = { ...latestVersion, Number: sanitizedVersion }
     visualStore.setLatestAvailableVersion(latestAvailableVersion.value)
   }
 

@@ -1,7 +1,7 @@
 {
   "dataRoles": [
     {
-      "displayName": "Version Object ID",
+      "displayName": "Model Info",
       "kind": "Measure",
       "name": "rootObjectId"
     },
@@ -133,6 +133,15 @@
         }
       }
     },
+    "dataLoading": {
+      "properties": {
+        "internalizeData": {
+          "type": {
+            "bool": true
+          }
+        }
+      }
+    },
     "color": {
       "properties": {
         "enabled": {
@@ -209,7 +218,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": ["https://analytics.speckle.systems", "http://localhost:29364", "*"]
+      "parameters": ["https://analytics.speckle.systems", "*"]
     },
     {
       "essential": false,

@@ -1,0 +1,18 @@
+// Function to encode userInfoData as base64-encoded JSON string
+(userInfoData as record) as text =>
+    let
+        JsonText = Text.FromBinary(
+            Json.FromValue(userInfoData),
+            TextEncoding.Utf8
+        ),
+
+        // Convert JSON text to binary
+        JsonBinary = Text.ToBinary(JsonText, TextEncoding.Utf8),
+
+        // Encode binary as base64
+        Base64Encoded = Binary.ToText(JsonBinary, BinaryEncoding.Base64),
+
+        // Return base64-encoded string
+        Result = Base64Encoded
+    in
+        Result
