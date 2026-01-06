@@ -1,9 +1,12 @@
 // Function for getting issues from Speckle projects, models, or versions
-(url as text) as table =>
+(url as text, optional getReplies as logical) as table =>
     let
         // Import required functions
         Parser = Extension.LoadFunction("Parser.pqm"),
         ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
+        
+        // Set default value for getReplies parameter
+        getRepliesValue = if getReplies = null then false else getReplies,
     
         // Extension.LoadFunction logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -51,7 +54,8 @@
         versionId = parsedUrl[versionId],
         
         // Define the GraphQL query (single query for all scopes)
-        issuesQuery = "query Project($projectId: String!, $input: ProjectIssuesInput) {
+        issuesQuery = "query Project($projectId: String!, $input: ProjectIssuesInput" & 
+            (if getRepliesValue then ", $repliesInput2: IssueRepliesInput" else "") & ") {
             project(id: $projectId) {
                 issues(input: $input) {
                     items {
@@ -72,7 +76,21 @@
                         createdAt
                         updatedAt
                         resourceIdString
-                        id
+                        id" & 
+                        (if getRepliesValue then "
+                        replies(input: $repliesInput2) {
+                            items {
+                                issueId
+                                id
+                                rawDescription
+                                createdAt
+                                author {
+                                    user {
+                                        name
+                                    }
+                                }
+                            }
+                        }" else "") & "
                     }
                 }
             }
@@ -99,10 +117,17 @@
                 ],
         
         // Build query variables
-        queryVariables = [
-            projectId = projectId,
-            input = inputVariable
-        ],
+        queryVariables = if getRepliesValue then
+            [
+                projectId = projectId,
+                input = inputVariable,
+                repliesInput2 = [limit = 10000]
+            ]
+            else
+            [
+                projectId = projectId,
+                input = inputVariable
+            ],
         
         // Make the API request using ApiFetch
         result = ApiFetch(server, issuesQuery, queryVariables),
@@ -112,19 +137,28 @@
         
         // Transform to table structure with specified columns
         issuesTable = Table.FromRecords(
-            List.Transform(issues, (issue) => [
-                ID = issue[identifier],
-                Title = issue[title],
-                Description = try issue[rawDescription] otherwise null,
-                Status = try issue[status] otherwise null,
-                Priority = try issue[priority] otherwise null,
-                Assignee = try issue[assignee][user][name] otherwise null,
-                #"Due Date" = try DateTime.From(issue[dueDate]) otherwise null,
-                Labels = try List.Transform(issue[labels], each _[name]) otherwise {},
-                #"Created at" = try DateTime.From(issue[createdAt]) otherwise null,
-                #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null,
-                URL = server & "/projects/" & projectId & "/models/" & issue[resourceIdString] & "#threadId=" & issue[id]
-            ])
+            List.Transform(issues, (issue) =>
+                let
+                    baseRecord = [
+                        ID = issue[identifier],
+                        Title = issue[title],
+                        Description = try issue[rawDescription] otherwise null,
+                        Status = try issue[status] otherwise null,
+                        Priority = try issue[priority] otherwise null,
+                        Assignee = try issue[assignee][user][name] otherwise null,
+                        #"Due Date" = try DateTime.From(issue[dueDate]) otherwise null,
+                        Labels = try List.Transform(issue[labels], each _[name]) otherwise {},
+                        #"Created at" = try DateTime.From(issue[createdAt]) otherwise null,
+                        #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null,
+                        URL = server & "/projects/" & projectId & "/models/" & issue[resourceIdString] & "#threadId=" & issue[id]
+                    ],
+                    recordWithReplies = if getRepliesValue then
+                        baseRecord & [Replies = try issue[replies][items] otherwise null]
+                    else
+                        baseRecord
+                in
+                    recordWithReplies
+            )
         )
     in
         issuesTable
