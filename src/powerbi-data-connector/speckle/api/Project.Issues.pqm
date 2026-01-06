@@ -71,6 +71,8 @@
                         }
                         createdAt
                         updatedAt
+                        resourceIdString
+                        id
                     }
                 }
             }
@@ -120,7 +122,8 @@
                 #"Due Date" = try DateTime.From(issue[dueDate]) otherwise null,
                 Labels = try List.Transform(issue[labels], each _[name]) otherwise {},
                 #"Created at" = try DateTime.From(issue[createdAt]) otherwise null,
-                #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null
+                #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null,
+                URL = server & "/projects/" & projectId & "/models/" & issue[resourceIdString] & "#threadId=" & issue[id]
             ])
         )
     in
