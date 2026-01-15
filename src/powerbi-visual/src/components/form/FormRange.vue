@@ -82,27 +82,23 @@ const handleInput = (event: Event) => {
 }
 
 .slider::-webkit-slider-runnable-track {
-  @apply h-1.5 rounded-full;
-  background: #d1d5db;
+  @apply h-1.5 rounded-full bg-outline-3;
 }
 
 .slider::-moz-range-track {
-  @apply h-1.5 rounded-full;
-  background: #d1d5db;
+  @apply h-1.5 rounded-full bg-outline-3;
 }
 
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  @apply h-2.5 w-2.5 rounded-full cursor-pointer;
-  background: #4b5563;
+  @apply h-2.5 w-2.5 rounded-full cursor-pointer bg-foreground-2;
   margin-top: -2px;
 }
 
 .slider::-moz-range-thumb {
   -webkit-appearance: none;
   appearance: none;
-  @apply h-2.5 w-2.5 rounded-full cursor-pointer border-0;
-  background: #4b5563;
+  @apply h-2.5 w-2.5 rounded-full cursor-pointer border-0 bg-foreground-2;
 }
 </style>

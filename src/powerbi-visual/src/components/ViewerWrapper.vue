@@ -255,21 +255,6 @@ async function onCanvasAuxClick(ev: MouseEvent) {
   transform: translateX(-20px);
 }
 
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: all 0.3s ease;
-}
-.slide-up-enter-from,
-.slide-up-leave-to {
-  opacity: 0;
-  transform: translate(-50%, 20px);
-}
-.slide-up-enter-to,
-.slide-up-leave-from {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 .fade-bottom-enter-active,
 .fade-bottom-leave-active {
   transition: all 0.3s ease;

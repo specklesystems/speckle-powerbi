@@ -185,15 +185,7 @@ const applyEdgesSettings = () => {
 }
 
 // Watch for edges settings changes and apply them
-watch(edgesEnabledLocal, () => {
-  applyEdgesSettings()
-})
-
-watch(edgesWeightLocal, () => {
-  applyEdgesSettings()
-})
-
-watch(edgesColorLocal, () => {
+watch([edgesEnabledLocal, edgesWeightLocal, edgesColorLocal], () => {
   applyEdgesSettings()
 })
 
