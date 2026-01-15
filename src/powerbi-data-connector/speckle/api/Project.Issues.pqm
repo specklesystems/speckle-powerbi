@@ -76,6 +76,7 @@
                         createdAt
                         updatedAt
                         resourceIdString
+                        viewerState
                         id" & 
                         (if getRepliesValue then "
                         replies(input: $repliesInput2) {
@@ -139,6 +140,12 @@
         issuesTable = Table.FromRecords(
             List.Transform(issues, (issue) =>
                 let
+                    // Extract selectedObjectApplicationIds from viewerState (already a record object)
+                    viewerState = try issue[viewerState] otherwise null,
+                    selectedObjectIds = try viewerState[ui][filters][selectedObjectApplicationIds] otherwise null,
+                    objectIds = try Record.FieldNames(selectedObjectIds) otherwise null,
+                    applicationIds = try Record.FieldValues(selectedObjectIds) otherwise null,
+                    
                     baseRecord = [
                         ID = issue[identifier],
                         Title = issue[title],
@@ -150,7 +157,9 @@
                         Labels = try List.Transform(issue[labels], each _[name]) otherwise {},
                         #"Created at" = try DateTime.From(issue[createdAt]) otherwise null,
                         #"Updated at" = try DateTime.From(issue[updatedAt]) otherwise null,
-                        URL = server & "/projects/" & projectId & "/models/" & issue[resourceIdString] & "#threadId=" & issue[id]
+                        URL = server & "/projects/" & projectId & "/models/" & issue[resourceIdString] & "#threadId=" & issue[id],
+                        #"Object IDs" = objectIds,
+                        #"Application IDs" = applicationIds
                     ],
                     recordWithReplies = if getRepliesValue then
                         baseRecord & [Replies = try issue[replies][items] otherwise null]
