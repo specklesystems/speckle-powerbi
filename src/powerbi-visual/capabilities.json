@@ -92,6 +92,15 @@
         },
         "navbarHidden": {
           "type": { "bool": true }
+        },
+        "edgesEnabled": {
+          "type": { "bool": true }
+        },
+        "edgesWeight": {
+          "type": { "numeric": true }
+        },
+        "edgesColor": {
+          "type": { "numeric": true }
         }
       }
     },

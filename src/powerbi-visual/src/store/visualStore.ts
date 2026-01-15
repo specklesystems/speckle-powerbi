@@ -62,6 +62,11 @@ export const useVisualStore = defineStore('visualStore', () => {
   const cameraPosition = ref<number[]>(undefined)
   const defaultViewModeInFile = ref<string>(undefined)
 
+  // Edges settings for view modes
+  const edgesEnabled = ref<boolean>(true)
+  const edgesWeight = ref<number>(1)
+  const edgesColor = ref<number | 'auto'>('auto')
+
   const speckleViews = ref<SpeckleView[]>([])
 
   // callback mechanism to viewer to be able to manage input data accordingly.
@@ -471,6 +476,37 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setCameraPositionInFile = (newValue: number[]) => (cameraPosition.value = newValue)
   const setDefaultViewModeInFile = (newValue: string) => (defaultViewModeInFile.value = newValue)
 
+  // Edges settings setters
+  const setEdgesEnabled = (val: boolean) => {
+    edgesEnabled.value = val
+  }
+
+  const setEdgesWeight = (val: number) => {
+    edgesWeight.value = val
+  }
+
+  const setEdgesColor = (val: number | 'auto') => {
+    edgesColor.value = val
+  }
+
+  const writeEdgesSettingsToFile = () => {
+    // NOTE: need skipping the update function, it resets the viewer state unnecessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'viewMode',
+          properties: {
+            edgesEnabled: edgesEnabled.value,
+            edgesWeight: edgesWeight.value,
+            edgesColor: edgesColor.value === 'auto' ? -1 : edgesColor.value
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
   const setSpeckleViews = (newSpeckleViews: SpeckleView[]) => (speckleViews.value = newSpeckleViews)
   const setFormattingSettings = (newFormattingSettings: SpeckleVisualSettingsModel) =>
     (formattingSettings.value = newFormattingSettings)
@@ -555,6 +591,9 @@ export const useVisualStore = defineStore('visualStore', () => {
     isLoadingFromFile,
     cameraPosition,
     defaultViewModeInFile,
+    edgesEnabled,
+    edgesWeight,
+    edgesColor,
     speckleViews,
     postFileSaveSkipNeeded,
     postClickSkipNeeded,
@@ -583,6 +622,10 @@ export const useVisualStore = defineStore('visualStore', () => {
     setPostFileSaveSkipNeeded,
     setCameraPositionInFile,
     setDefaultViewModeInFile,
+    setEdgesEnabled,
+    setEdgesWeight,
+    setEdgesColor,
+    writeEdgesSettingsToFile,
     setSpeckleViews,
     loadObjectsFromFile,
     setHost,

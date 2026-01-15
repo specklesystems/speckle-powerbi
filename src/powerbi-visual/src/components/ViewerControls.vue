@@ -33,13 +33,22 @@
       </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
     <ViewerControlsButtonGroup>
-      <!-- View Modes -->
-      <ViewerViewModesMenu
-        :open="viewModesOpen"
-        @force-close-others="activeControl = 'none'"
-        @update:open="(value) => toggleActiveControl(value ? 'viewModes' : 'none')"
-        @view-mode-clicked="(value) => $emit('view-mode-clicked', value)"
-      />
+      <!-- View Modes Toggle -->
+      <div class="relative">
+        <ViewerControlsButtonToggle
+          flat
+          tooltip="View modes"
+          :active="viewModesOpen"
+          @click="toggleActiveControl('viewModes')"
+        >
+          <ViewModesIcon class="h-5 w-5" />
+        </ViewerControlsButtonToggle>
+        <!-- View Modes Panel (shown when glasses icon is clicked) -->
+        <ViewerViewModesMenu
+          v-if="viewModesOpen"
+          @view-mode-clicked="(viewMode, options) => $emit('view-mode-clicked', viewMode, options)"
+        />
+      </div>
       <!-- Views -->
       <ViewerViewsMenu
         :open="viewsOpen"
@@ -65,7 +74,7 @@
 
 <script setup lang="ts">
 import { ArrowsPointingOutIcon } from '@heroicons/vue/24/solid'
-import { SpeckleView } from '@speckle/viewer'
+import { SpeckleView, ViewMode } from '@speckle/viewer'
 import { computed, ref } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerControlsButtonGroup from './viewer/controls/ViewerControlsButtonGroup.vue'
@@ -76,19 +85,21 @@ import ViewerViewsMenu from './viewer/views/ViewerViewsMenu.vue'
 
 import Perspective from '../components/global/icon/Perspective.vue'
 import PerspectiveMore from '../components/global/icon/PerspectiveMore.vue'
+import ViewModesIcon from '../components/global/icon/ViewModes.vue'
 
 import Ghost from '../components/global/icon/Ghost.vue'
 import ZoomToFit from '../components/global/icon/ZoomToFit.vue'
+import type { ViewModeOptions } from '@src/plugins/viewer'
 
 const visualStore = useVisualStore()
 
-const emits = defineEmits([
-  'update:sectionBox',
-  'view-clicked',
-  'toggle-projection',
-  'clear-palette',
-  'view-mode-clicked'
-])
+const emits = defineEmits<{
+  (e: 'update:sectionBox', value: boolean): void
+  (e: 'view-clicked', view: SpeckleView): void
+  (e: 'toggle-projection'): void
+  (e: 'clear-palette'): void
+  (e: 'view-mode-clicked', viewMode: ViewMode, options: ViewModeOptions): void
+}>()
 withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
   sectionBox: false
 })
@@ -130,12 +141,7 @@ const toggleZoomOnFilter = () => {
   visualStore.writeZoomOnFilterToFile()
 }
 
-const viewModesOpen = computed({
-  get: () => activeControl.value === 'viewModes',
-  set: (value) => {
-    activeControl.value = value ? 'viewModes' : 'none'
-  }
-})
+const viewModesOpen = computed(() => activeControl.value === 'viewModes')
 
 const viewsOpen = computed({
   get: () => activeControl.value === 'views',

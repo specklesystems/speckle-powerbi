@@ -185,6 +185,24 @@ export class Visual implements IVisual {
                 )
               }
 
+              // Load edges settings
+              const viewModeSettings = options.dataViews[0].metadata.objects.viewMode
+              if (viewModeSettings) {
+                if ('edgesEnabled' in viewModeSettings) {
+                  console.log(`Edges Enabled: ${viewModeSettings.edgesEnabled as boolean}`)
+                  visualStore.setEdgesEnabled(viewModeSettings.edgesEnabled as boolean)
+                }
+                if ('edgesWeight' in viewModeSettings) {
+                  console.log(`Edges Weight: ${viewModeSettings.edgesWeight as number}`)
+                  visualStore.setEdgesWeight(viewModeSettings.edgesWeight as number)
+                }
+                if ('edgesColor' in viewModeSettings) {
+                  const colorVal = viewModeSettings.edgesColor as number
+                  console.log(`Edges Color: ${colorVal}`)
+                  visualStore.setEdgesColor(colorVal === -1 ? 'auto' : colorVal)
+                }
+              }
+
               if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
                 console.log(`Stored camera position is found`)
                 visualStore.setCameraPositionInFile([
