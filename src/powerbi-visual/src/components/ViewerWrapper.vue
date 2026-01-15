@@ -81,7 +81,7 @@
         :views="views"
         class="fixed top-11 left-2 z-30"
         @view-clicked="(view) => viewerHandler.setView(view)"
-        @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
+        @view-mode-clicked="(viewMode, options) => viewerHandler.setViewMode(viewMode, options)"
       />
     </transition>
 
@@ -253,6 +253,21 @@ async function onCanvasAuxClick(ev: MouseEvent) {
 .slide-left-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
+.slide-up-enter-to,
+.slide-up-leave-from {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .fade-bottom-enter-active,
