@@ -35,12 +35,19 @@ export interface Hit {
   point: { x: number; y: number; z: number }
 }
 
+export interface ViewModeOptions {
+  edges?: boolean
+  outlineThickness?: number
+  outlineOpacity?: number
+  outlineColor?: number
+}
+
 export interface IViewerEvents {
   ping: (message: string) => void
   setSelection: (objectIds: string[]) => void
   resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
-  setViewMode: (viewMode: ViewMode) => void
+  setViewMode: (viewMode: ViewMode, options?: ViewModeOptions) => void
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
@@ -138,9 +145,9 @@ export class ViewerHandler {
     return
   }
 
-  public setViewMode(viewMode: ViewMode) {
+  public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
     const viewModes = this.viewer.getExtension(ViewModes)
-    viewModes.setViewMode(viewMode)
+    viewModes.setViewMode(viewMode, options)
   }
 
   public snapshotCameraPositionAndStore = () => {
@@ -240,7 +247,18 @@ export class ViewerHandler {
 
     store.setSpeckleViews(speckleViews)
     if (store.defaultViewModeInFile) {
-      this.setViewMode(Number(store.defaultViewModeInFile))
+      const viewMode = Number(store.defaultViewModeInFile) as ViewMode
+      // Apply view mode with edges options from store (with safe defaults)
+      const edgesEnabled = store.edgesEnabled ?? true
+      const edgesWeight = store.edgesWeight ?? 1
+      const edgesColor = store.edgesColor ?? 'auto'
+      const options: ViewModeOptions = {
+        edges: edgesEnabled,
+        outlineThickness: edgesWeight,
+        outlineOpacity: viewMode === ViewMode.PEN ? 1 : 0.75,
+        outlineColor: edgesColor === 'auto' ? undefined : edgesColor
+      }
+      this.setViewMode(viewMode, options)
     }
 
     Tracker.dataLoaded({

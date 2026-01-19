@@ -81,7 +81,7 @@
         :views="views"
         class="fixed top-11 left-2 z-30"
         @view-clicked="(view) => viewerHandler.setView(view)"
-        @view-mode-clicked="(viewMode) => viewerHandler.setViewMode(viewMode)"
+        @view-mode-clicked="(viewMode, options) => viewerHandler.setViewMode(viewMode, options)"
       />
     </transition>
 
