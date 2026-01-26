@@ -57,6 +57,7 @@
                         #"Speckle Type" = record[speckle_type], // Speckle Type
                         #"Version Object ID" = rootId,
                         #"Model Info" = rootId,
+                        #"Application ID" = Record.FieldOrDefault(record, "applicationId", null), // Application ID
                         data = cleanedRecord // Data
                     ]
             )
