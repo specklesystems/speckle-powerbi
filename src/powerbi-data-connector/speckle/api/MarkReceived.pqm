@@ -1,0 +1,44 @@
+// Function to mark a version as received via GraphQL mutation
+// Uses the powerful token
+(powerfulToken as text, versionId as text, projectId as text, serverUrl as text) as logical =>
+    try
+        let
+            NormalizedServerUrl = if Text.End(serverUrl, 1) = "/" then
+                serverUrl
+            else
+                serverUrl & "/",
+
+            // Build GraphQL
+            GraphQLMutation = "mutation MarkVersionReceived($input: MarkReceivedVersionInput!) { versionMutations { markReceived(input: $input) } }",
+
+            Variables = [
+                input = [
+                    versionId = versionId,
+                    projectId = projectId,
+                    sourceApplication = "powerbi-data"
+                ]
+            ],
+
+            // Make GraphQL request
+            Response = Web.Contents(
+                NormalizedServerUrl & "graphql",
+                [
+                    Headers = [
+                        #"Method" = "POST",
+                        #"Content-Type" = "application/json",
+                        #"Authorization" = "Bearer " & powerfulToken
+                    ],
+                    Content = Json.FromValue([
+                        query = GraphQLMutation,
+                        variables = Variables
+                    ]),
+                    ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
+                    Timeout = #duration(0, 0, 0, 5)
+                ]
+            ),
+
+            StatusCode = Value.Metadata(Response)[Response.Status]
+        in
+            StatusCode >= 200 and StatusCode < 300
+    otherwise
+        false
