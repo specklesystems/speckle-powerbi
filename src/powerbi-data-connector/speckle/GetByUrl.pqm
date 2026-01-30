@@ -14,6 +14,7 @@
         GetUser = Extension.LoadFunction("GetUser.pqm"),
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
         GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -146,6 +147,9 @@
                     sourceApplication = modelInfo[sourceApplication],
                     versionId = modelInfo[versionId],
 
+                    // mark version as received
+                    markReceivedResult = MarkReceived(powerfulToken, versionId, parsedUrl[projectId], parsedUrl[baseUrl]),
+
                     // get structured data
                     structuredData = GetStructuredData(url),
 
@@ -178,7 +182,7 @@
                         structuredData,
                         {
                             {"Version Object ID", each rootObjectId},
-                            {"Model Info", each if desktopServiceSent or not desktopServiceSent then encodedUserInfo else encodedUserInfo}
+                            {"Model Info", each if (desktopServiceSent or not desktopServiceSent) and (markReceivedResult or not markReceivedResult) then encodedUserInfo else encodedUserInfo}
                         }
                     ),
 
@@ -240,6 +244,10 @@
                 rootObjectId = modelInfo[rootObjectId],
                 modelName = modelInfo[modelName],
                 sourceApplication = modelInfo[sourceApplication],
+                federatedVersionId = if versionId <> null then versionId else modelInfo[versionId],
+
+                // mark version as received (non-blocking, best-effort)
+                markReceivedResult = MarkReceived(powerfulToken, federatedVersionId, projectId, baseUrl),
 
                 // get structured data
                 structuredData = GetStructuredData(singleModelUrl),
@@ -269,13 +277,13 @@
                 encodedUserInfo = EncodeUserInfo(userInfoData),
 
                 // add the model name as context - with version id if exists
-                // reference desktopServiceSent to force evaluation
+                // reference desktopServiceSent and markReceivedResult to force evaluation
                 result = Table.AddColumn(
                     structuredData,
                     "Source Model",
                     each if versionId <> null then
-                        Text.Combine({modelName, "-", versionId})
-                    else if desktopServiceSent or not desktopServiceSent then
+                        if (markReceivedResult or not markReceivedResult) then Text.Combine({modelName, "-", versionId}) else Text.Combine({modelName, "-", versionId})
+                    else if (desktopServiceSent or not desktopServiceSent) and (markReceivedResult or not markReceivedResult) then
                         modelName
                     else
                         modelName,
