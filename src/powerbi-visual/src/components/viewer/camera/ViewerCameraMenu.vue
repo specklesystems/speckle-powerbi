@@ -4,7 +4,7 @@
       <VideoCameraIcon class="w-5 h-5" />
     </template>
     <template #title>Camera</template>
-    <div class="flex flex-col p-1.5 min-w-[180px]">
+    <div class="flex flex-col p-1.5 min-w-[180px] space-y-0.5">
       <ViewerMenuItem
         label="Orthographic projection"
         :active="visualStore.isOrthoProjection"
