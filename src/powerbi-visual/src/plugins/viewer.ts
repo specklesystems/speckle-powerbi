@@ -135,7 +135,7 @@ export class ViewerHandler {
   }
   public toggleProjection = () => this.cameraControls.toggleCameras()
 
-  public setView = (view: CanonicalView) => {
+  public setView = (view: CanonicalView | SpeckleView) => {
     this.cameraControls.setCameraView(view, false)
     this.snapshotCameraPositionAndStore()
   }

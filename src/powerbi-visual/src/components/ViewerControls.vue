@@ -36,7 +36,7 @@
 
 <script setup lang="ts">
 import { ArrowsPointingOutIcon } from '@heroicons/vue/24/solid'
-import { SpeckleView, ViewMode } from '@speckle/viewer'
+import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { computed, ref } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerControlsButtonGroup from './viewer/controls/ViewerControlsButtonGroup.vue'
@@ -52,7 +52,7 @@ const visualStore = useVisualStore()
 
 const emits = defineEmits<{
   (e: 'update:sectionBox', value: boolean): void
-  (e: 'view-clicked', view: SpeckleView): void
+  (e: 'view-clicked', view: CanonicalView | SpeckleView): void
   (e: 'clear-palette'): void
   (e: 'view-mode-clicked', viewMode: ViewMode, options: ViewModeOptions): void
 }>()
