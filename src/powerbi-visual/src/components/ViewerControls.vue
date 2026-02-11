@@ -23,18 +23,12 @@
           @view-mode-clicked="(viewMode, options) => $emit('view-mode-clicked', viewMode, options)"
         />
       </div>
-      <!-- Views -->
-      <ViewerViewsMenu
-        :open="viewsOpen"
-        :views="views"
-        @force-close-others="activeControl = 'none'"
-        @update:open="(value) => toggleActiveControl(value ? 'views' : 'none')"
-        @view-clicked="(view) => $emit('view-clicked', view)"
-      />
       <!-- Camera -->
       <ViewerCameraMenu
         :open="cameraOpen"
+        :views="views"
         @update:open="(value) => toggleActiveControl(value ? 'camera' : 'none')"
+        @view-clicked="(view) => $emit('view-clicked', view)"
       />
     </ViewerControlsButtonGroup>
   </div>
@@ -50,7 +44,6 @@ import ViewerControlsButtonToggle from './viewer/controls/ViewerControlsButtonTo
 
 import ViewerCameraMenu from './viewer/camera/ViewerCameraMenu.vue'
 import ViewerViewModesMenu from './viewer/view-modes/ViewerViewModesMenu.vue'
-import ViewerViewsMenu from './viewer/views/ViewerViewsMenu.vue'
 
 import ViewModesIcon from '../components/global/icon/ViewModes.vue'
 import type { ViewModeOptions } from '@src/plugins/viewer'
@@ -70,7 +63,6 @@ withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
 type ActiveControl =
   | 'none'
   | 'viewModes'
-  | 'views'
   | 'camera'
   | 'sun'
   | 'projection'
@@ -90,11 +82,4 @@ const toggleActiveControl = (control: ActiveControl) => {
 
 const viewModesOpen = computed(() => activeControl.value === 'viewModes')
 const cameraOpen = computed(() => activeControl.value === 'camera')
-
-const viewsOpen = computed({
-  get: () => activeControl.value === 'views',
-  set: (value) => {
-    activeControl.value = value ? 'views' : 'none'
-  }
-})
 </script>
