@@ -5,32 +5,6 @@
       <ViewerControlsButtonToggle flat tooltip="Zoom extends" @click="onZoomExtentsClicked">
         <ArrowsPointingOutIcon class="h-4 w-4 md:h-5 md:w-5" />
       </ViewerControlsButtonToggle>
-      <!-- Zoom on Filter -->
-      <ViewerControlsButtonToggle
-        :tooltip="
-          visualStore.isZoomOnFilterActive
-            ? 'Move camera on filter'
-            : 'Keep camera position on filter'
-        "
-        flat
-        @click="toggleZoomOnFilter"
-      >
-        <ZoomToFit v-if="visualStore.isZoomOnFilterActive" class="h-5 w-5" />
-        <ZoomToFit v-else class="h-5 w-5 opacity-30" />
-      </ViewerControlsButtonToggle>
-      <!-- Ghost / Hidden -->
-      <ViewerControlsButtonToggle
-        :tooltip="
-          visualStore.isGhostActive
-            ? 'Hide ghosted objects on filter'
-            : 'Show ghosted objects on filter'
-        "
-        flat
-        @click="toggleGhostHidden"
-      >
-        <Ghost v-if="visualStore.isGhostActive" class="h-5 w-5" />
-        <Ghost v-else class="h-5 w-5 opacity-30" />
-      </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
     <ViewerControlsButtonGroup>
       <!-- View Modes Toggle -->
@@ -57,17 +31,11 @@
         @update:open="(value) => toggleActiveControl(value ? 'views' : 'none')"
         @view-clicked="(view) => $emit('view-clicked', view)"
       />
-      <!-- Perspective/Ortho -->
-      <ViewerControlsButtonToggle
-        flat
-        secondary
-        tooltip="Projection"
-        :active="visualStore.isOrthoProjection"
-        @click="toggleProjection"
-      >
-        <Perspective v-if="visualStore.isOrthoProjection" class="h-3.5 md:h-4 w-4" />
-        <PerspectiveMore v-else class="h-3.5 md:h-4 w-4" />
-      </ViewerControlsButtonToggle>
+      <!-- Camera -->
+      <ViewerCameraMenu
+        :open="cameraOpen"
+        @update:open="(value) => toggleActiveControl(value ? 'camera' : 'none')"
+      />
     </ViewerControlsButtonGroup>
   </div>
 </template>
@@ -80,15 +48,11 @@ import { useVisualStore } from '@src/store/visualStore'
 import ViewerControlsButtonGroup from './viewer/controls/ViewerControlsButtonGroup.vue'
 import ViewerControlsButtonToggle from './viewer/controls/ViewerControlsButtonToggle.vue'
 
+import ViewerCameraMenu from './viewer/camera/ViewerCameraMenu.vue'
 import ViewerViewModesMenu from './viewer/view-modes/ViewerViewModesMenu.vue'
 import ViewerViewsMenu from './viewer/views/ViewerViewsMenu.vue'
 
-import Perspective from '../components/global/icon/Perspective.vue'
-import PerspectiveMore from '../components/global/icon/PerspectiveMore.vue'
 import ViewModesIcon from '../components/global/icon/ViewModes.vue'
-
-import Ghost from '../components/global/icon/Ghost.vue'
-import ZoomToFit from '../components/global/icon/ZoomToFit.vue'
 import type { ViewModeOptions } from '@src/plugins/viewer'
 
 const visualStore = useVisualStore()
@@ -96,7 +60,6 @@ const visualStore = useVisualStore()
 const emits = defineEmits<{
   (e: 'update:sectionBox', value: boolean): void
   (e: 'view-clicked', view: SpeckleView): void
-  (e: 'toggle-projection'): void
   (e: 'clear-palette'): void
   (e: 'view-mode-clicked', viewMode: ViewMode, options: ViewModeOptions): void
 }>()
@@ -108,6 +71,7 @@ type ActiveControl =
   | 'none'
   | 'viewModes'
   | 'views'
+  | 'camera'
   | 'sun'
   | 'projection'
   | 'sectionBox'
@@ -124,24 +88,8 @@ const toggleActiveControl = (control: ActiveControl) => {
   activeControl.value = activeControl.value === control ? 'none' : control
 }
 
-const toggleProjection = () => {
-  visualStore.viewerEmit('toggleProjection')
-  visualStore.setIsOrthoProjection(!visualStore.isOrthoProjection)
-  visualStore.writeIsOrthoToFile()
-}
-
-const toggleGhostHidden = () => {
-  visualStore.setIsGhost(!visualStore.isGhostActive)
-  visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
-  visualStore.writeIsGhostToFile()
-}
-
-const toggleZoomOnFilter = () => {
-  visualStore.setIsZoomOnFilterActive(!visualStore.isZoomOnFilterActive)
-  visualStore.writeZoomOnFilterToFile()
-}
-
 const viewModesOpen = computed(() => activeControl.value === 'viewModes')
+const cameraOpen = computed(() => activeControl.value === 'camera')
 
 const viewsOpen = computed({
   get: () => activeControl.value === 'views',
