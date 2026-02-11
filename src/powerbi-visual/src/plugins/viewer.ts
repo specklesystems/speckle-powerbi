@@ -3,6 +3,8 @@ import {
   FilteringState,
   CameraController,
   CanonicalView,
+  SectionTool,
+  SectionOutlines,
   ViewModes,
   CameraEvent,
   SpeckleView,
@@ -59,6 +61,8 @@ export interface IViewerEvents {
   zoomExtends: () => void
   toggleProjection: () => void
   toggleGhostHidden: (ghost: boolean) => void
+  toggleSectionBox: (enabled: boolean) => void
+  setSectionBoxVisible: (visible: boolean) => void
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
@@ -75,6 +79,8 @@ export class ViewerHandler {
   public cameraControls: CameraController
   public filtering: FilteringExtension
   public selection: FilteredSelectionExtension
+  public sectionTool: SectionTool
+  public sectionOutlines: SectionOutlines
   private filteringState: FilteringState
 
   constructor() {
@@ -94,6 +100,8 @@ export class ViewerHandler {
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
+    this.emitter.on('toggleSectionBox', this.toggleSectionBox)
+    this.emitter.on('setSectionBoxVisible', this.setSectionBoxVisible)
   }
 
   async init(parent: HTMLElement) {
@@ -101,6 +109,8 @@ export class ViewerHandler {
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(FilteredSelectionExtension)
+    this.sectionTool = this.viewer.getExtension(SectionTool)
+    this.sectionOutlines = this.viewer.getExtension(SectionOutlines)
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
@@ -140,9 +150,18 @@ export class ViewerHandler {
     this.snapshotCameraPositionAndStore()
   }
 
-  public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
-    // TODO
-    return
+  public toggleSectionBox = (enabled: boolean) => {
+    this.sectionTool.enabled = enabled
+    this.sectionOutlines.enabled = enabled
+    if (enabled) {
+      const sceneBox = this.viewer.getRenderer().sceneBox
+      this.sectionTool.setBox(sceneBox)
+      this.sectionTool.visible = true
+    }
+  }
+
+  public setSectionBoxVisible = (visible: boolean) => {
+    this.sectionTool.visible = visible
   }
 
   public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
@@ -218,6 +237,7 @@ export class ViewerHandler {
 
 
   public loadObjects = async (modelObjects: object[][]) => {
+    this.toggleSectionBox(false)
     await this.viewer.unloadAll()
     // const stringifiedObject = JSON.stringify(objects)
 
@@ -341,8 +361,8 @@ const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   viewer.createExtension(HybridCameraController) // camera controller
   viewer.createExtension(FilteringExtension) // filtering - must be created before FilteredSelectionExtension
   viewer.createExtension(FilteredSelectionExtension) // filtered selection helper - depends on FilteringExtension
-  // viewer.createExtension(SectionTool) // section tool, possibly not needed for now?
-  // viewer.createExtension(SectionOutlines) // section tool, possibly not needed for now?
+  viewer.createExtension(SectionTool) // section tool
+  viewer.createExtension(SectionOutlines) // section outlines
   // viewer.createExtension(MeasurementsExtension) // measurements, possibly not needed for now?
   viewer.createExtension(ViewModes) // view modes
 

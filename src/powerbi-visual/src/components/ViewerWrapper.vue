@@ -77,9 +77,10 @@
     <transition name="slide-left">
       <ViewerControls
         v-show="!visualStore.isNavbarHidden"
-        v-model:section-box="bboxActive"
+        :section-box="sectionBoxEnabled"
         :views="views"
         class="fixed top-11 left-2 z-30"
+        @update:section-box="onSectionBoxToggle"
         @view-clicked="(view) => viewerHandler.setView(view)"
         @view-mode-clicked="(viewMode, options) => viewerHandler.setViewMode(viewMode, options)"
       />
@@ -89,6 +90,11 @@
       <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
         Reset filters
       </FormButton>
+    </div>
+
+    <div v-if="sectionBoxVisible" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex gap-2">
+      <FormButton size="sm" color="outline" @click="onSectionBoxReset">Reset</FormButton>
+      <FormButton size="sm" @click="onSectionBoxDone">Done</FormButton>
     </div>
 
     <div
@@ -149,7 +155,8 @@ const tooltipHandler = inject(tooltipHandlerKey)
 let viewerHandler: ViewerHandler = null
 
 const container = ref<HTMLElement>()
-let bboxActive = ref(false)
+let sectionBoxEnabled = ref(false)
+let sectionBoxVisible = ref(false)
 let views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
@@ -157,6 +164,35 @@ const isInteractive = computed(
 )
 
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
+
+function onSectionBoxToggle() {
+  if (!sectionBoxEnabled.value) {
+    // Inactive → Editing: enable and show
+    sectionBoxEnabled.value = true
+    sectionBoxVisible.value = true
+    viewerHandler.toggleSectionBox(true)
+  } else if (sectionBoxVisible.value) {
+    // Editing → Inactive: disable everything (same as Reset)
+    sectionBoxEnabled.value = false
+    sectionBoxVisible.value = false
+    viewerHandler.toggleSectionBox(false)
+  } else {
+    // Applied → Editing: re-show box so user can adjust/reset
+    sectionBoxVisible.value = true
+    viewerHandler.setSectionBoxVisible(true)
+  }
+}
+
+function onSectionBoxReset() {
+  sectionBoxEnabled.value = false
+  sectionBoxVisible.value = false
+  viewerHandler.toggleSectionBox(false)
+}
+
+function onSectionBoxDone() {
+  sectionBoxVisible.value = false
+  viewerHandler.setSectionBoxVisible(false)
+}
 
 onMounted(async () => {
   console.log('Viewer Wrapper mounted')
