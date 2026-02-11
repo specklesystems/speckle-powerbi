@@ -1,5 +1,5 @@
 <template>
-  <ViewerMenu v-model:open="open" title="Camera">
+  <ViewerMenu v-model:open="open">
     <template #trigger-icon>
       <VideoCameraIcon class="w-5 h-5" />
     </template>
@@ -21,20 +21,20 @@
         @click="toggleGhostHidden"
       />
 
-      <div class="w-full border-b my-1"></div>
+      <div class="w-full border-b border-outline-2 my-1"></div>
 
-      <div class="text-xs font-semibold text-gray-500 px-2 py-1">Views</div>
+      <div class="text-body-2xs font-semibold text-foreground-2 px-2 py-1">Views</div>
 
-      <div v-for="shortcut in viewShortcuts" :key="shortcut.name">
-        <ViewerMenuItem
-          :label="shortcut.name"
-          hide-active-tick
-          :active="false"
-          @click="handleViewChange(shortcut.name.toLowerCase() as CanonicalView)"
-        />
-      </div>
+      <ViewerMenuItem
+        v-for="shortcut in viewShortcuts"
+        :key="shortcut.name"
+        :label="shortcut.name"
+        hide-active-tick
+        :active="false"
+        @click="handleViewChange(shortcut.name.toLowerCase() as CanonicalView)"
+      />
 
-      <div v-if="views.length !== 0" class="w-full border-b my-1"></div>
+      <div v-if="views.length !== 0" class="w-full border-b border-outline-2 my-1"></div>
 
       <ViewerMenuItem
         v-for="view in views"
