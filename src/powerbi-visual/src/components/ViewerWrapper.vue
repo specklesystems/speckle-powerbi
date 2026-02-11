@@ -176,6 +176,7 @@ function onSectionBoxToggle() {
     sectionBoxEnabled.value = false
     sectionBoxVisible.value = false
     viewerHandler.toggleSectionBox(false)
+    visualStore.writeSectionBoxToFile(null)
   } else {
     // Applied → Editing: re-show box so user can adjust/reset
     sectionBoxVisible.value = true
@@ -187,11 +188,14 @@ function onSectionBoxReset() {
   sectionBoxEnabled.value = false
   sectionBoxVisible.value = false
   viewerHandler.toggleSectionBox(false)
+  visualStore.writeSectionBoxToFile(null)
 }
 
 function onSectionBoxDone() {
   sectionBoxVisible.value = false
   viewerHandler.setSectionBoxVisible(false)
+  const boxData = viewerHandler.getSectionBoxData()
+  visualStore.writeSectionBoxToFile(boxData)
 }
 
 onMounted(async () => {
@@ -201,6 +205,14 @@ onMounted(async () => {
   
   // Set up event listener for object clicks from the FilteredSelectionExtension
   viewerHandler.emitter.on('objectClicked', handleObjectClicked)
+
+  // Sync section box UI state when restored from file
+  viewerHandler.emitter.on('objectsLoaded', () => {
+    if (visualStore.sectionBoxData) {
+      sectionBoxEnabled.value = true
+      sectionBoxVisible.value = false
+    }
+  })
 
   visualStore.setViewerEmitter(viewerHandler.emit)
 })

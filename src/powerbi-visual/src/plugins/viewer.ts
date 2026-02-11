@@ -22,7 +22,7 @@ import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLo
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { Vector3 } from 'three'
+import { Box3, Vector3 } from 'three'
 
 export interface IViewer {
   /**
@@ -164,6 +164,29 @@ export class ViewerHandler {
     this.sectionTool.visible = visible
   }
 
+  public getSectionBoxData = (): string | null => {
+    if (!this.sectionTool.enabled) return null
+    const obb = this.sectionTool.getBox()
+    const center = obb.center
+    const halfSize = obb.halfSize
+    return JSON.stringify({
+      min: { x: center.x - halfSize.x, y: center.y - halfSize.y, z: center.z - halfSize.z },
+      max: { x: center.x + halfSize.x, y: center.y + halfSize.y, z: center.z + halfSize.z }
+    })
+  }
+
+  public applySectionBox = (boxData: string) => {
+    const parsed = JSON.parse(boxData)
+    const box = new Box3(
+      new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
+      new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
+    )
+    this.sectionTool.enabled = true
+    this.sectionOutlines.enabled = true
+    this.sectionTool.setBox(box)
+    this.sectionTool.visible = false
+  }
+
   public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
     const viewModes = this.viewer.getExtension(ViewModes)
     viewModes.setViewMode(viewMode, options)
@@ -298,6 +321,10 @@ export class ViewerHandler {
         store.cameraPosition[5]
       )
       this.cameraControls.setCameraView({ position, target }, true)
+    }
+
+    if (store.sectionBoxData) {
+      this.applySectionBox(store.sectionBoxData)
     }
 
     // Emit objects loaded event to trigger update

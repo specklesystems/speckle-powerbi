@@ -215,6 +215,13 @@ export class Visual implements IVisual {
                 ])
               }
 
+              if (options.dataViews[0].metadata.objects.sectionBox?.boxData as string) {
+                console.log(`Stored section box is found`)
+                visualStore.setSectionBoxData(
+                  options.dataViews[0].metadata.objects.sectionBox.boxData as string
+                )
+              }
+
               const camera = options.dataViews[0].metadata.objects.camera
 
               if (camera && 'isOrtho' in camera) {
