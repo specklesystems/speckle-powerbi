@@ -185,6 +185,12 @@ export class ViewerHandler {
     this.sectionOutlines.enabled = true
     this.sectionTool.setBox(box)
     this.sectionTool.visible = false
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+    // Force section outlines recomputation after geometry is rendered
+    requestAnimationFrame(() => {
+      this.sectionOutlines.requestUpdate(true)
+      this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+    })
   }
 
   public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
