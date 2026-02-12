@@ -155,9 +155,9 @@ const tooltipHandler = inject(tooltipHandlerKey)
 let viewerHandler: ViewerHandler = null
 
 const container = ref<HTMLElement>()
-let sectionBoxEnabled = ref(false)
-let sectionBoxVisible = ref(false)
-let views: Ref<SpeckleView[]> = ref([])
+const sectionBoxEnabled = ref(false)
+const sectionBoxVisible = ref(false)
+const views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
   () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds
