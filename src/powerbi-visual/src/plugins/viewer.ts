@@ -177,20 +177,33 @@ export class ViewerHandler {
   }
 
   public applySectionBox = (boxData: string) => {
-    const parsed = JSON.parse(boxData)
-    const box = new Box3(
-      new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
-      new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
-    )
-    this.setSectionEnabled(true)
-    this.sectionTool.setBox(box)
-    this.sectionTool.visible = false
-    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-    // Force section outlines recomputation after geometry is rendered
-    requestAnimationFrame(() => {
-      this.sectionOutlines.requestUpdate(true)
+    try {
+      const parsed = JSON.parse(boxData)
+
+      // Validate parsed data structure
+      if (!parsed?.min || !parsed?.max) {
+        throw new Error('Invalid section box data: missing min/max properties')
+      }
+
+      const box = new Box3(
+        new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
+        new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
+      )
+
+      this.setSectionEnabled(true)
+      this.sectionTool.setBox(box)
+      this.sectionTool.visible = false
       this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-    })
+      // Force section outlines recomputation after geometry is rendered
+      requestAnimationFrame(() => {
+        this.sectionOutlines.requestUpdate(true)
+        this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+      })
+    } catch (error) {
+      console.error('Failed to apply section box, disabling feature:', error)
+      this.setSectionEnabled(false)
+      // Visual continues loading normally without section box
+    }
   }
 
   public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
