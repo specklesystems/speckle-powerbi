@@ -166,13 +166,10 @@ export class ViewerHandler {
 
   public getSectionBoxData = (): string | null => {
     if (!this.sectionTool.enabled) return null
-    const obb = this.sectionTool.getBox()
-    const center = obb.center
-    const halfSize = obb.halfSize
-    return JSON.stringify({
-      min: { x: center.x - halfSize.x, y: center.y - halfSize.y, z: center.z - halfSize.z },
-      max: { x: center.x + halfSize.x, y: center.y + halfSize.y, z: center.z + halfSize.z }
-    })
+    const { center, halfSize } = this.sectionTool.getBox()
+    const min = new Vector3().copy(center).sub(halfSize)
+    const max = new Vector3().copy(center).add(halfSize)
+    return JSON.stringify({ min, max })
   }
 
   public applySectionBox = (boxData: string) => {
