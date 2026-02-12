@@ -151,8 +151,7 @@ export class ViewerHandler {
   }
 
   public toggleSectionBox = (enabled: boolean) => {
-    this.sectionTool.enabled = enabled
-    this.sectionOutlines.enabled = enabled
+    this.setSectionEnabled(enabled)
     if (enabled) {
       const sceneBox = this.viewer.getRenderer().sceneBox
       this.sectionTool.setBox(sceneBox)
@@ -162,6 +161,11 @@ export class ViewerHandler {
 
   public setSectionBoxVisible = (visible: boolean) => {
     this.sectionTool.visible = visible
+  }
+
+  private setSectionEnabled(enabled: boolean): void {
+    this.sectionTool.enabled = enabled
+    this.sectionOutlines.enabled = enabled
   }
 
   public getSectionBoxData = (): string | null => {
@@ -178,8 +182,7 @@ export class ViewerHandler {
       new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
       new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
     )
-    this.sectionTool.enabled = true
-    this.sectionOutlines.enabled = true
+    this.setSectionEnabled(true)
     this.sectionTool.setBox(box)
     this.sectionTool.visible = false
     this.viewer.requestRender(UpdateFlags.RENDER_RESET)
