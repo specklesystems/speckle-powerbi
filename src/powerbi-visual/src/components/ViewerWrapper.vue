@@ -165,6 +165,13 @@ const isInteractive = computed(
 
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
 
+function disableSectionBox() {
+  sectionBoxEnabled.value = false
+  sectionBoxVisible.value = false
+  viewerHandler.toggleSectionBox(false)
+  visualStore.writeSectionBoxToFile(null)
+}
+
 function onSectionBoxToggle() {
   if (!sectionBoxEnabled.value) {
     // Inactive → Editing: enable and show
@@ -173,10 +180,7 @@ function onSectionBoxToggle() {
     viewerHandler.toggleSectionBox(true)
   } else if (sectionBoxVisible.value) {
     // Editing → Inactive: disable everything (same as Reset)
-    sectionBoxEnabled.value = false
-    sectionBoxVisible.value = false
-    viewerHandler.toggleSectionBox(false)
-    visualStore.writeSectionBoxToFile(null)
+    disableSectionBox()
   } else {
     // Applied → Editing: re-show box so user can adjust/reset
     sectionBoxVisible.value = true
@@ -185,10 +189,7 @@ function onSectionBoxToggle() {
 }
 
 function onSectionBoxReset() {
-  sectionBoxEnabled.value = false
-  sectionBoxVisible.value = false
-  viewerHandler.toggleSectionBox(false)
-  visualStore.writeSectionBoxToFile(null)
+  disableSectionBox()
 }
 
 function onSectionBoxDone() {
