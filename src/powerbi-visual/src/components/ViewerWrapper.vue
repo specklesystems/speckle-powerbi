@@ -170,6 +170,7 @@ function disableSectionBox() {
   sectionBoxVisible.value = false
   viewerHandler.toggleSectionBox(false)
   visualStore.writeSectionBoxToFile(null)
+  visualStore.setSectionBoxData(null)
 }
 
 function onSectionBoxToggle() {
@@ -196,6 +197,7 @@ function onSectionBoxDone() {
   sectionBoxVisible.value = false
   viewerHandler.setSectionBoxVisible(false)
   const boxData = viewerHandler.getSectionBoxData()
+  visualStore.setSectionBoxData(boxData)
   visualStore.writeSectionBoxToFile(boxData)
 }
 

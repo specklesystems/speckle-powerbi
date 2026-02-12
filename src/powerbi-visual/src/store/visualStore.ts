@@ -446,7 +446,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
-  const setSectionBoxData = (newValue: string) => (sectionBoxData.value = newValue)
+  const setSectionBoxData = (newValue: string | null) => (sectionBoxData.value = newValue)
 
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
     (fieldInputState.value = newFieldInputState)
