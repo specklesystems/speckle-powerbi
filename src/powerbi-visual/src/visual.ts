@@ -149,40 +149,25 @@ export class Visual implements IVisual {
             console.log('🔍 Checking for other saved settings:')
 
             if (!visualStore.isViewerObjectsLoaded && options.dataViews[0].metadata.objects) {
-              if (options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string) {
-                console.log(
-                  `Default View Mode: ${
-                    options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string
-                  }`
-                )
+              const defaultViewMode = options.dataViews[0].metadata.objects.viewMode?.defaultViewMode
+              if (defaultViewMode) {
+                console.log(`Default View Mode: ${defaultViewMode as string}`)
 
-                visualStore.setDefaultViewModeInFile(
-                  options.dataViews[0].metadata.objects.viewMode?.defaultViewMode as string
-                )
+                visualStore.setDefaultViewModeInFile(defaultViewMode as string)
               }
 
-              if (options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean) {
-                console.log(
-                  `Branding Hidden: ${
-                    options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
-                  }`
-                )
+              const brandingHidden = options.dataViews[0].metadata.objects.workspace?.brandingHidden
+              if (brandingHidden !== undefined) {
+                console.log(`Branding Hidden: ${brandingHidden as boolean}`)
 
-                visualStore.setBrandingHidden(
-                  options.dataViews[0].metadata.objects.workspace?.brandingHidden as boolean
-                )
+                visualStore.setBrandingHidden(brandingHidden as boolean)
               }
 
-              if (options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean) {
-                console.log(
-                  `Navbar Hidden: ${
-                    options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
-                  }`
-                )
+              const navbarHidden = options.dataViews[0].metadata.objects.viewMode?.navbarHidden
+              if (navbarHidden !== undefined) {
+                console.log(`Navbar Hidden: ${navbarHidden as boolean}`)
 
-                visualStore.setNavbarHidden(
-                  options.dataViews[0].metadata.objects.viewMode?.navbarHidden as boolean
-                )
+                visualStore.setNavbarHidden(navbarHidden as boolean)
               }
 
               // Load edges settings
@@ -203,23 +188,23 @@ export class Visual implements IVisual {
                 }
               }
 
-              if (options.dataViews[0].metadata.objects.cameraPosition?.positionX as string) {
-                console.log(`Stored camera position is found`)
+              const cameraPositionData = options.dataViews[0].metadata.objects.cameraPosition
+              if (cameraPositionData?.positionX) {
+                console.log('Stored camera position is found')
                 visualStore.setCameraPositionInFile([
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionX),
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionY),
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.positionZ),
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetX),
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetY),
-                  Number(options.dataViews[0].metadata.objects.cameraPosition?.targetZ)
+                  Number(cameraPositionData.positionX),
+                  Number(cameraPositionData.positionY),
+                  Number(cameraPositionData.positionZ),
+                  Number(cameraPositionData.targetX),
+                  Number(cameraPositionData.targetY),
+                  Number(cameraPositionData.targetZ)
                 ])
               }
 
-              if (options.dataViews[0].metadata.objects.sectionBox?.boxData as string) {
-                console.log(`Stored section box is found`)
-                visualStore.setSectionBoxData(
-                  options.dataViews[0].metadata.objects.sectionBox.boxData as string
-                )
+              const sectionBoxData = options.dataViews[0].metadata.objects.sectionBox?.boxData
+              if (sectionBoxData) {
+                console.log('Stored section box is found')
+                visualStore.setSectionBoxData(sectionBoxData as string)
               }
 
               const camera = options.dataViews[0].metadata.objects.camera
