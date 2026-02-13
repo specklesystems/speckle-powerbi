@@ -155,8 +155,10 @@ const tooltipHandler = inject(tooltipHandlerKey)
 let viewerHandler: ViewerHandler = null
 
 const container = ref<HTMLElement>()
-const sectionBoxEnabled = ref(false)
-const sectionBoxVisible = ref(false)
+type SectionBoxState = 'inactive' | 'editing' | 'applied'
+const sectionBoxState = ref<SectionBoxState>('inactive')
+const sectionBoxEnabled = computed(() => sectionBoxState.value !== 'inactive')
+const sectionBoxVisible = computed(() => sectionBoxState.value === 'editing')
 const views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
@@ -166,26 +168,25 @@ const isInteractive = computed(
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
 
 function disableSectionBox() {
-  sectionBoxEnabled.value = false
-  sectionBoxVisible.value = false
+  sectionBoxState.value = 'inactive'
   viewerHandler.toggleSectionBox(false)
   visualStore.writeSectionBoxToFile(null)
   visualStore.setSectionBoxData(null)
 }
 
 function onSectionBoxToggle() {
-  if (!sectionBoxEnabled.value) {
-    // Inactive → Editing: enable and show
-    sectionBoxEnabled.value = true
-    sectionBoxVisible.value = true
-    viewerHandler.toggleSectionBox(true)
-  } else if (sectionBoxVisible.value) {
-    // Editing → Inactive: disable everything (same as Reset)
-    disableSectionBox()
-  } else {
-    // Applied → Editing: re-show box so user can adjust/reset
-    sectionBoxVisible.value = true
-    viewerHandler.setSectionBoxVisible(true)
+  switch (sectionBoxState.value) {
+    case 'inactive':
+      sectionBoxState.value = 'editing'
+      viewerHandler.toggleSectionBox(true)
+      break
+    case 'editing':
+      disableSectionBox()
+      break
+    case 'applied':
+      sectionBoxState.value = 'editing'
+      viewerHandler.setSectionBoxVisible(true)
+      break
   }
 }
 
@@ -194,7 +195,7 @@ function onSectionBoxReset() {
 }
 
 function onSectionBoxDone() {
-  sectionBoxVisible.value = false
+  sectionBoxState.value = 'applied'
   viewerHandler.setSectionBoxVisible(false)
   const boxData = viewerHandler.getSectionBoxData()
   visualStore.setSectionBoxData(boxData)
@@ -212,8 +213,7 @@ onMounted(async () => {
   // Sync section box UI state when restored from file
   viewerHandler.emitter.on('objectsLoaded', () => {
     if (visualStore.sectionBoxData) {
-      sectionBoxEnabled.value = true
-      sectionBoxVisible.value = false
+      sectionBoxState.value = 'applied'
     }
   })
 
