@@ -68,6 +68,14 @@ export class Visual implements IVisual {
     this.selectionHandler.clear()
   }
 
+  private resetViewerState() {
+    const visualStore = useVisualStore()
+    visualStore.setViewerReadyToLoad(false)
+    visualStore.clearDataInput()
+    visualStore.lastLoadedRootObjectId = undefined
+    visualStore.isViewerObjectsLoaded = false
+  }
+
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
     if (visualStore.commonError) {
@@ -78,12 +86,28 @@ export class Visual implements IVisual {
     if (visualStore.postFileSaveSkipNeeded) {
       visualStore.setPostFileSaveSkipNeeded(false)
       console.log('Skipping unneccessary update function after file save.')
+      try {
+        const matrixView = options.dataViews[0]?.matrix
+        if (matrixView) {
+          visualStore.setFieldInputState(validateMatrixView(options))
+        }
+      } catch (e) {
+        console.warn('Failed to update field input state during skip path:', (e as Error).message)
+      }
       return
     }
 
     if (visualStore.postClickSkipNeeded) {
       visualStore.setPostClickSkipNeeded(false)
       console.log('Skipping unneccessary update function canvas click.')
+      try {
+        const matrixView = options.dataViews[0]?.matrix
+        if (matrixView) {
+          visualStore.setFieldInputState(validateMatrixView(options))
+        }
+      } catch (e) {
+        console.warn('Failed to update field input state during skip path:', (e as Error).message)
+      }
       return
     }
 
@@ -135,6 +159,12 @@ export class Visual implements IVisual {
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
+
+      if (!validationResult.rootObjectId) {
+        console.log('🔄 Root object ID removed - resetting viewer state')
+        this.resetViewerState()
+        return
+      }
 
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
@@ -326,6 +356,7 @@ export class Visual implements IVisual {
         colorBy: false,
         tooltipData: false
       })
+      this.resetViewerState()
       return
     }
   }
