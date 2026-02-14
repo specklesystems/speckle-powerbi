@@ -136,6 +136,14 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
+      if (!validationResult.rootObjectId) {
+        visualStore.setViewerReadyToLoad(false)
+        visualStore.clearDataInput()
+        visualStore.lastLoadedRootObjectId = undefined
+        visualStore.isViewerObjectsLoaded = false
+        return
+      }
+
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
         case powerbi.VisualUpdateType.ResizeEnd:
@@ -326,6 +334,10 @@ export class Visual implements IVisual {
         colorBy: false,
         tooltipData: false
       })
+      visualStore.setViewerReadyToLoad(false)
+      visualStore.clearDataInput()
+      visualStore.lastLoadedRootObjectId = undefined
+      visualStore.isViewerObjectsLoaded = false
       return
     }
   }
