@@ -153,6 +153,7 @@ export class Visual implements IVisual {
       console.log('❓Field inputs', validationResult)
 
       if (!validationResult.rootObjectId) {
+        console.log('🔄 Root object ID removed - resetting viewer state')
         visualStore.setViewerReadyToLoad(false)
         visualStore.clearDataInput()
         visualStore.lastLoadedRootObjectId = undefined
