@@ -83,7 +83,9 @@ export class Visual implements IVisual {
         if (matrixView) {
           visualStore.setFieldInputState(validateMatrixView(options))
         }
-      } catch (e) { /* ignore - inputs not ready */ }
+      } catch (e) {
+        console.warn('Failed to update field input state during skip path:', (e as Error).message)
+      }
       return
     }
 
@@ -95,7 +97,9 @@ export class Visual implements IVisual {
         if (matrixView) {
           visualStore.setFieldInputState(validateMatrixView(options))
         }
-      } catch (e) { /* ignore - inputs not ready */ }
+      } catch (e) {
+        console.warn('Failed to update field input state during skip path:', (e as Error).message)
+      }
       return
     }
 
