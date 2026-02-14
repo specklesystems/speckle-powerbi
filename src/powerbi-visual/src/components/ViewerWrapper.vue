@@ -195,7 +195,7 @@ async function handleObjectClicked(hit: any, isMultiSelect: boolean, mouseEvent?
     const ids = selection.map((s) => s.id)
     await viewerHandler.selectObjects(ids)
   } else {
-    visualStore.setPostClickSkipNeeded(false)
+    visualStore.setPostClickSkipNeeded(true)
     tooltipHandler.hide()
     if (!isMultiSelect) {
       selectionHandler.clear()

@@ -87,6 +87,7 @@ export class FilteredSelectionExtension extends SelectionExtension {
     if (!selection) {
       console.log('🎯 No selection, calling super with null')
       super.onObjectClicked(selection)
+      this.emit(FilteredSelectionEvent.FilteredObjectClicked, null)
       return
     }
 
@@ -117,6 +118,7 @@ export class FilteredSelectionExtension extends SelectionExtension {
     } else {
       // If no valid hits, treat as empty selection
       super.onObjectClicked(null)
+      this.emit(FilteredSelectionEvent.FilteredObjectClicked, null)
     }
   }
 
