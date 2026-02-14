@@ -181,7 +181,7 @@ function onSectionBoxToggle() {
       viewerHandler.toggleSectionBox(true)
       break
     case 'editing':
-      disableSectionBox()
+      onSectionBoxDone()
       break
     case 'applied':
       sectionBoxState.value = 'editing'
