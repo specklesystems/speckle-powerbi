@@ -78,12 +78,24 @@ export class Visual implements IVisual {
     if (visualStore.postFileSaveSkipNeeded) {
       visualStore.setPostFileSaveSkipNeeded(false)
       console.log('Skipping unneccessary update function after file save.')
+      try {
+        const matrixView = options.dataViews[0]?.matrix
+        if (matrixView) {
+          visualStore.setFieldInputState(validateMatrixView(options))
+        }
+      } catch (e) { /* ignore - inputs not ready */ }
       return
     }
 
     if (visualStore.postClickSkipNeeded) {
       visualStore.setPostClickSkipNeeded(false)
       console.log('Skipping unneccessary update function canvas click.')
+      try {
+        const matrixView = options.dataViews[0]?.matrix
+        if (matrixView) {
+          visualStore.setFieldInputState(validateMatrixView(options))
+        }
+      } catch (e) { /* ignore - inputs not ready */ }
       return
     }
 
