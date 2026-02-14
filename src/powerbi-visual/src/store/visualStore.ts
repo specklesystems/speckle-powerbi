@@ -61,6 +61,7 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const cameraPosition = ref<number[]>(undefined)
   const defaultViewModeInFile = ref<string>(undefined)
+  const sectionBoxData = ref<string>(undefined)
 
   // Edges settings for view modes
   const edgesEnabled = ref<boolean>(true)
@@ -430,6 +431,23 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
+  const writeSectionBoxToFile = (boxData: string | null) => {
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'sectionBox',
+          properties: {
+            boxData: boxData
+          },
+          selector: null
+        }
+      ]
+    })
+  }
+
+  const setSectionBoxData = (newValue: string | null) => (sectionBoxData.value = newValue)
+
   const setFieldInputState = (newFieldInputState: FieldInputState) =>
     (fieldInputState.value = newFieldInputState)
 
@@ -591,6 +609,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     isLoadingFromFile,
     cameraPosition,
     defaultViewModeInFile,
+    sectionBoxData,
     edgesEnabled,
     edgesWeight,
     edgesColor,
@@ -639,6 +658,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     writeIsOrthoToFile,
     writeViewModeToFile,
     writeCameraPositionToFile,
+    writeSectionBoxToFile,
+    setSectionBoxData,
     writeHideBrandingToFile,
     writeNavbarVisibilityToFile,
     writeDataLoadingModeToFile,
