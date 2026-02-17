@@ -279,6 +279,8 @@ export class ViewerHandler {
 
 
   public loadObjects = async (modelObjects: object[][]) => {
+    // disable section box before unloading to prevent stale geometry references.
+    // it will be re-applied from store after new objects are loaded (see applySectionBox below).
     this.toggleSectionBox(false)
     await this.viewer.unloadAll()
     // const stringifiedObject = JSON.stringify(objects)
