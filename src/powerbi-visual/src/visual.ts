@@ -83,9 +83,7 @@ export class Visual implements IVisual {
       visualStore.setViewerReadyToLoad(false)
     }
 
-    if (visualStore.postFileSaveSkipNeeded) {
-      visualStore.setPostFileSaveSkipNeeded(false)
-      console.log('Skipping unneccessary update function after file save.')
+    const tryUpdateFieldInputState = () => {
       try {
         const matrixView = options.dataViews[0]?.matrix
         if (matrixView) {
@@ -94,20 +92,19 @@ export class Visual implements IVisual {
       } catch (e) {
         console.warn('Failed to update field input state during skip path:', (e as Error).message)
       }
+    }
+
+    if (visualStore.postFileSaveSkipNeeded) {
+      visualStore.setPostFileSaveSkipNeeded(false)
+      console.log('Skipping unneccessary update function after file save.')
+      tryUpdateFieldInputState()
       return
     }
 
     if (visualStore.postClickSkipNeeded) {
       visualStore.setPostClickSkipNeeded(false)
       console.log('Skipping unneccessary update function canvas click.')
-      try {
-        const matrixView = options.dataViews[0]?.matrix
-        if (matrixView) {
-          visualStore.setFieldInputState(validateMatrixView(options))
-        }
-      } catch (e) {
-        console.warn('Failed to update field input state during skip path:', (e as Error).message)
-      }
+      tryUpdateFieldInputState()
       return
     }
 
