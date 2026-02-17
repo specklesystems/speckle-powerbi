@@ -68,14 +68,6 @@ export class Visual implements IVisual {
     this.selectionHandler.clear()
   }
 
-  private resetViewerState() {
-    const visualStore = useVisualStore()
-    visualStore.setViewerReadyToLoad(false)
-    visualStore.clearDataInput()
-    visualStore.lastLoadedRootObjectId = undefined
-    visualStore.isViewerObjectsLoaded = false
-  }
-
   public async update(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
     if (visualStore.commonError) {
@@ -159,7 +151,7 @@ export class Visual implements IVisual {
 
       if (!validationResult.rootObjectId) {
         console.log('🔄 Root object ID removed - resetting viewer state')
-        this.resetViewerState()
+        visualStore.resetViewerState()
         return
       }
 
@@ -353,7 +345,7 @@ export class Visual implements IVisual {
         colorBy: false,
         tooltipData: false
       })
-      this.resetViewerState()
+      visualStore.resetViewerState()
       return
     }
   }
