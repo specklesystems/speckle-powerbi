@@ -195,7 +195,15 @@ async function handleObjectClicked(hit: any, isMultiSelect: boolean, mouseEvent?
     const ids = selection.map((s) => s.id)
     await viewerHandler.selectObjects(ids)
   } else {
-    visualStore.setPostClickSkipNeeded(true)
+    // Only set skip flag if this visual has active selections to clear.
+    // When selectionManager.clear() is called with no active selection,
+    // Power BI won't send a reaction update, so there's nothing to skip.
+    // Setting the flag unconditionally would cause it to eat the NEXT
+    // legitimate Data update (e.g., adding Color By input).
+    const hasActiveSelection = selectionHandler.getCurrentSelection().length > 0
+    if (hasActiveSelection) {
+      visualStore.setPostClickSkipNeeded(true)
+    }
     tooltipHandler.hide()
     if (!isMultiSelect) {
       selectionHandler.clear()
