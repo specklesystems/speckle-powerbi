@@ -3,6 +3,8 @@ import {
   FilteringState,
   CameraController,
   CanonicalView,
+  SectionTool,
+  SectionOutlines,
   ViewModes,
   CameraEvent,
   SpeckleView,
@@ -20,7 +22,7 @@ import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLo
 import { useVisualStore } from '@src/store/visualStore'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { Vector3 } from 'three'
+import { Box3, Vector3 } from 'three'
 
 export interface IViewer {
   /**
@@ -59,6 +61,8 @@ export interface IViewerEvents {
   zoomExtends: () => void
   toggleProjection: () => void
   toggleGhostHidden: (ghost: boolean) => void
+  toggleSectionBox: (enabled: boolean) => void
+  setSectionBoxVisible: (visible: boolean) => void
   loadObjects: (objects: object[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
@@ -75,6 +79,8 @@ export class ViewerHandler {
   public cameraControls: CameraController
   public filtering: FilteringExtension
   public selection: FilteredSelectionExtension
+  public sectionTool: SectionTool
+  public sectionOutlines: SectionOutlines
   private filteringState: FilteringState
 
   constructor() {
@@ -94,6 +100,8 @@ export class ViewerHandler {
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
+    this.emitter.on('toggleSectionBox', this.toggleSectionBox)
+    this.emitter.on('setSectionBoxVisible', this.setSectionBoxVisible)
   }
 
   async init(parent: HTMLElement) {
@@ -101,6 +109,8 @@ export class ViewerHandler {
     this.cameraControls = this.viewer.getExtension(CameraController)
     this.filtering = this.viewer.getExtension(FilteringExtension)
     this.selection = this.viewer.getExtension(FilteredSelectionExtension)
+    this.sectionTool = this.viewer.getExtension(SectionTool)
+    this.sectionOutlines = this.viewer.getExtension(SectionOutlines)
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
@@ -140,9 +150,60 @@ export class ViewerHandler {
     this.snapshotCameraPositionAndStore()
   }
 
-  public setSectionBox = (bboxActive: boolean, objectIds: string[]) => {
-    // TODO
-    return
+  public toggleSectionBox = (enabled: boolean) => {
+    this.setSectionEnabled(enabled)
+    if (enabled) {
+      const sceneBox = this.viewer.getRenderer().sceneBox
+      this.sectionTool.setBox(sceneBox)
+      this.sectionTool.visible = true
+    }
+  }
+
+  public setSectionBoxVisible = (visible: boolean) => {
+    this.sectionTool.visible = visible
+  }
+
+  private setSectionEnabled(enabled: boolean): void {
+    this.sectionTool.enabled = enabled
+    this.sectionOutlines.enabled = enabled
+  }
+
+  public getSectionBoxData = (): string | null => {
+    if (!this.sectionTool.enabled) return null
+    const { center, halfSize } = this.sectionTool.getBox()
+    const min = new Vector3().copy(center).sub(halfSize)
+    const max = new Vector3().copy(center).add(halfSize)
+    return JSON.stringify({ min, max })
+  }
+
+  public applySectionBox = (boxData: string) => {
+    try {
+      const parsed = JSON.parse(boxData)
+
+      // Validate parsed data structure
+      if (!parsed?.min || !parsed?.max) {
+        throw new Error('Invalid section box data: missing min/max properties')
+      }
+
+      const box = new Box3(
+        new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
+        new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
+      )
+
+      this.setSectionEnabled(true)
+      this.sectionTool.setBox(box)
+      this.sectionTool.visible = false
+      this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+      // Force section outlines recomputation after geometry is rendered
+      requestAnimationFrame(() => {
+        this.sectionOutlines.requestUpdate(true)
+        this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+      })
+    } catch (error) {
+      console.error('Failed to apply section box, disabling feature:', error)
+      this.setSectionEnabled(false)
+      // Visual continues loading normally without section box
+    }
   }
 
   public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
@@ -218,6 +279,9 @@ export class ViewerHandler {
 
 
   public loadObjects = async (modelObjects: object[][]) => {
+    // disable section box before unloading to prevent stale geometry references.
+    // it will be re-applied from store after new objects are loaded (see applySectionBox below).
+    this.toggleSectionBox(false)
     await this.viewer.unloadAll()
     // const stringifiedObject = JSON.stringify(objects)
 
@@ -278,6 +342,10 @@ export class ViewerHandler {
         store.cameraPosition[5]
       )
       this.cameraControls.setCameraView({ position, target }, true)
+    }
+
+    if (store.sectionBoxData) {
+      this.applySectionBox(store.sectionBoxData)
     }
 
     // Emit objects loaded event to trigger update
@@ -341,8 +409,8 @@ const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   viewer.createExtension(HybridCameraController) // camera controller
   viewer.createExtension(FilteringExtension) // filtering - must be created before FilteredSelectionExtension
   viewer.createExtension(FilteredSelectionExtension) // filtered selection helper - depends on FilteringExtension
-  // viewer.createExtension(SectionTool) // section tool, possibly not needed for now?
-  // viewer.createExtension(SectionOutlines) // section tool, possibly not needed for now?
+  viewer.createExtension(SectionTool) // section tool
+  viewer.createExtension(SectionOutlines) // section outlines
   // viewer.createExtension(MeasurementsExtension) // measurements, possibly not needed for now?
   viewer.createExtension(ViewModes) // view modes
 

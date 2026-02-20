@@ -30,12 +30,26 @@
         @update:open="(value) => toggleActiveControl(value ? 'camera' : 'none')"
         @view-clicked="(view) => $emit('view-clicked', view)"
       />
+      <!-- Section box -->
+      <div class="relative">
+        <ViewerControlsButtonToggle
+          flat
+          tooltip="Section box"
+          @click="$emit('update:sectionBox')"
+        >
+          <ScissorsIcon class="h-4 w-4 md:h-5 md:w-5" />
+        </ViewerControlsButtonToggle>
+        <span
+          v-if="sectionBox"
+          class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary pointer-events-none"
+        />
+      </div>
     </ViewerControlsButtonGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowsPointingOutIcon } from '@heroicons/vue/24/solid'
+import { ArrowsPointingOutIcon, ScissorsIcon } from '@heroicons/vue/24/solid'
 import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
 import { computed, ref } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
