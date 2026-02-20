@@ -120,6 +120,13 @@
         }
       }
     },
+    "sectionBox": {
+      "properties": {
+        "boxData": {
+          "type": { "text": true }
+        }
+      }
+    },
     "cameraPosition": {
       "properties": {
         "positionX": {
