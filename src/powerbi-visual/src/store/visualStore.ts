@@ -453,6 +453,12 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const clearDataInput = () => (dataInput.value = null)
 
+  const resetViewerState = () => {
+    setViewerReadyToLoad(false)
+    clearDataInput()
+    lastLoadedRootObjectId.value = undefined
+    isViewerObjectsLoaded.value = false
+  }
 
   const setViewerReadyToLoad = (newValue: boolean) => (isViewerReadyToLoad.value = newValue)
 
@@ -673,6 +679,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     setLoadingProgress,
     clearLoadingProgress,
     setIsLoadingFromFile,
+    resetViewerState,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete,

@@ -75,15 +75,28 @@ export class Visual implements IVisual {
       visualStore.setViewerReadyToLoad(false)
     }
 
+    const tryUpdateFieldInputState = () => {
+      try {
+        const matrixView = options.dataViews[0]?.matrix
+        if (matrixView) {
+          visualStore.setFieldInputState(validateMatrixView(options))
+        }
+      } catch (e) {
+        console.warn('Failed to update field input state during skip path:', (e as Error).message)
+      }
+    }
+
     if (visualStore.postFileSaveSkipNeeded) {
       visualStore.setPostFileSaveSkipNeeded(false)
       console.log('Skipping unneccessary update function after file save.')
+      tryUpdateFieldInputState()
       return
     }
 
     if (visualStore.postClickSkipNeeded) {
       visualStore.setPostClickSkipNeeded(false)
       console.log('Skipping unneccessary update function canvas click.')
+      tryUpdateFieldInputState()
       return
     }
 
@@ -135,6 +148,12 @@ export class Visual implements IVisual {
       const validationResult = validateMatrixView(options)
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
+
+      if (!validationResult.rootObjectId) {
+        console.log('🔄 Root object ID removed - resetting viewer state')
+        visualStore.resetViewerState()
+        return
+      }
 
       switch (options.type) {
         case powerbi.VisualUpdateType.Resize:
@@ -318,6 +337,7 @@ export class Visual implements IVisual {
         colorBy: false,
         tooltipData: false
       })
+      visualStore.resetViewerState()
       return
     }
   }
