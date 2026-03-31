@@ -33,7 +33,8 @@
             powerfulToken,
             {"profile:read", "streams:read", "users:read"},
             parsedUrl[projectId],
-            parsedUrl[baseUrl]
+            parsedUrl[baseUrl],
+            parsedUrl[resourceIdString]
         ),
 
         // throw error if token exchange failed - do NOT use powerful token as fallback

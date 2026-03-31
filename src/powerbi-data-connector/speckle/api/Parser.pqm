@@ -54,5 +54,6 @@
                 modelId = if isFederated then null else processedModels{0}[modelId],
                 versionId = if isFederated then null else processedModels{0}[versionId],
                 isFederated = isFederated,
-                federatedModels = if isFederated then processedModels else null
+                federatedModels = if isFederated then processedModels else null,
+                resourceIdString = rawModelSegment
             ]
