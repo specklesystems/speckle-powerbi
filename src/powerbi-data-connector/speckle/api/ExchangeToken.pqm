@@ -1,9 +1,6 @@
 // Function to exchange powerful token for weak limited token
 (powerfulToken as text, scopes as list, projectId as text, serverUrl as text, optional resourceIdString as text) as record =>
     let
-        // Import the parser function for URL handling
-        Parser = Extension.LoadFunction("Parser.pqm"),
-
         // Helper function to load .pqm modules dynamically
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -39,42 +36,41 @@
         else
             serverUrl & "/",
 
-        // New token exchange mutation
-        NewGraphQLMutation = if resourceIdString <> null then "
-            mutation {
-                sharingMutations {
-                    createEmbedShareToken(input: {
-                        projectId: """ & projectId & """,
-                        resourceIdString: """ & resourceIdString & """
-                    }) {
-                        token
-                    }
+        // New Share Token API mutation with variables
+        NewGraphQLQuery = "mutation CreateEmbedShareToken($input: CreateEmbedShareTokenInput!) {
+            sharingMutations {
+                createEmbedShareToken(input: $input) {
+                    token
                 }
-            }"
-        else null,
+            }
+        }",
+        NewGraphQLVariables = [
+            input = [
+                projectId = projectId,
+                resourceIdString = resourceIdString
+            ]
+        ],
 
-        // Legacy token creation mutation
+        // Legacy apiTokenCreate mutation with variables
         TokenLifespanMs = 10 * 365 * 24 * 3600 * 1000,
         TokenName = "Limited Power BI Visual Token - " & DateTime.ToText(DateTime.LocalNow(), "yyyy-MM-dd HH:mm"),
-        ScopesArray = Text.Combine(
-            List.Transform(scopes, each """" & _ & """"),
-            ", "
-        ),
-        LegacyGraphQLMutation = "
-            mutation {
-                apiTokenCreate(token: {
-                    name: """ & TokenName & """,
-                    scopes: [" & ScopesArray & "],
-                    lifespan: " & Number.ToText(TokenLifespanMs) & ",
-                    limitResources: [{
-                        type: project,
-                        id: """ & projectId & """
-                    }]
-                })
-            }",
+        LegacyGraphQLQuery = "mutation CreateApiToken($token: ApiTokenCreateInput!) {
+            apiTokenCreate(token: $token)
+        }",
+        LegacyGraphQLVariables = [
+            token = [
+                name = TokenName,
+                scopes = scopes,
+                lifespan = TokenLifespanMs,
+                limitResources = {[
+                    type = "project",
+                    id = projectId
+                ]}
+            ]
+        ],
 
-        // Helper for execution
-        ExecuteGraphQL = (mutation as text, extractToken as function) =>
+        // Helper: execute a GraphQL query with variables and extract token
+        ExecuteGraphQL = (query as text, variables as record, extractToken as function) =>
             let
                 Response = Web.Contents(
                     NormalizedServerUrl & "graphql",
@@ -84,7 +80,10 @@
                             #"Content-Type" = "application/json",
                             #"Authorization" = "Bearer " & powerfulToken
                         ],
-                        Content = Json.FromValue([query = mutation]),
+                        Content = Json.FromValue([
+                            query = query,
+                            variables = variables
+                        ]),
                         ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
                         Timeout = #duration(0, 0, 0, 10)
                     ]
@@ -113,9 +112,10 @@
             [Success = false, Token = null, ErrorMessage = ValidationError]
         else
             let
-                newResult = if NewGraphQLMutation <> null then
+                newResult = if resourceIdString <> null then
                     try ExecuteGraphQL(
-                        NewGraphQLMutation,
+                        NewGraphQLQuery,
+                        NewGraphQLVariables,
                         each [data][sharingMutations][createEmbedShareToken][token]
                     ) otherwise [Success = false, Token = null, ErrorMessage = "New API request failed"]
                 else
@@ -125,7 +125,8 @@
                     newResult
                 else
                     try ExecuteGraphQL(
-                        LegacyGraphQLMutation,
+                        LegacyGraphQLQuery,
+                        LegacyGraphQLVariables,
                         each [data][apiTokenCreate]
                     ) otherwise [Success = false, Token = null, ErrorMessage = "Token exchange request failed"]
             in
