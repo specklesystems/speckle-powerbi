@@ -71,7 +71,7 @@ GeneratePKCEVerifier = () =>
 GeneratePKCEChallenge = (verifier as text) =>
     let
         // Create SHA256 hash of the verifier as required by RFC 7636
-        hash = Crypto.CreateHash(CryptoAlgorithm.SHA256, Text.ToBinary(verifier, TextEncoding.Ascii)),
+        hash = Crypto.CreateHash(CryptoAlgorithm.SHA256, Text.ToBinary(verifier, TextEncoding.Utf8)),
         // Convert to base64url encoding
         challenge = Base64UrlEncode(hash)
     in
@@ -284,9 +284,8 @@ Speckle = [
                             "?code_challenge_method=S256" &
                             "&pbiNew=true"
                     else
-                        Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
-                            "?code_challenge=" & codeChallenge &
-                            "&code_challenge_method=S256"
+                        // Legacy
+                        Text.Combine({server, "authn", "verify", AuthAppId, codeVerifier}, "/")
                 in
                     [
                         LoginUri = authUrl,
@@ -318,16 +317,17 @@ Speckle = [
                             ]
                         )
                     else
+                        // Legacy
                         Web.Contents(
                             Text.Combine({server, "auth", "token"}, "/"),
                             [
                                 Headers = [#"Content-Type" = "application/json"],
                                 Content = Json.FromValue([
-                                    accessCode = Parts[access_code],
                                     appId = AuthAppId,
                                     appSecret = AuthAppSecret,
-                                    challenge = state
-                                ] & (if codeVerifier <> null then [code_verifier = codeVerifier] else []))
+                                    accessCode = Parts[access_code],
+                                    challenge = codeVerifier
+                                ])
                             ]
                         ),
                     json = Json.Document(Source)
