@@ -311,7 +311,6 @@ Speckle = [
                                 Content = Json.FromValue([
                                     appId = AuthAppId,
                                     accessCode = Parts[access_code],
-                                    appSecret = AuthAppSecret,
                                     codeVerifier = codeVerifier
                                 ])
                             ]
