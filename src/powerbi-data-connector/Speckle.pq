@@ -272,17 +272,28 @@ Speckle = [
                     // Generate PKCE parameters for enhanced security
                     codeVerifier = GeneratePKCEVerifier(),
                     codeChallenge = GeneratePKCEChallenge(codeVerifier),
-                    // Build authorization URL with PKCE parameters
-                    authUrl = Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
-                        "?code_challenge=" & codeChallenge &
-                        "&code_challenge_method=S256"
+                    // Detect if server supports /oauth/token
+                    oauthCheck = try Web.Contents(
+                        Text.Combine({server, "oauth", "token"}, "/"),
+                        [ManualStatusHandling = {400, 401, 403, 404, 405, 500}]
+                    ) otherwise null,
+                    useNewOAuth = oauthCheck <> null and Value.Metadata(oauthCheck)[Response.Status] = 200,
+                    // Build auth URL based on server capabilities
+                    authUrl = if useNewOAuth then
+                        Text.Combine({server, "authn", "verify", AuthAppId, codeChallenge}, "/") &
+                            "?code_challenge_method=S256" &
+                            "&pbiNew=true"
+                    else
+                        Text.Combine({server, "authn", "verify", AuthAppId, state}, "/") &
+                            "?code_challenge=" & codeChallenge &
+                            "&code_challenge_method=S256"
                 in
                     [
                         LoginUri = authUrl,
                         CallbackUri = "https://oauth.powerbi.com/views/oauthredirect.html",
                         WindowHeight = 800,
                         WindowWidth = 600,
-                        Context = [code_verifier = codeVerifier]
+                        Context = [code_verifier = codeVerifier, use_new_oauth = useNewOAuth]
                     ],
             FinishLogin = (clientApplication, dataSourcePath, context, callbackUri, state) =>
                 let
@@ -290,24 +301,35 @@ Speckle = [
                         {Uri.Parts(dataSourcePath)[Scheme], "://", Uri.Parts(dataSourcePath)[Host]}
                     ),
                     Parts = Uri.Parts(callbackUri)[Query],
-                    // Extract code verifier from context for PKCE
                     codeVerifier = if context <> null then context[code_verifier] else null,
-                    // Build token request with PKCE parameters
-                    tokenRequest = [
-                        accessCode = Parts[access_code],
-                        appId = AuthAppId,
-                        appSecret = AuthAppSecret,
-                        challenge = state
-                    ] & (if codeVerifier <> null then [code_verifier = codeVerifier] else []),
-                    Source = Web.Contents(
-                        Text.Combine({server, "auth", "token"}, "/"),
-                        [
-                            Headers = [
-                                #"Content-Type" = "application/json"
-                            ],
-                            Content = Json.FromValue(tokenRequest)
-                        ]
-                    ),
+                    useNewOAuth = if context <> null and Record.HasFields(context, "use_new_oauth") then context[use_new_oauth] else false,
+                    // Single token exchange call based on server capability
+                    Source = if useNewOAuth then
+                        Web.Contents(
+                            Text.Combine({server, "oauth", "token"}, "/"),
+                            [
+                                Headers = [#"Content-Type" = "application/json"],
+                                Content = Json.FromValue([
+                                    appId = AuthAppId,
+                                    accessCode = Parts[access_code],
+                                    appSecret = AuthAppSecret,
+                                    codeVerifier = codeVerifier
+                                ])
+                            ]
+                        )
+                    else
+                        Web.Contents(
+                            Text.Combine({server, "auth", "token"}, "/"),
+                            [
+                                Headers = [#"Content-Type" = "application/json"],
+                                Content = Json.FromValue([
+                                    accessCode = Parts[access_code],
+                                    appId = AuthAppId,
+                                    appSecret = AuthAppSecret,
+                                    challenge = state
+                                ] & (if codeVerifier <> null then [code_verifier = codeVerifier] else []))
+                            ]
+                        ),
                     json = Json.Document(Source)
                 in
                     [
