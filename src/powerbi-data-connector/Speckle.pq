@@ -221,7 +221,11 @@ shared Speckle.GetByUrl = Value.ReplaceType(
             - Model URL: Gets the latest version of the specified model#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
             - Version URL: Gets a specific version from the project#(lf)
-              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')"
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')#(lf)
+            - Federated Model URL: Gets multiple models from the project#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2')#(lf)
+            - Project-Wide Model Load URL: Resolves the project's flat model collection during refresh#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/all')"
     ]
 );
 

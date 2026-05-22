@@ -14,6 +14,9 @@
         rawModelSegment = if List.Count(pathSegments) >= 4 and pathSegments{2} = "models"
             then pathSegments{3} else "",
             
+        // project-wide model load is a syntactic URL convention only
+        isProjectWideModelLoad = rawModelSegment = "all",
+
         // check if this is a federated model (contains commas)
         isFederated = Text.Contains(rawModelSegment, ","),
         
@@ -45,7 +48,7 @@
         if not isValid then
             error [
                 Reason = "Invalid URL",
-                Message = "The URL must be in the format 'https://server/projects/PROJECT_ID/models/MODEL_ID' or 'https://server/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID' or 'https://server/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2'"
+                Message = "The URL must be in the format 'https://server/projects/PROJECT_ID/models/MODEL_ID', 'https://server/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID', 'https://server/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2', or 'https://server/projects/PROJECT_ID/models/all'"
             ]
         else
             [
@@ -54,6 +57,7 @@
                 modelId = if isFederated then null else processedModels{0}[modelId],
                 versionId = if isFederated then null else processedModels{0}[versionId],
                 isFederated = isFederated,
+                isProjectWideModelLoad = isProjectWideModelLoad,
                 federatedModels = if isFederated then processedModels else null,
                 resourceIdString = rawModelSegment
             ]

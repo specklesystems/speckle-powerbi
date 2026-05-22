@@ -15,6 +15,7 @@
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
         GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
         MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
+        ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
 
         // the logic for importing functions from other files
         Extension.LoadFunction = (fileName as text) =>
@@ -33,11 +34,51 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        // parse the URL to determine if it's a federated model
+        ProjectWideModelLimit = 10000,
+
+        // parse the URL to determine load shape
         parsedUrl = Parser(url),
 
+        // project-wide model load is expanded before token exchange and loading
+        projectWideModelIds = if parsedUrl[isProjectWideModelLoad] then
+            ProjectModels(parsedUrl[baseUrl], parsedUrl[projectId], ProjectWideModelLimit)
+        else
+            null,
+
+        expandedResourceIdString = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine(projectWideModelIds, ",")
+        else
+            parsedUrl[resourceIdString],
+
+        effectiveUrl = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine({
+                parsedUrl[baseUrl],
+                "/projects/",
+                parsedUrl[projectId],
+                "/models/",
+                expandedResourceIdString
+            })
+        else
+            url,
+
+        effectiveParsedUrl = if parsedUrl[isProjectWideModelLoad] and expandedResourceIdString = "" then
+            [
+                baseUrl = parsedUrl[baseUrl],
+                projectId = parsedUrl[projectId],
+                modelId = "",
+                versionId = null,
+                isFederated = false,
+                isProjectWideModelLoad = false,
+                federatedModels = null,
+                resourceIdString = expandedResourceIdString
+            ]
+        else
+            Parser(effectiveUrl),
+
+        metadataUrl = if parsedUrl[isProjectWideModelLoad] then url else effectiveUrl,
+
         // check if user has permission to load the model
-        permissionCheck = CheckPermissions(url),
+        permissionCheck = CheckPermissions(metadataUrl),
 
         // assert that permission check returned a valid result
         permissionAssert = if not Record.HasFields(permissionCheck, {"authorized", "code", "message"}) then
@@ -55,19 +96,19 @@
             null,
 
         // get user info, connector version, and workspace info for encoding
-        userInfo = GetUser(url),
+        userInfo = GetUser(metadataUrl),
         powerfulToken = userInfo[Token],
         userEmail = userInfo[UserEmail],
         connectorVersion = GetVersion(),
-        workspaceInfo = GetWorkspace(url),
+        workspaceInfo = GetWorkspace(metadataUrl),
 
         // exchange powerful token for weak token with limited scopes
         tokenExchangeResult = ExchangeToken(
             powerfulToken,
             {"profile:read", "streams:read", "users:read"},
-            parsedUrl[projectId],
-            parsedUrl[baseUrl],
-            parsedUrl[resourceIdString]
+            effectiveParsedUrl[projectId],
+            effectiveParsedUrl[baseUrl],
+            effectiveParsedUrl[resourceIdString]
         ),
 
         // throw error if token exchange failed - do NOT use powerful token as fallback
@@ -80,21 +121,21 @@
                 Message.Parameters = {tokenExchangeResult[ErrorMessage]},
                 Detail = [
                     ErrorMessage = tokenExchangeResult[ErrorMessage],
-                    ProjectId = parsedUrl[projectId],
-                    ServerUrl = parsedUrl[baseUrl]
+                    ProjectId = effectiveParsedUrl[projectId],
+                    ServerUrl = effectiveParsedUrl[baseUrl]
                 ]
             ],
             
         // only proceed if user has permisson to load
         results = if permissionCheck[authorized] then
-            if parsedUrl[isFederated] = true then
+            if effectiveParsedUrl[isFederated] = true then
                 // process each model in the federation
                 let
                     modelsData = List.Transform(
-                        parsedUrl[federatedModels],
+                        effectiveParsedUrl[federatedModels],
                         each ProcessSingleModel(
-                            parsedUrl[baseUrl],
-                            parsedUrl[projectId],
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
                             [modelId],
                             [versionId]
                         )
@@ -142,24 +183,24 @@
                 // use existing functionality for single models
                 let
                     // get model info
-                    modelInfo = GetModel(url),
+                    modelInfo = GetModel(effectiveUrl),
                     modelName = modelInfo[modelName],
                     rootObjectId = modelInfo[rootObjectId],
                     sourceApplication = modelInfo[sourceApplication],
                     versionId = modelInfo[versionId],
 
                     // mark version as received
-                    markReceivedResult = MarkReceived(powerfulToken, versionId, parsedUrl[projectId], parsedUrl[baseUrl]),
+                    markReceivedResult = MarkReceived(powerfulToken, versionId, effectiveParsedUrl[projectId], effectiveParsedUrl[baseUrl]),
 
                     // get structured data
-                    structuredData = GetStructuredData(url),
+                    structuredData = GetStructuredData(effectiveUrl),
 
                     // build userInfoData record for this model
                     userInfoData = [
                         rootObjectId = rootObjectId,
-                        server = parsedUrl[baseUrl],
+                        server = effectiveParsedUrl[baseUrl],
                         email = userEmail,
-                        projectId = parsedUrl[projectId],
+                        projectId = effectiveParsedUrl[projectId],
                         token = tokenToUse,
                         workspaceId = workspaceInfo[workspaceId],
                         workspaceName = workspaceInfo[workspaceName],
@@ -168,7 +209,7 @@
                         sourceApplication = sourceApplication,
                         canHideBranding = workspaceInfo[canHideBranding],
                         versionId = versionId,
-                        url = url
+                        url = effectiveUrl
                     ],
 
                     // try to send to desktop service for backward compatibility (non-blocking)
