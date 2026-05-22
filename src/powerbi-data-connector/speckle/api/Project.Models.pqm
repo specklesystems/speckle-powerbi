@@ -1,8 +1,6 @@
 // Function for resolving a project's flat model collection to model IDs
 (server as text, projectId as text, limit as number) as list =>
     let
-        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
-
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName),
@@ -18,6 +16,8 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
+
+        ApiFetch = Extension.LoadFunction("Api.Fetch.pqm"),
 
         query = "query ProjectModels($projectId: String!, $limit: Int!) {
             project(id: $projectId) {
