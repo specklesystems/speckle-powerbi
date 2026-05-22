@@ -61,19 +61,7 @@
         else
             url,
 
-        effectiveParsedUrl = if parsedUrl[isProjectWideModelLoad] and expandedResourceIdString = "" then
-            [
-                baseUrl = parsedUrl[baseUrl],
-                projectId = parsedUrl[projectId],
-                modelId = "",
-                versionId = null,
-                isFederated = false,
-                isProjectWideModelLoad = false,
-                federatedModels = null,
-                resourceIdString = expandedResourceIdString
-            ]
-        else
-            Parser(effectiveUrl),
+        effectiveParsedUrl = Parser(effectiveUrl),
 
         metadataUrl = if parsedUrl[isProjectWideModelLoad] then url else effectiveUrl,
 
