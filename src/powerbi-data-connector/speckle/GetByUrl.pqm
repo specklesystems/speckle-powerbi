@@ -39,14 +39,8 @@
         // parse the URL to determine load shape
         parsedUrl = Parser(url),
 
-        // project-wide model load is expanded before token exchange and loading
-        projectWideModelIds = if parsedUrl[isProjectWideModelLoad] then
-            ProjectModels(parsedUrl[baseUrl], parsedUrl[projectId], ProjectWideModelLimit)
-        else
-            null,
-
         expandedResourceIdString = if parsedUrl[isProjectWideModelLoad] then
-            Text.Combine(projectWideModelIds, ",")
+            Text.Combine(ProjectModels(parsedUrl[baseUrl], parsedUrl[projectId], ProjectWideModelLimit), ",")
         else
             parsedUrl[resourceIdString],
 
