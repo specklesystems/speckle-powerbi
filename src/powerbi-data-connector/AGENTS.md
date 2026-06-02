@@ -22,8 +22,10 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 - **speckle/api/** - Core modules:
   - `Api.Fetch.pqm` - GraphQL client with error handling
   - `Parser.pqm` - URL parsing and federated model detection
-  - `SendToServer.pqm` - Desktop Service communication on port `29364`
-  - `GetStructuredData.pqm` - Data pipeline that filters `DataChunk`/`RawEncoding` and prioritizes `DataObjects`
+  - `FetchEavParquet.pqm` - Fetches structured EAV data from `/api/v1/projects/{projectId}/models/{modelId}/versions/{versionId}/eav/query` as parquet
+  - `DecodeEavObjects.pqm` - Reconstructs object records from EAV parquet rows
+  - `GetStructuredData.pqm` - Data pipeline that fetches EAV parquet, decodes object data, filters `DataChunk`/`RawEncoding`, and prioritizes `DataObjects`
+  - `SendToServer.pqm` - Legacy Desktop Service helper; structured data no longer depends on it
   - `CheckPermissions.pqm` - Authorization validation
   - `Models.Federate.pqm` - Multi-model federation
   - `Objects.Properties.pqm`, `Objects.Collections.pqm` - Object processing
@@ -32,11 +34,14 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 
 1. `Parser.pqm` parses the URL into a single model or federation.
 2. `CheckPermissions.pqm` validates access.
-3. `SendToServer.pqm` retrieves data via Speckle Desktop Service.
-4. `GetStructuredData.pqm` processes and structures output.
-5. `Models.Federate.pqm` combines tables for federated models.
+3. `GetModel.pqm` resolves the model/version metadata and root object ID.
+4. `GetStructuredData.pqm` calls `FetchEavParquet.pqm` to download parquet from `/eav/query`.
+5. `DecodeEavObjects.pqm` rebuilds nested object records from EAV paths and values.
+6. `GetStructuredData.pqm` filters transport/internal rows and returns the structured table.
+7. `Models.Federate.pqm` combines tables for federated models.
+8. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
 
 ## Gotchas
 
 - **Restart required**: Restart Power BI Desktop after `.mez` changes to reload the connector.
-- **Critical runtime dependency**: Speckle Desktop Service must be running on port `29364` for the data connector to function.
+- **Desktop Service is optional for structured data**: The connector fetches object data directly from Speckle's EAV parquet endpoint. Desktop Service on port `29364` is used only for best-effort legacy user-info handoff.

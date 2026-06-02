@@ -9,7 +9,7 @@ Speckle Power BI integration with two independent components.
 
 ## Quick Reference
 
-**Data Connector**: M language connector, build with `msbuild`, requires Speckle Desktop Service on port `29364`.
+**Data Connector**: M language connector, build with `msbuild`. Structured data is fetched from Speckle's `/eav/query` endpoint as parquet and decoded in Power Query; Desktop Service is only used for best-effort backward-compatible user-info handoff on port `29364`.
 
 **3D Visual**: Vue 3 + TypeScript, run `npm run dev` for development.
 
