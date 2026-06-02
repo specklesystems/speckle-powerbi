@@ -57,24 +57,81 @@
             type any
         ),
 
-        RowsToRecord = (rows as table, optional pathPrefix as nullable text, optional stripPrefix as nullable logical) as record =>
+        IsListIndex = (segment as text) as logical =>
             let
-                prefix = if pathPrefix = null then null else pathPrefix,
-                shouldStripPrefix = if stripPrefix = null then false else stripPrefix,
-                filteredRows = if prefix = null then
-                    rows
+                parsed = try Number.FromText(segment) otherwise null
+            in
+                parsed <> null and parsed >= 0 and Number.RoundDown(parsed) = parsed,
+
+        BuildNestedValue = (parts as list, value as any) as any =>
+            if List.Count(parts) = 0 then
+                value
+            else
+                let
+                    segment = parts{0},
+                    rest = List.Skip(parts, 1),
+                    child = @BuildNestedValue(rest, value),
+                    result = if IsListIndex(segment) then
+                        let
+                            index = Number.RoundDown(Number.FromText(segment))
+                        in
+                            List.Transform(
+                                {0..index},
+                                each if _ = index then child else null
+                            )
+                    else
+                        Record.AddField([], segment, child)
+                in
+                    result,
+
+        MergeNestedValues = (existing as any, incoming as any) as any =>
+            let
+                result = if Value.Is(existing, type record) and Value.Is(incoming, type record) then
+                    List.Accumulate(
+                        Record.FieldNames(incoming),
+                        existing,
+                        (state, field) =>
+                            let
+                                incomingField = Record.Field(incoming, field),
+                                existingField = if Record.HasFields(state, {field}) then
+                                    Record.Field(state, field)
+                                else
+                                    null,
+                                mergedField = @MergeNestedValues(existingField, incomingField)
+                            in
+                                if Record.HasFields(state, {field}) then
+                                    Record.TransformFields(state, {{field, each mergedField}})
+                                else
+                                    Record.AddField(state, field, mergedField)
+                    )
+                else if Value.Is(existing, type list) and Value.Is(incoming, type list) then
+                    let
+                        existingCount = List.Count(existing),
+                        incomingCount = List.Count(incoming),
+                        maxCount = List.Max({existingCount, incomingCount}),
+                        positions = if maxCount = 0 then {} else {0..(maxCount - 1)}
+                    in
+                        List.Transform(
+                            positions,
+                            each @MergeNestedValues(
+                                if _ < existingCount then existing{_} else null,
+                                if _ < incomingCount then incoming{_} else null
+                            )
+                        )
+                else if existing = null then
+                    incoming
                 else
-                    Table.SelectRows(
-                        rows,
-                        each [path] <> null and Text.StartsWith(Text.From([path]), prefix)
-                    ),
+                    existing
+            in
+                result,
+
+        RowsToRecord = (rows as table) as record =>
+            let
                 withNames = Table.AddColumn(
-                    filteredRows,
+                    rows,
                     "Name",
                     each if [path] = null then
                         null
-                    else if prefix <> null and shouldStripPrefix then
-                        Text.Range(Text.From([path]), Text.Length(prefix))
                     else
                         Text.From([path]),
                     type text
@@ -88,10 +145,18 @@
                     {"Name"},
                     {{"Value", each List.First(List.RemoveNulls([Value]) & {null}), type any}}
                 ),
-                result = if Table.RowCount(firstValueByName) = 0 then
-                    []
-                else
-                    Record.FromTable(firstValueByName)
+                result = List.Accumulate(
+                    Table.ToRecords(firstValueByName),
+                    [],
+                    (state, row) =>
+                        let
+                            path = Record.Field(row, "Name"),
+                            parts = List.Select(Text.Split(path, "."), each _ <> ""),
+                            nested = BuildNestedValue(parts, Record.Field(row, "Value")),
+                            merged = MergeNestedValues(state, nested)
+                        in
+                            if Value.Is(merged, type record) then merged else state
+                )
             in
                 result,
 
@@ -109,10 +174,8 @@
                 let
                     objectId = Record.FieldOrDefault(_, "object_id", null),
                     rows = Record.FieldOrDefault(_, "Rows", #table({}, {})),
-                    dataRecord = RowsToRecord(rows, null, false),
-                    cleanedRecord = Record.RemoveFields(dataRecord, FieldsToRemove, MissingField.Ignore),
-                    propertiesRecord = RowsToRecord(rows, "properties.", true),
-                    hasProperties = Record.FieldCount(propertiesRecord) > 0
+                    dataRecord = RowsToRecord(rows),
+                    cleanedRecord = Record.RemoveFields(dataRecord, FieldsToRemove, MissingField.Ignore)
                 in
                     [
                         #"Object IDs" = objectId,
@@ -120,8 +183,7 @@
                         #"Version Object ID" = rootId,
                         #"Model Info" = rootId,
                         #"Application ID" = Record.FieldOrDefault(dataRecord, "applicationId", null),
-                        data = cleanedRecord,
-                        properties = if hasProperties then propertiesRecord else null
+                        data = cleanedRecord
                     ]
         ),
 
@@ -133,8 +195,7 @@
                 #"Version Object ID" = nullable text,
                 #"Model Info" = nullable text,
                 #"Application ID" = nullable text,
-                data = record,
-                properties = nullable record
+                data = record
             ]
         ),
 
@@ -156,13 +217,32 @@
             )
         ) > 0,
 
+        ObjectsProperties = if HasDataObjects then Extension.LoadFunction("Objects.Properties.pqm") else null,
+
+        FinalTable = if HasDataObjects then
+            Table.AddColumn(
+                BasicTable,
+                "properties",
+                each let
+                    dataRecord = [data],
+                    isDataObject = Text.Contains(SafeText(Record.FieldOrDefault(dataRecord, "speckle_type", "")), "DataObject"),
+                    extractedProperties = if isDataObject then
+                        try ObjectsProperties(dataRecord) otherwise []
+                    else
+                        []
+                in
+                    if Record.FieldCount(extractedProperties) > 0 then extractedProperties else null
+            )
+        else
+            BasicTable,
+
         FilteredTable = if HasDataObjects then
             Table.SelectRows(
-                BasicTable,
+                FinalTable,
                 each Text.Contains(SafeText(Record.FieldOrDefault(_, "Speckle Type", "")), "DataObject")
                      and not ShouldExcludeRow(_)
             )
         else
-            Table.SelectRows(BasicTable, each not ShouldExcludeRow(_))
+            Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
     in
         FilteredTable
