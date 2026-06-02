@@ -1,61 +1,13 @@
-(url as text) as table =>
+(baseUrl as text, projectId as text, modelId as text, versionId as text, token as text) as table =>
     let
-        GetModel = Extension.LoadFunction("GetModel.pqm"),
-        Parser = Extension.LoadFunction("Parser.pqm"),
-        GetUser = Extension.LoadFunction("GetUser.pqm"),
-        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
-
-        Extension.LoadFunction = (fileName as text) =>
-            let
-                binary = Extension.Contents(fileName),
-                asText = Text.FromBinary(binary)
-            in
-                try
-                    Expression.Evaluate(asText, #shared)
-                catch (e) =>
-                    error
-                        [
-                            Reason = "Extension.LoadFunction Failure",
-                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
-                            Message.Parameters = {fileName, e[Reason], e[Message]},
-                            Detail = [File = fileName, Error = e]
-                        ],
-
-        modelInfo = GetModel(url),
-        parsedUrl = Parser(url),
-        userInfo = GetUser(url),
-        powerfulToken = userInfo[Token],
-
-        tokenExchangeResult = ExchangeToken(
-            powerfulToken,
-            {"profile:read", "streams:read", "users:read"},
-            parsedUrl[projectId],
-            parsedUrl[baseUrl],
-            parsedUrl[resourceIdString]
-        ),
-
-        tokenToUse = if tokenExchangeResult[Success] then
-            tokenExchangeResult[Token]
-        else
-            error [
-                Reason = "TokenExchangeFailed",
-                Message.Format = "Failed to exchange token for limited scope token: #{0}",
-                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
-                Detail = [
-                    ErrorMessage = tokenExchangeResult[ErrorMessage],
-                    ProjectId = parsedUrl[projectId],
-                    ServerUrl = parsedUrl[baseUrl]
-                ]
-            ],
-
         eavUrl = Text.Combine({
-            parsedUrl[baseUrl],
+            baseUrl,
             "/api/v1/projects/",
-            parsedUrl[projectId],
+            projectId,
             "/models/",
-            modelInfo[modelId],
+            modelId,
             "/versions/",
-            modelInfo[versionId],
+            versionId,
             "/eav/query"
         }),
 
@@ -63,7 +15,7 @@
             eavUrl,
             [
                 Headers = [
-                    #"Authorization" = "Bearer " & tokenToUse,
+                    #"Authorization" = "Bearer " & token,
                     #"Content-Type" = "application/json",
                     #"Accept" = "application/vnd.apache.parquet"
                 ],
@@ -84,9 +36,9 @@
                     Message.Parameters = {e[Message]},
                     Detail = [
                         EavUrl = eavUrl,
-                        ProjectId = parsedUrl[projectId],
-                        ModelId = modelInfo[modelId],
-                        VersionId = modelInfo[versionId],
+                        ProjectId = projectId,
+                        ModelId = modelId,
+                        VersionId = versionId,
                         Error = e
                     ]
                 ]
@@ -102,9 +54,9 @@
                         StatusCode = StatusCode,
                         Response = ResponseText,
                         EavUrl = eavUrl,
-                        ProjectId = parsedUrl[projectId],
-                        ModelId = modelInfo[modelId],
-                        VersionId = modelInfo[versionId]
+                        ProjectId = projectId,
+                        ModelId = modelId,
+                        VersionId = versionId
                     ]
                 ]
     in

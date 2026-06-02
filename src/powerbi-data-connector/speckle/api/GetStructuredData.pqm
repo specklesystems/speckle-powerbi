@@ -1,7 +1,6 @@
 // function for getting structured object data
-(url as text) as table =>
+(context as record) as table =>
     let
-        GetModel = Extension.LoadFunction("GetModel.pqm"),
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
         DecodeEavObjects = Extension.LoadFunction("DecodeEavObjects.pqm"),
 
@@ -21,10 +20,15 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        modelInfo = GetModel(url),
-        rootId = modelInfo[rootObjectId],
+        rootId = context[rootObjectId],
 
-        EavTable = FetchEavParquet(url),
+        EavTable = FetchEavParquet(
+            context[baseUrl],
+            context[projectId],
+            context[modelId],
+            context[versionId],
+            context[token]
+        ),
         DecodedObjects = DecodeEavObjects(EavTable),
 
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
