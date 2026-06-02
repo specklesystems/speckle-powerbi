@@ -174,17 +174,15 @@
                     // mark version as received
                     markReceivedResult = MarkReceived(powerfulToken, versionId, effectiveParsedUrl[projectId], effectiveParsedUrl[baseUrl]),
 
-                    structuredDataContext = [
-                        baseUrl = effectiveParsedUrl[baseUrl],
-                        projectId = effectiveParsedUrl[projectId],
-                        modelId = modelInfo[modelId],
-                        versionId = versionId,
-                        rootObjectId = rootObjectId,
-                        token = tokenToUse
-                    ],
-
                     // get structured data
-                    structuredData = GetStructuredData(structuredDataContext),
+                    structuredData = GetStructuredData(
+                        effectiveParsedUrl[baseUrl],
+                        effectiveParsedUrl[projectId],
+                        modelInfo[modelId],
+                        versionId,
+                        rootObjectId,
+                        tokenToUse
+                    ),
 
                     // build userInfoData record for this model
                     userInfoData = [
@@ -282,17 +280,15 @@
                 // mark version as received (non-blocking, best-effort)
                 markReceivedResult = MarkReceived(powerfulToken, federatedVersionId, projectId, baseUrl),
 
-                structuredDataContext = [
-                    baseUrl = baseUrl,
-                    projectId = projectId,
-                    modelId = modelInfo[modelId],
-                    versionId = federatedVersionId,
-                    rootObjectId = rootObjectId,
-                    token = tokenToUse
-                ],
-
                 // get structured data
-                structuredData = GetStructuredData(structuredDataContext),
+                structuredData = GetStructuredData(
+                    baseUrl,
+                    projectId,
+                    modelInfo[modelId],
+                    federatedVersionId,
+                    rootObjectId,
+                    tokenToUse
+                ),
 
                 // build userInfoData record for this model
                 userInfoData = [

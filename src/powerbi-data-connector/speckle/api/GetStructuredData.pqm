@@ -1,5 +1,12 @@
 // function for getting structured object data
-(context as record) as table =>
+(
+    baseUrl as text,
+    projectId as text,
+    modelId as text,
+    versionId as text,
+    rootObjectId as text,
+    token as text
+) as table =>
     let
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
         DecodeEavObjects = Extension.LoadFunction("DecodeEavObjects.pqm"),
@@ -20,14 +27,12 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        rootId = context[rootObjectId],
-
         EavTable = FetchEavParquet(
-            context[baseUrl],
-            context[projectId],
-            context[modelId],
-            context[versionId],
-            context[token]
+            baseUrl,
+            projectId,
+            modelId,
+            versionId,
+            token
         ),
         DecodedObjects = DecodeEavObjects(EavTable),
 
@@ -44,8 +49,8 @@
                     [
                         #"Object IDs" = objectId,
                         #"Speckle Type" = Record.FieldOrDefault(dataRecord, "speckle_type", null),
-                        #"Version Object ID" = rootId,
-                        #"Model Info" = rootId,
+                        #"Version Object ID" = rootObjectId,
+                        #"Model Info" = rootObjectId,
                         #"Application ID" = Record.FieldOrDefault(dataRecord, "applicationId", null),
                         data = cleanedRecord
                     ]
