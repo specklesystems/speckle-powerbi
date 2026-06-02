@@ -1,0 +1,161 @@
+(eavTable as table) as table =>
+    let
+        RequiredColumns = Table.SelectColumns(
+            eavTable,
+            {"object_id", "path", "value_text", "value_num", "type", "units", "internal_definition_name"},
+            MissingField.UseNull
+        ),
+
+        NormalizeValue = (row as record) as any =>
+            let
+                rowType = Text.Lower(Text.From(Record.FieldOrDefault(row, "type", ""))),
+                valueText = Record.FieldOrDefault(row, "value_text", null),
+                valueNum = Record.FieldOrDefault(row, "value_num", null),
+                normalized = if rowType = "number" and valueNum <> null then
+                    valueNum
+                else if rowType = "boolean" or rowType = "bool" then
+                    if valueText = null then
+                        null
+                    else
+                        Text.Lower(Text.From(valueText)) = "true"
+                else if valueText <> null then
+                    valueText
+                else
+                    valueNum
+            in
+                normalized,
+
+        WithValues = Table.AddColumn(
+            RequiredColumns,
+            "Value",
+            each NormalizeValue(_),
+            type any
+        ),
+
+        IsListIndex = (segment as text) as logical =>
+            let
+                parsed = try Number.FromText(segment) otherwise null
+            in
+                parsed <> null and parsed >= 0 and Number.RoundDown(parsed) = parsed,
+
+        BuildNestedValue = (parts as list, value as any) as any =>
+            if List.Count(parts) = 0 then
+                value
+            else
+                let
+                    segment = parts{0},
+                    rest = List.Skip(parts, 1),
+                    child = @BuildNestedValue(rest, value),
+                    result = if IsListIndex(segment) then
+                        let
+                            index = Number.RoundDown(Number.FromText(segment))
+                        in
+                            List.Transform(
+                                {0..index},
+                                each if _ = index then child else null
+                            )
+                    else
+                        Record.AddField([], segment, child)
+                in
+                    result,
+
+        MergeNestedValues = (existing as any, incoming as any) as any =>
+            let
+                result = if Value.Is(existing, type record) and Value.Is(incoming, type record) then
+                    List.Accumulate(
+                        Record.FieldNames(incoming),
+                        existing,
+                        (state, field) =>
+                            let
+                                incomingField = Record.Field(incoming, field),
+                                existingField = if Record.HasFields(state, {field}) then
+                                    Record.Field(state, field)
+                                else
+                                    null,
+                                mergedField = @MergeNestedValues(existingField, incomingField)
+                            in
+                                if Record.HasFields(state, {field}) then
+                                    Record.TransformFields(state, {{field, each mergedField}})
+                                else
+                                    Record.AddField(state, field, mergedField)
+                    )
+                else if Value.Is(existing, type list) and Value.Is(incoming, type list) then
+                    let
+                        existingCount = List.Count(existing),
+                        incomingCount = List.Count(incoming),
+                        maxCount = List.Max({existingCount, incomingCount}),
+                        positions = if maxCount = 0 then {} else {0..(maxCount - 1)}
+                    in
+                        List.Transform(
+                            positions,
+                            each @MergeNestedValues(
+                                if _ < existingCount then existing{_} else null,
+                                if _ < incomingCount then incoming{_} else null
+                            )
+                        )
+                else if existing = null then
+                    incoming
+                else
+                    existing
+            in
+                result,
+
+        RowsToRecord = (rows as table) as record =>
+            let
+                withNames = Table.AddColumn(
+                    rows,
+                    "Name",
+                    each if [path] = null then
+                        null
+                    else
+                        Text.From([path]),
+                    type text
+                ),
+                nonEmptyNames = Table.SelectRows(
+                    withNames,
+                    each [Name] <> null and [Name] <> ""
+                ),
+                firstValueByName = Table.Group(
+                    nonEmptyNames,
+                    {"Name"},
+                    {{"Value", each List.First(List.RemoveNulls([Value]) & {null}), type any}}
+                ),
+                result = List.Accumulate(
+                    Table.ToRecords(firstValueByName),
+                    [],
+                    (state, row) =>
+                        let
+                            path = Record.Field(row, "Name"),
+                            parts = List.Select(Text.Split(path, "."), each _ <> ""),
+                            nested = BuildNestedValue(parts, Record.Field(row, "Value")),
+                            merged = MergeNestedValues(state, nested)
+                        in
+                            if Value.Is(merged, type record) then merged else state
+                )
+            in
+                result,
+
+        GroupedByObject = Table.Group(
+            WithValues,
+            {"object_id"},
+            {{"Rows", each _, type table}}
+        ),
+
+        ObjectRecords = List.Transform(
+            Table.ToRecords(GroupedByObject),
+            each
+                [
+                    object_id = Record.FieldOrDefault(_, "object_id", null),
+                    data = RowsToRecord(Record.FieldOrDefault(_, "Rows", #table({}, {})))
+                ]
+        ),
+
+        Result = Table.FromRecords(
+            ObjectRecords,
+            type table [
+                object_id = nullable text,
+                data = record
+            ]
+        )
+    in
+        Result
