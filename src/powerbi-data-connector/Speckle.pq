@@ -131,6 +131,12 @@ shared Speckle.GetStructuredData = Value.ReplaceType(
     type function (url as Uri.Type) as table
 );
 
+[DataSource.Kind = "Speckle"]
+shared Speckle.FetchEavParquet = Value.ReplaceType(
+    Speckle.LoadFunction("FetchEavParquet.pqm"),
+    type function (url as Uri.Type) as table
+);
+
 shared Speckle.GetVersion = Value.ReplaceType(
     Speckle.LoadFunction("GetVersion.pqm"),
     type function () as text

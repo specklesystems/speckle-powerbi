@@ -1,0 +1,111 @@
+(url as text) as table =>
+    let
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
+        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
+
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        modelInfo = GetModel(url),
+        parsedUrl = Parser(url),
+        userInfo = GetUser(url),
+        powerfulToken = userInfo[Token],
+
+        tokenExchangeResult = ExchangeToken(
+            powerfulToken,
+            {"profile:read", "streams:read", "users:read"},
+            parsedUrl[projectId],
+            parsedUrl[baseUrl],
+            parsedUrl[resourceIdString]
+        ),
+
+        tokenToUse = if tokenExchangeResult[Success] then
+            tokenExchangeResult[Token]
+        else
+            error [
+                Reason = "TokenExchangeFailed",
+                Message.Format = "Failed to exchange token for limited scope token: #{0}",
+                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
+                Detail = [
+                    ErrorMessage = tokenExchangeResult[ErrorMessage],
+                    ProjectId = parsedUrl[projectId],
+                    ServerUrl = parsedUrl[baseUrl]
+                ]
+            ],
+
+        eavUrl = Text.Combine({
+            parsedUrl[baseUrl],
+            "/api/v1/projects/",
+            parsedUrl[projectId],
+            "/models/",
+            modelInfo[modelId],
+            "/versions/",
+            modelInfo[versionId],
+            "/eav/query"
+        }),
+
+        Response = Web.Contents(
+            eavUrl,
+            [
+                Headers = [
+                    #"Authorization" = "Bearer " & tokenToUse,
+                    #"Content-Type" = "application/json",
+                    #"Accept" = "application/vnd.apache.parquet"
+                ],
+                Content = Json.FromValue([format = "parquet"]),
+                ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+            ]
+        ),
+
+        StatusCode = Value.Metadata(Response)[Response.Status],
+
+        Result = if StatusCode >= 200 and StatusCode < 300 then
+            try
+                Parquet.Document(Binary.Buffer(Response))
+            catch (e) =>
+                error [
+                    Reason = "ParquetReadFailed",
+                    Message.Format = "Failed to read Speckle EAV parquet response: #{0}",
+                    Message.Parameters = {e[Message]},
+                    Detail = [
+                        EavUrl = eavUrl,
+                        ProjectId = parsedUrl[projectId],
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId],
+                        Error = e
+                    ]
+                ]
+        else
+            let
+                ResponseText = try Text.FromBinary(Response) otherwise null
+            in
+                error [
+                    Reason = "EavParquetDownloadFailed",
+                    Message.Format = "Failed to download Speckle EAV parquet data (Status: #{0})",
+                    Message.Parameters = {Text.From(StatusCode)},
+                    Detail = [
+                        StatusCode = StatusCode,
+                        Response = ResponseText,
+                        EavUrl = eavUrl,
+                        ProjectId = parsedUrl[projectId],
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId]
+                    ]
+                ]
+    in
+        Result

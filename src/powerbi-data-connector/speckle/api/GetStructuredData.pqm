@@ -1,11 +1,9 @@
 // function for getting structured object data
 (url as text) as table =>
     let
-        // import the required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
-        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
-       
-        // the logic for importing functions from other files
+        FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
+
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName),
@@ -21,98 +19,150 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-       
-        // get model info and server data
+
         modelInfo = GetModel(url),
         rootId = modelInfo[rootObjectId],
-       
-        // Get the data from SendToServer - this is already a response from the service
-        JsonResponse = SendToServer(url),
-       
-        // convert list to table with all columns expanded
-        TableFromList = Table.FromList(
-            JsonResponse,
-            Splitter.SplitByNothing(),
-            null,
-            null,
-            ExtraValues.Error
+
+        EavTable = FetchEavParquet(url),
+
+        RequiredColumns = Table.SelectColumns(
+            EavTable,
+            {"object_id", "path", "value_text", "value_num", "type", "units", "internal_definition_name"},
+            MissingField.UseNull
         ),
-        // fields to remove from data record
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-        
-        // create basic table with cleaned data records (no properties column yet)
-        BasicTable = Table.FromRecords(
-            List.Transform(
-                TableFromList[Column1],
-                each let
-                    record = _,
-                    fieldsToRemoveForThisRecord = List.Select(
-                        FieldsToRemove,
-                        each Record.HasFields(record, {_})
+
+        NormalizeValue = (row as record) as any =>
+            let
+                rowType = Text.Lower(Text.From(Record.FieldOrDefault(row, "type", ""))),
+                valueText = Record.FieldOrDefault(row, "value_text", null),
+                valueNum = Record.FieldOrDefault(row, "value_num", null),
+                normalized = if rowType = "number" and valueNum <> null then
+                    valueNum
+                else if rowType = "boolean" or rowType = "bool" then
+                    if valueText = null then
+                        null
+                    else
+                        Text.Lower(Text.From(valueText)) = "true"
+                else if valueText <> null then
+                    valueText
+                else
+                    valueNum
+            in
+                normalized,
+
+        WithValues = Table.AddColumn(
+            RequiredColumns,
+            "Value",
+            each NormalizeValue(_),
+            type any
+        ),
+
+        RowsToRecord = (rows as table, optional pathPrefix as nullable text, optional stripPrefix as nullable logical) as record =>
+            let
+                prefix = if pathPrefix = null then null else pathPrefix,
+                shouldStripPrefix = if stripPrefix = null then false else stripPrefix,
+                filteredRows = if prefix = null then
+                    rows
+                else
+                    Table.SelectRows(
+                        rows,
+                        each [path] <> null and Text.StartsWith(Text.From([path]), prefix)
                     ),
-                    cleanedRecord = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
+                withNames = Table.AddColumn(
+                    filteredRows,
+                    "Name",
+                    each if [path] = null then
+                        null
+                    else if prefix <> null and shouldStripPrefix then
+                        Text.Range(Text.From([path]), Text.Length(prefix))
+                    else
+                        Text.From([path]),
+                    type text
+                ),
+                nonEmptyNames = Table.SelectRows(
+                    withNames,
+                    each [Name] <> null and [Name] <> ""
+                ),
+                firstValueByName = Table.Group(
+                    nonEmptyNames,
+                    {"Name"},
+                    {{"Value", each List.First(List.RemoveNulls([Value]) & {null}), type any}}
+                ),
+                result = if Table.RowCount(firstValueByName) = 0 then
+                    []
+                else
+                    Record.FromTable(firstValueByName)
+            in
+                result,
+
+        GroupedByObject = Table.Group(
+            WithValues,
+            {"object_id"},
+            {{"Rows", each _, type table}}
+        ),
+
+        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
+
+        ObjectRecords = List.Transform(
+            Table.ToRecords(GroupedByObject),
+            each
+                let
+                    objectId = Record.FieldOrDefault(_, "object_id", null),
+                    rows = Record.FieldOrDefault(_, "Rows", #table({}, {})),
+                    dataRecord = RowsToRecord(rows, null, false),
+                    cleanedRecord = Record.RemoveFields(dataRecord, FieldsToRemove, MissingField.Ignore),
+                    propertiesRecord = RowsToRecord(rows, "properties.", true),
+                    hasProperties = Record.FieldCount(propertiesRecord) > 0
                 in
                     [
-                        #"Object IDs" = record[id], // Object IDs
-                        #"Speckle Type" = record[speckle_type], // Speckle Type
+                        #"Object IDs" = objectId,
+                        #"Speckle Type" = Record.FieldOrDefault(dataRecord, "speckle_type", null),
                         #"Version Object ID" = rootId,
                         #"Model Info" = rootId,
-                        #"Application ID" = Record.FieldOrDefault(record, "applicationId", null), // Application ID
-                        data = cleanedRecord // Data
+                        #"Application ID" = Record.FieldOrDefault(dataRecord, "applicationId", null),
+                        data = cleanedRecord,
+                        properties = if hasProperties then propertiesRecord else null
                     ]
-            )
         ),
-       
-        // function to check if a row should be excluded based on speckle type
+
+        BasicTable = Table.FromRecords(
+            ObjectRecords,
+            type table [
+                #"Object IDs" = nullable text,
+                #"Speckle Type" = nullable text,
+                #"Version Object ID" = nullable text,
+                #"Model Info" = nullable text,
+                #"Application ID" = nullable text,
+                data = record,
+                properties = nullable record
+            ]
+        ),
+
+        SafeText = (value as any) as text =>
+            if value = null then "" else Text.From(value),
+
         ShouldExcludeRow = (row as record) as logical =>
             let
-                speckleType = Record.FieldOrDefault(row[data], "speckle_type", "")
+                speckleType = SafeText(Record.FieldOrDefault(row, "Speckle Type", ""))
             in
-                speckleType = "Speckle.Core.Models.DataChunk" or 
+                speckleType = "Speckle.Core.Models.DataChunk" or
                 Text.Contains(speckleType, "Objects.Other.RawEncoding"),
-       
-        // Filtering logic here 
-        // If model data contains any DataObject -> fetch only data objects (excluding unwanted types)
-        // If there are no data objects in the data -> fetch everything but exclude DataChunks and RawEncoding
-        // Check if model contains any DataObject
+
         HasDataObjects = Table.RowCount(
             Table.SelectRows(
-                BasicTable, 
-                each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject") 
+                BasicTable,
+                each Text.Contains(SafeText(Record.FieldOrDefault(_, "Speckle Type", "")), "DataObject")
                      and not ShouldExcludeRow(_)
             )
         ) > 0,
 
-        // load the Objects.Properties function only if we have DataObjects
-        ObjectsProperties = if HasDataObjects then Extension.LoadFunction("Objects.Properties.pqm") else null,
-        
-        // Add properties column only if model has DataObjects
-        FinalTable = if HasDataObjects then
-            Table.AddColumn(
-                BasicTable,
-                "properties",
-                each let
-                    dataRecord = [data],
-                    isDataObject = Text.Contains(Record.FieldOrDefault(dataRecord, "speckle_type", ""), "DataObject"),
-                    hasProperties = Record.HasFields(dataRecord, {"properties"}),
-                    extractedProperties = if hasProperties and isDataObject then 
-                        try ObjectsProperties(dataRecord) otherwise []
-                    else 
-                        []
-                in
-                    if Record.FieldCount(extractedProperties) > 0 then extractedProperties else null
-            )
-        else
-            BasicTable,
-
-        // Apply the same filtering logic as before
         FilteredTable = if HasDataObjects then
             Table.SelectRows(
-                FinalTable, 
-                each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject") 
+                BasicTable,
+                each Text.Contains(SafeText(Record.FieldOrDefault(_, "Speckle Type", "")), "DataObject")
                      and not ShouldExcludeRow(_)
             )
         else
-            Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
+            Table.SelectRows(BasicTable, each not ShouldExcludeRow(_))
     in
         FilteredTable
