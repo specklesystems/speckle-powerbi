@@ -35,6 +35,9 @@
             token
         ),
 
+        RowsToRecord = (rows as table) as record =>
+            Record.FromList(rows[value_text], rows[path]),
+
         DataObjectRows = Table.SelectRows(
             Table.SelectColumns(EavTable, {"object_id", "value_text"}),
             each Text.Contains([value_text], "DataObject")
@@ -55,7 +58,12 @@
                 each List.Contains(DataObjectIds, [object_id])
             )
         else
-            GroupedByObjectId
+            GroupedByObjectId,
+
+        FinalGroupedByObjectId = Table.TransformColumns(
+            FilteredGroupedByObjectId,
+            {{"Rows", RowsToRecord, type record}}
+        )
 
         // TEMP: grouped parquet passthrough for performance measurement.
         // Keep nested object decoding and property processing disabled so this
@@ -143,4 +151,4 @@
             Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
         */
     in
-        FilteredGroupedByObjectId
+        FinalGroupedByObjectId
