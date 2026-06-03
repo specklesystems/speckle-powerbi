@@ -126,6 +126,13 @@
                     // extract all data tables
                     allTables = List.Transform(modelsData, each [Data]),
 
+                    // TEMP: raw parquet passthrough for performance measurement.
+                    // Skip metadata rewrites and property expansion.
+                    combinedData = Table.Combine(allTables),
+
+                    finalData = combinedData
+
+                    /*
                     // extract all root object IDs
                     allRootIds = List.Transform(modelsData, each [RootObjectId]),
 
@@ -159,6 +166,7 @@
                             transformedData  // fallback to original data if expansion fails
                     else
                         transformedData
+                    */
                 in
                     finalData
             else
@@ -183,6 +191,13 @@
                         rootObjectId,
                         tokenToUse
                     ),
+
+                    // TEMP: raw parquet passthrough for performance measurement.
+                    // Skip user-info encoding, desktop-service handoff, metadata
+                    // rewrites, and optional property expansion.
+                    result = structuredData
+
+                    /*
 
                     // build userInfoData record for this model
                     userInfoData = [
@@ -225,6 +240,7 @@
                             transformedData  // fallback to original data if expansion fails
                     else
                         transformedData
+                    */
                 in
                     result
         else
@@ -288,14 +304,19 @@
                     federatedVersionId,
                     rootObjectId,
                     tokenToUse
-                ),
+                    ),
 
-                // build userInfoData record for this model
-                userInfoData = [
-                    rootObjectId = rootObjectId,
-                    server = baseUrl,
-                    email = userEmail,
-                    projectId = projectId,
+                    // build userInfoData record for this model
+                    // TEMP: raw parquet passthrough for performance measurement.
+                    // Skip per-model metadata column injection.
+                    result = structuredData
+
+                    /*
+                    userInfoData = [
+                        rootObjectId = rootObjectId,
+                        server = baseUrl,
+                        email = userEmail,
+                        projectId = projectId,
                     token = tokenToUse,
                     workspaceId = workspaceInfo[workspaceId],
                     workspaceName = workspaceInfo[workspaceName],
@@ -327,11 +348,8 @@
                         modelName,
                     type text
                 )
+                    */
             in
-                [
-                    Data = result,
-                    RootObjectId = rootObjectId,
-                    EncodedUserInfo = encodedUserInfo
-                ]
+                [Data = result]
     in
         results

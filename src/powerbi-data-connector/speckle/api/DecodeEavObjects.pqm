@@ -138,7 +138,8 @@
         GroupedByObject = Table.Group(
             WithValues,
             {"object_id"},
-            {{"Rows", each _, type table}}
+            {{"Rows", each _, type table}},
+            GroupKind.Local
         ),
 
         ObjectRecords = List.Transform(

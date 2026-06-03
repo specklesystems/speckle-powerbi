@@ -34,6 +34,19 @@
             versionId,
             token
         ),
+
+        GroupedByObjectId = Table.Group(
+            EavTable,
+            {"object_id"},
+            {{"Rows", each _, type table}},
+            GroupKind.Local
+        )
+
+        // TEMP: grouped parquet passthrough for performance measurement.
+        // Keep nested object decoding and property processing disabled so this
+        // measures Parquet.Document(...) plus Table.Group by object_id.
+        /*
+        ,
         DecodedObjects = DecodeEavObjects(EavTable),
 
         FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
@@ -113,5 +126,6 @@
             )
         else
             Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
+        */
     in
-        FilteredTable
+        GroupedByObjectId
