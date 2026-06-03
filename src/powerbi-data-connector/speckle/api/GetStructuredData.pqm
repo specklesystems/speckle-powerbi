@@ -35,12 +35,27 @@
             token
         ),
 
+        DataObjectRows = Table.SelectRows(
+            Table.SelectColumns(EavTable, {"object_id", "value_text"}),
+            each Text.Contains([value_text], "DataObject")
+        ),
+
+        DataObjectIds = List.Buffer(DataObjectRows[object_id]),
+
         GroupedByObjectId = Table.Group(
             EavTable,
             {"object_id"},
             {{"Rows", each _, type table}},
             GroupKind.Local
-        )
+        ),
+
+        FilteredGroupedByObjectId = if List.Count(DataObjectIds) > 0 then
+            Table.SelectRows(
+                GroupedByObjectId,
+                each List.Contains(DataObjectIds, [object_id])
+            )
+        else
+            GroupedByObjectId
 
         // TEMP: grouped parquet passthrough for performance measurement.
         // Keep nested object decoding and property processing disabled so this
@@ -128,4 +143,4 @@
             Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
         */
     in
-        GroupedByObjectId
+        FilteredGroupedByObjectId
