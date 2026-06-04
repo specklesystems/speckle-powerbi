@@ -38,32 +38,40 @@
         RowsToRecord = (rows as table) as record =>
             Record.FromList(rows[value_text], rows[path]),
 
-        DataObjectRows = Table.SelectRows(
-            Table.SelectColumns(EavTable, {"object_id", "value_text"}),
-            each Text.Contains([value_text], "DataObject")
-        ),
-
-        DataObjectIds = List.Buffer(DataObjectRows[object_id]),
+        RowsToGroupedObject = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows)
+            in
+                [
+                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                    Rows = rowsRecord
+                ],
 
         GroupedByObjectId = Table.Group(
             EavTable,
             {"object_id"},
-            {{"Rows", each _, type table}},
+            {{"Grouped Object", RowsToGroupedObject, type record}},
             GroupKind.Local
         ),
 
-        FilteredGroupedByObjectId = if List.Count(DataObjectIds) > 0 then
-            Table.SelectRows(
-                GroupedByObjectId,
-                each List.Contains(DataObjectIds, [object_id])
-            )
-        else
+        ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
             GroupedByObjectId,
+            "Grouped Object",
+            {"Speckle Type", "Application ID", "Rows"},
+            {"Speckle Type", "Application ID", "Rows"}
+        ),
 
-        FinalGroupedByObjectId = Table.TransformColumns(
-            FilteredGroupedByObjectId,
-            {{"Rows", RowsToRecord, type record}}
-        )
+        DataObjects = Table.SelectRows(
+            ExpandedGroupedByObjectId,
+            each [#"Speckle Type"] <> null
+                and Text.Contains(Text.From([#"Speckle Type"]), "DataObject")
+        ),
+
+        FinalGroupedByObjectId = if Table.IsEmpty(DataObjects) then
+            ExpandedGroupedByObjectId
+        else
+            DataObjects
 
         // TEMP: grouped parquet passthrough for performance measurement.
         // Keep nested object decoding and property processing disabled so this
