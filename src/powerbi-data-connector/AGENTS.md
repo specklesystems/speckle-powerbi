@@ -23,8 +23,7 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
   - `Api.Fetch.pqm` - GraphQL client with error handling
   - `Parser.pqm` - URL parsing and federated model detection
   - `FetchEavParquet.pqm` - Fetches structured EAV data from `/api/v1/projects/{projectId}/models/{modelId}/versions/{versionId}/eav/query` as parquet
-  - `DecodeEavObjects.pqm` - Reconstructs object records from EAV parquet rows
-  - `GetStructuredData.pqm` - Data pipeline that fetches EAV parquet, decodes object data, filters `DataChunk`/`RawEncoding`, and prioritizes `DataObjects`
+  - `GetStructuredData.pqm` - Groups EAV parquet rows by object ID and prioritizes `DataObjects`
   - `SendToServer.pqm` - Legacy Desktop Service helper; structured data no longer depends on it
   - `CheckPermissions.pqm` - Authorization validation
   - `Models.Federate.pqm` - Multi-model federation
@@ -36,10 +35,9 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 2. `CheckPermissions.pqm` validates access.
 3. `GetModel.pqm` resolves the model/version metadata and root object ID.
 4. `GetStructuredData.pqm` calls `FetchEavParquet.pqm` to download parquet from `/eav/query`.
-5. `DecodeEavObjects.pqm` rebuilds nested object records from EAV paths and values.
-6. `GetStructuredData.pqm` filters transport/internal rows and returns the structured table.
-7. `Models.Federate.pqm` combines tables for federated models.
-8. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
+5. `GetStructuredData.pqm` groups EAV rows by object ID and returns the structured table.
+6. `Models.Federate.pqm` combines tables for federated models.
+7. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
 
 ## Gotchas
 

@@ -9,7 +9,6 @@
 ) as table =>
     let
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
-        DecodeEavObjects = Extension.LoadFunction("DecodeEavObjects.pqm"),
 
         Extension.LoadFunction = (fileName as text) =>
             let
@@ -80,91 +79,5 @@
                 {"Rows", "data"}
             }
         )
-
-        // TEMP: grouped parquet passthrough for performance measurement.
-        // Keep nested object decoding and property processing disabled so this
-        // measures Parquet.Document(...) plus Table.Group by object_id.
-        /*
-        ,
-        DecodedObjects = DecodeEavObjects(EavTable),
-
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-
-        ObjectRecords = List.Transform(
-            Table.ToRecords(DecodedObjects),
-            each
-                let
-                    objectId = Record.FieldOrDefault(_, "object_id", null),
-                    dataRecord = Record.FieldOrDefault(_, "data", []),
-                    cleanedRecord = Record.RemoveFields(dataRecord, FieldsToRemove, MissingField.Ignore)
-                in
-                    [
-                        #"Object IDs" = objectId,
-                        #"Speckle Type" = Record.FieldOrDefault(dataRecord, "speckle_type", null),
-                        #"Version Object ID" = rootObjectId,
-                        #"Model Info" = rootObjectId,
-                        #"Application ID" = Record.FieldOrDefault(dataRecord, "applicationId", null),
-                        data = cleanedRecord
-                    ]
-        ),
-
-        BasicTable = Table.FromRecords(
-            ObjectRecords,
-            type table [
-                #"Object IDs" = nullable text,
-                #"Speckle Type" = nullable text,
-                #"Version Object ID" = nullable text,
-                #"Model Info" = nullable text,
-                #"Application ID" = nullable text,
-                data = record
-            ]
-        ),
-
-        SafeText = (value as any) as text =>
-            if value = null then "" else Text.From(value),
-
-        ShouldExcludeRow = (row as record) as logical =>
-            let
-                speckleType = SafeText(Record.FieldOrDefault(row, "Speckle Type", ""))
-            in
-                speckleType = "Speckle.Core.Models.DataChunk" or
-                Text.Contains(speckleType, "Objects.Other.RawEncoding"),
-
-        HasDataObjects = Table.RowCount(
-            Table.SelectRows(
-                BasicTable,
-                each Text.Contains(SafeText(Record.FieldOrDefault(_, "Speckle Type", "")), "DataObject")
-                     and not ShouldExcludeRow(_)
-            )
-        ) > 0,
-
-        ObjectsProperties = if HasDataObjects then Extension.LoadFunction("Objects.Properties.pqm") else null,
-
-        FinalTable = if HasDataObjects then
-            Table.AddColumn(
-                BasicTable,
-                "properties",
-                each let
-                    dataRecord = [data],
-                    isDataObject = Text.Contains(SafeText(Record.FieldOrDefault(dataRecord, "speckle_type", "")), "DataObject"),
-                    extractedProperties = if isDataObject then
-                        try ObjectsProperties(dataRecord) otherwise []
-                    else
-                        []
-                in
-                    if Record.FieldCount(extractedProperties) > 0 then extractedProperties else null
-            )
-        else
-            BasicTable,
-
-        FilteredTable = if HasDataObjects then
-            Table.SelectRows(
-                FinalTable,
-                each Text.Contains(SafeText(Record.FieldOrDefault(_, "Speckle Type", "")), "DataObject")
-                     and not ShouldExcludeRow(_)
-            )
-        else
-            Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
-        */
     in
         RenamedFinalTable
