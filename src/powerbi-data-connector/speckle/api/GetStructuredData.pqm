@@ -71,7 +71,15 @@
         FinalGroupedByObjectId = if Table.IsEmpty(DataObjects) then
             ExpandedGroupedByObjectId
         else
-            DataObjects
+            DataObjects,
+
+        RenamedFinalTable = Table.RenameColumns(
+            FinalGroupedByObjectId,
+            {
+                {"object_id", "Object IDs"},
+                {"Rows", "data"}
+            }
+        )
 
         // TEMP: grouped parquet passthrough for performance measurement.
         // Keep nested object decoding and property processing disabled so this
@@ -159,4 +167,4 @@
             Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
         */
     in
-        FinalGroupedByObjectId
+        RenamedFinalTable
