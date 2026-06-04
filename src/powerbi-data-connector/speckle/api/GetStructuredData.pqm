@@ -26,24 +26,40 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        EavTable = FetchEavParquet(
-            baseUrl,
-            projectId,
-            modelId,
-            versionId,
-            token
+        EavTable = Table.Buffer(
+            FetchEavParquet(
+                baseUrl,
+                projectId,
+                modelId,
+                versionId,
+                token
+            )
         ),
+
+        PropertyPathPrefix = "properties.",
+        ExcludedPropertyPaths = {
+            "properties.Composite Structure",
+            "properties.Material Quantities",
+            "properties.Parameters.Type Parameters.Structure"
+        },
 
         RowsToRecord = (rows as table) as record =>
             Record.FromList(rows[value_text], rows[path]),
 
         RowsToGroupedObject = (rows as table) as record =>
             let
-                rowsRecord = RowsToRecord(rows)
+                rowsRecord = RowsToRecord(rows),
+                propertyFields = List.Select(
+                    Record.FieldNames(rowsRecord),
+                    each Text.StartsWith(_, PropertyPathPrefix)
+                        and not List.Contains(ExcludedPropertyPaths, _)
+                ),
+                propertiesRecord = Record.SelectFields(rowsRecord, propertyFields)
             in
                 [
                     #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
                     #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                    properties = propertiesRecord,
                     Rows = rowsRecord
                 ],
 
@@ -57,8 +73,8 @@
         ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
             GroupedByObjectId,
             "Grouped Object",
-            {"Speckle Type", "Application ID", "Rows"},
-            {"Speckle Type", "Application ID", "Rows"}
+            {"Speckle Type", "Application ID", "properties", "Rows"},
+            {"Speckle Type", "Application ID", "properties", "Rows"}
         ),
 
         DataObjects = Table.SelectRows(
