@@ -128,12 +128,21 @@
 
                     // encode once per model, then add the combined transport value
                     // only after the grouped parquet tables have been combined
+                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
+                    combinedRootIds = Text.Combine(allRootIds, ","),
                     allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
                     combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
                     combinedData = Table.Combine(allTables),
 
-                    finalData = Table.AddColumn(
+                    dataWithVersionObjectId = Table.AddColumn(
                         combinedData,
+                        "Version Object ID",
+                        each combinedRootIds,
+                        type text
+                    ),
+
+                    finalData = Table.AddColumn(
+                        dataWithVersionObjectId,
                         "Model Info",
                         each combinedEncodedUserInfos,
                         type text
@@ -227,8 +236,15 @@
                     else
                         encodedUserInfo,
 
-                    result = Table.AddColumn(
+                    dataWithVersionObjectId = Table.AddColumn(
                         structuredData,
+                        "Version Object ID",
+                        each rootObjectId,
+                        type text
+                    ),
+
+                    result = Table.AddColumn(
+                        dataWithVersionObjectId,
                         "Model Info",
                         each trackedModelInfo,
                         type text
@@ -414,6 +430,7 @@
             in
                 [
                     Data = result,
+                    RootObjectId = rootObjectId,
                     EncodedUserInfo = trackedEncodedUserInfo
                 ]
     in
