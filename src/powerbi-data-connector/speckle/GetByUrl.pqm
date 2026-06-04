@@ -14,7 +14,6 @@
         GetUser = Extension.LoadFunction("GetUser.pqm"),
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
         GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
-        MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
 
         // the logic for importing functions from other files
@@ -126,11 +125,18 @@
                     // extract all data tables
                     allTables = List.Transform(modelsData, each [Data]),
 
-                    // TEMP: raw parquet passthrough for performance measurement.
-                    // Skip metadata rewrites and property expansion.
+                    // encode once per model, then add the combined transport value
+                    // only after the grouped parquet tables have been combined
+                    allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
+                    combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
                     combinedData = Table.Combine(allTables),
 
-                    finalData = combinedData
+                    finalData = Table.AddColumn(
+                        combinedData,
+                        "Model Info",
+                        each combinedEncodedUserInfos,
+                        type text
+                    )
 
                     /*
                     // extract all root object IDs
@@ -179,9 +185,6 @@
                     sourceApplication = modelInfo[sourceApplication],
                     versionId = modelInfo[versionId],
 
-                    // mark version as received
-                    markReceivedResult = MarkReceived(powerfulToken, versionId, effectiveParsedUrl[projectId], effectiveParsedUrl[baseUrl]),
-
                     // get structured data
                     structuredData = GetStructuredData(
                         effectiveParsedUrl[baseUrl],
@@ -192,10 +195,30 @@
                         tokenToUse
                     ),
 
-                    // TEMP: raw parquet passthrough for performance measurement.
-                    // Skip user-info encoding, desktop-service handoff, metadata
-                    // rewrites, and optional property expansion.
-                    result = structuredData
+                    userInfoData = [
+                        rootObjectId = rootObjectId,
+                        server = effectiveParsedUrl[baseUrl],
+                        email = userEmail,
+                        projectId = effectiveParsedUrl[projectId],
+                        token = tokenToUse,
+                        workspaceId = workspaceInfo[workspaceId],
+                        workspaceName = workspaceInfo[workspaceName],
+                        workspaceLogo = workspaceInfo[workspaceLogo],
+                        version = connectorVersion,
+                        sourceApplication = sourceApplication,
+                        canHideBranding = workspaceInfo[canHideBranding],
+                        versionId = versionId,
+                        url = effectiveUrl
+                    ],
+
+                    encodedUserInfo = EncodeUserInfo(userInfoData),
+
+                    result = Table.AddColumn(
+                        structuredData,
+                        "Model Info",
+                        each encodedUserInfo,
+                        type text
+                    )
 
                     /*
 
@@ -293,9 +316,6 @@
                 sourceApplication = modelInfo[sourceApplication],
                 federatedVersionId = if versionId <> null then versionId else modelInfo[versionId],
 
-                // mark version as received (non-blocking, best-effort)
-                markReceivedResult = MarkReceived(powerfulToken, federatedVersionId, projectId, baseUrl),
-
                 // get structured data
                 structuredData = GetStructuredData(
                     baseUrl,
@@ -304,12 +324,27 @@
                     federatedVersionId,
                     rootObjectId,
                     tokenToUse
-                    ),
+                ),
 
-                    // build userInfoData record for this model
-                    // TEMP: raw parquet passthrough for performance measurement.
-                    // Skip per-model metadata column injection.
-                    result = structuredData
+                userInfoData = [
+                    rootObjectId = rootObjectId,
+                    server = baseUrl,
+                    email = userEmail,
+                    projectId = projectId,
+                    token = tokenToUse,
+                    workspaceId = workspaceInfo[workspaceId],
+                    workspaceName = workspaceInfo[workspaceName],
+                    workspaceLogo = workspaceInfo[workspaceLogo],
+                    version = connectorVersion,
+                    sourceApplication = sourceApplication,
+                    canHideBranding = workspaceInfo[canHideBranding],
+                    versionId = federatedVersionId,
+                    url = singleModelUrl
+                ],
+
+                encodedUserInfo = EncodeUserInfo(userInfoData),
+
+                result = structuredData
 
                     /*
                     userInfoData = [
@@ -350,6 +385,9 @@
                 )
                     */
             in
-                [Data = result]
+                [
+                    Data = result,
+                    EncodedUserInfo = encodedUserInfo
+                ]
     in
         results
