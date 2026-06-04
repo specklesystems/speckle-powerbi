@@ -14,6 +14,7 @@
         GetUser = Extension.LoadFunction("GetUser.pqm"),
         GetVersion = Extension.LoadFunction("GetVersion.pqm"),
         GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
 
         // the logic for importing functions from other files
@@ -213,10 +214,23 @@
 
                     encodedUserInfo = EncodeUserInfo(userInfoData),
 
+                    receiptTrackingResult = MarkReceived(
+                        powerfulToken,
+                        versionId,
+                        effectiveParsedUrl[projectId],
+                        effectiveParsedUrl[baseUrl]
+                    ),
+
+                    // Reference the best-effort result so Power Query's lazy evaluator sends the request.
+                    trackedModelInfo = if receiptTrackingResult or not receiptTrackingResult then
+                        encodedUserInfo
+                    else
+                        encodedUserInfo,
+
                     result = Table.AddColumn(
                         structuredData,
                         "Model Info",
-                        each encodedUserInfo,
+                        each trackedModelInfo,
                         type text
                     )
 
@@ -344,6 +358,19 @@
 
                 encodedUserInfo = EncodeUserInfo(userInfoData),
 
+                receiptTrackingResult = MarkReceived(
+                    powerfulToken,
+                    federatedVersionId,
+                    projectId,
+                    baseUrl
+                ),
+
+                // Reference the best-effort result so Power Query's lazy evaluator sends the request.
+                trackedEncodedUserInfo = if receiptTrackingResult or not receiptTrackingResult then
+                    encodedUserInfo
+                else
+                    encodedUserInfo,
+
                 result = structuredData
 
                     /*
@@ -387,7 +414,7 @@
             in
                 [
                     Data = result,
-                    EncodedUserInfo = encodedUserInfo
+                    EncodedUserInfo = trackedEncodedUserInfo
                 ]
     in
         results
