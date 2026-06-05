@@ -203,7 +203,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         optional PropertiesColumn as (
             type text meta [
                 Documentation.FieldCaption = "Properties column",
-                Documentation.FieldDescription = "Choose how to load the dedicated properties column. Properties always remain available in the data record.",
+                Documentation.FieldDescription = "Choose how to load properties. Properties always remain available in the data record.",
                 Documentation.SampleValues = {"None (fastest)"},
                 Documentation.DefaultValue = "None (fastest)",
                 Documentation.AllowedValues = {"None (fastest)", "Full paths", "Short names (slowest)"}
@@ -212,7 +212,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         optional ExpandProperties as (
             type logical meta [
                 Documentation.FieldCaption = "Expand Properties",
-                Documentation.FieldDescription = "Retained for compatibility but currently non-functional. When Properties column is 'None (fastest)', the dedicated 'properties' column is omitted regardless of this setting.",
+                Documentation.FieldDescription = "When true, pivots eligible properties into top-level columns for Full paths or Short names. Ignored when Properties column is 'None (fastest)'.",
                 Documentation.AllowedValues = {false, true}
             ]
         )

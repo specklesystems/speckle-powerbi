@@ -7,7 +7,8 @@
     optional rootObjectId as nullable text,
     optional token as nullable text,
     optional propertiesColumn as nullable text,
-    optional shortNameLookup as nullable record
+    optional shortNameLookup as nullable record,
+    optional expandProperties as nullable logical
 ) as table =>
     let
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
@@ -42,6 +43,7 @@
             ),
 
         SelectedPropertiesColumn = if propertiesColumn = null then "Full paths" else propertiesColumn,
+        ShouldExpandProperties = if expandProperties = null then false else expandProperties,
 
         PropertyPathPrefix = "properties.",
         ExcludedPropertyPaths = {
@@ -94,7 +96,8 @@
                     Rows = rowsRecord
                 ],
 
-        IncludePropertiesColumn = SelectedPropertiesColumn <> "None (fastest)",
+        IncludePropertiesColumn = SelectedPropertiesColumn <> "None (fastest)" and not ShouldExpandProperties,
+        ShouldPivotProperties = SelectedPropertiesColumn <> "None (fastest)" and ShouldExpandProperties,
         RowsToGroupedObject = if IncludePropertiesColumn then
             RowsToGroupedObjectWithProperties
         else
@@ -130,8 +133,56 @@
         else
             DataObjects,
 
-        RenamedFinalTable = Table.RenameColumns(
+        EligiblePropertyRows = if ShouldPivotProperties then
+            Table.SelectRows(EavTable, each IsEligiblePropertyPath([path]))
+        else
+            #table({"object_id", "path", "value_text"}, {}),
+
+        NamedPropertyRows = if ShouldPivotProperties and SelectedPropertiesColumn = "Short names (slowest)" then
+            Table.TransformColumns(
+                EligiblePropertyRows,
+                {{"path", each Record.Field(shortNameLookup, _), type text}}
+            )
+        else
+            EligiblePropertyRows,
+
+        PivotPropertyNames = if ShouldPivotProperties then
+            List.Buffer(List.Distinct(NamedPropertyRows[path]))
+        else
+            {},
+
+        PivotedProperties = if ShouldPivotProperties and not List.IsEmpty(PivotPropertyNames) then
+            Table.Pivot(
+                Table.SelectColumns(NamedPropertyRows, {"object_id", "path", "value_text"}),
+                PivotPropertyNames,
+                "path",
+                "value_text"
+            )
+        else
+            null,
+
+        ExpandedWithPivotedProperties = if ShouldPivotProperties and not List.IsEmpty(PivotPropertyNames) then
+            let
+                nested = Table.NestedJoin(
+                    FinalGroupedByObjectId,
+                    {"object_id"},
+                    PivotedProperties,
+                    {"object_id"},
+                    "Pivoted Properties",
+                    JoinKind.LeftOuter
+                )
+            in
+                Table.ExpandTableColumn(
+                    nested,
+                    "Pivoted Properties",
+                    PivotPropertyNames,
+                    PivotPropertyNames
+                )
+        else
             FinalGroupedByObjectId,
+
+        RenamedFinalTable = Table.RenameColumns(
+            ExpandedWithPivotedProperties,
             {
                 {"object_id", "Object IDs"},
                 {"Rows", "data"}

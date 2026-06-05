@@ -26,7 +26,7 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
   - `FetchEavParquet.pqm` - Fetches structured EAV data from `/api/v1/projects/{projectId}/models/{modelId}/versions/{versionId}/eav/query` as parquet
   - `BuildPropertyPathLookup.pqm` - Builds federation-wide shortest-unique property names
   - `GetStructuredDataWithoutProperties.pqm` - Fast path for `Properties column = None (fastest)`
-  - `GetStructuredData.pqm` - Groups buffered EAV rows by object ID and prioritizes `DataObjects`
+  - `GetStructuredData.pqm` - Groups buffered EAV rows by object ID, prioritizes `DataObjects`, and optionally pivots eligible properties
   - `SendToServer.pqm` - Legacy Desktop Service helper; structured data no longer depends on it
   - `CheckPermissions.pqm` - Authorization validation
   - `Models.Federate.pqm` - Multi-model federation
@@ -39,7 +39,7 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 3. `GetModel.pqm` resolves the model/version metadata and root object ID.
 4. `GetByUrl.pqm` calls `FetchEavParquet.pqm` and buffers the raw EAV tables.
 5. Short-name loads build one property-path lookup across the model or complete federation.
-6. `GetStructuredDataWithoutProperties.pqm` handles `None (fastest)` without property-path processing; `GetStructuredData.pqm` handles `Full paths` and `Short names`.
+6. `GetStructuredDataWithoutProperties.pqm` handles `None (fastest)` without property-path processing; `GetStructuredData.pqm` handles `Full paths` and `Short names`, returning a `properties` record by default or pivoted top-level property columns when `ExpandProperties = true`.
 7. Federated model tables are combined after transformation.
 8. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
 
