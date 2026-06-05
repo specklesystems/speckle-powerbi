@@ -1,77 +1,50 @@
-// Helper function to extract dot-notation properties.Material Quantities fields.
+// Extracts dot-notation properties.Material Quantities fields.
 (objectRecord as record, optional outputAsList as logical) as any =>
     let
         OutputAsList = if outputAsList = null then true else outputAsList,
         MaterialQuantitiesPath = "properties.Material Quantities",
         MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
-
         QuantityFields = {"area", "volume"},
 
-        SetNestedField = (current as record, segments as list, value as any) as record =>
+        IsMaterialQuantityPath = (path as text) as logical =>
             let
-                segment = segments{0},
-                remainingSegments = List.Skip(segments, 1),
-                existingValue = Record.FieldOrDefault(current, segment, []),
-                nestedValue =
-                    if List.IsEmpty(remainingSegments) then
-                        value
-                    else
-                        @SetNestedField(
-                            if existingValue is record then existingValue else [],
-                            remainingSegments,
-                            value
-                        ),
-                withoutExisting = Record.RemoveFields(current, {segment}, MissingField.Ignore),
-                withNested = Record.AddField(withoutExisting, segment, nestedValue)
+                segments = Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), ".")
             in
-                withNested,
+                List.Count(segments) >= 2 and List.Contains(QuantityFields, List.Last(segments)),
 
-        SetMaterialQuantityField = (current as record, segments as list, value as any) as record =>
+        AddMaterialQuantity = (current as record, path as text) as record =>
             let
-                parentSegments = List.FirstN(segments, List.Count(segments) - 1),
-                materialName = List.Last(parentSegments),
+                segments = Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), "."),
+                materialName = List.Last(List.FirstN(segments, List.Count(segments) - 1)),
                 quantityField = List.Last(segments),
-                withMaterialName = SetNestedField(
-                    current,
-                    {materialName, "materialName"},
-                    materialName
-                ),
-                withQuantity = SetNestedField(
-                    withMaterialName,
-                    {materialName, quantityField},
-                    value
-                )
+                existingMaterial = Record.FieldOrDefault(current, materialName, []),
+                materialRecord = if existingMaterial is record then existingMaterial else [],
+                withMaterialName =
+                    if Record.HasFields(materialRecord, {"materialName"}) then
+                        materialRecord
+                    else
+                        Record.AddField(materialRecord, "materialName", materialName),
+                withoutQuantity = Record.RemoveFields(withMaterialName, {quantityField}, MissingField.Ignore),
+                withQuantity = Record.AddField(withoutQuantity, quantityField, Record.Field(objectRecord, path)),
+                withoutMaterial = Record.RemoveFields(current, {materialName}, MissingField.Ignore),
+                withMaterial = Record.AddField(withoutMaterial, materialName, withQuantity)
             in
-                withQuantity,
-
-        AddMaterialQuantityPath = (current as record, segments as list, value as any) as record =>
-            if List.Count(segments) >= 2 and List.Contains(QuantityFields, List.Last(segments)) then
-                SetMaterialQuantityField(current, segments, value)
-            else
-                SetNestedField(current, segments, value),
+                withMaterial,
 
         FieldNames = Record.FieldNames(objectRecord),
-        ExactPathValue = Record.FieldOrDefault(objectRecord, MaterialQuantitiesPath, null),
-        ChildPaths = List.Select(FieldNames, each Text.StartsWith(_, MaterialQuantitiesPrefix)),
-        MaterialQuantitiesFromChildPaths = List.Accumulate(
-            ChildPaths,
-            [],
-            (state, path) =>
-                AddMaterialQuantityPath(
-                    state,
-                    Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), "."),
-                    Record.Field(objectRecord, path)
-                )
+        MaterialQuantityPaths = List.Select(
+            FieldNames,
+            each Text.StartsWith(_, MaterialQuantitiesPrefix) and IsMaterialQuantityPath(_)
         ),
-        MaterialQuantities =
-            if not List.IsEmpty(ChildPaths) then
-                MaterialQuantitiesFromChildPaths
-            else
-                ExactPathValue,
+        MaterialQuantities = List.Accumulate(
+            MaterialQuantityPaths,
+            [],
+            AddMaterialQuantity
+        ),
         Result =
-            if MaterialQuantities = null then
+            if Record.FieldCount(MaterialQuantities) = 0 then
                 null
-            else if OutputAsList and MaterialQuantities is record then
+            else if OutputAsList then
                 Record.ToList(MaterialQuantities)
             else
                 MaterialQuantities
