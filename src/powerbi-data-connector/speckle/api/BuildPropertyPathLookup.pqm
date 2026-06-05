@@ -8,10 +8,18 @@
             "properties.Parameters.Type Parameters.Structure"
         },
 
+        IsExcludedPropertyPath = (path as text) as logical =>
+            List.AnyTrue(
+                List.Transform(
+                    ExcludedPropertyPaths,
+                    (excludedPath) => path = excludedPath or Text.StartsWith(path, excludedPath & ".")
+                )
+            ),
+
         IsEligiblePropertyPath = (path as any) as logical =>
             Value.Is(path, type text)
                 and Text.StartsWith(path, PropertyPathPrefix)
-                and not List.Contains(ExcludedPropertyPaths, path),
+                and not IsExcludedPropertyPath(path),
 
         EligiblePaths = List.Buffer(
             List.Distinct(

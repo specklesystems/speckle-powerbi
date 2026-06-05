@@ -53,10 +53,18 @@
         RowsToRecord = (rows as table) as record =>
             Record.FromList(rows[value_text], rows[path]),
 
+        IsExcludedPropertyPath = (path as text) as logical =>
+            List.AnyTrue(
+                List.Transform(
+                    ExcludedPropertyPaths,
+                    (excludedPath) => path = excludedPath or Text.StartsWith(path, excludedPath & ".")
+                )
+            ),
+
         IsEligiblePropertyPath = (path as any) as logical =>
             Value.Is(path, type text)
                 and Text.StartsWith(path, PropertyPathPrefix)
-                and not List.Contains(ExcludedPropertyPaths, path),
+                and not IsExcludedPropertyPath(path),
 
         RowsToGroupedObjectWithoutProperties = (rows as table) as record =>
             let
