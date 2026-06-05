@@ -158,11 +158,6 @@ shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
     ) as table
 );
 
-shared Speckle.Objects.Collections = Value.ReplaceType(
-    Speckle.LoadFunction("Objects.Collections.pqm"),
-    type function (inputData as table) as table
-);
-
 shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
     Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
     type function (objectRecord as record, optional outputAsList as nullable logical) as any

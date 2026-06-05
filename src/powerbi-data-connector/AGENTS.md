@@ -31,7 +31,7 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
   - `SendToServer.pqm` - Legacy Desktop Service helper; structured data no longer depends on it
   - `CheckPermissions.pqm` - Authorization validation
   - `Models.Federate.pqm` - Multi-model federation
-  - `Objects.Properties.pqm`, `Objects.Collections.pqm` - Object processing
+  - `Objects.Properties.pqm` - Object processing
 
 ## Data Flow
 
