@@ -1,13 +1,77 @@
-// Helper function to extract [properties][Material Quantities] and optionally output as list
+// Helper function to extract dot-notation properties.Material Quantities fields.
 (objectRecord as record, optional outputAsList as logical) as any =>
     let
-        // Ensure outputAsList is logical and defaults to false if not provided
-        OutputAsList = if outputAsList = null then false else outputAsList,
-        // Check if 'properties' and 'Material Quantities' exist
-        HasMaterialQuantities = Record.HasFields(objectRecord, {"properties"}) and Record.HasFields(Record.Field(objectRecord, "properties"), {"Material Quantities"}),
-        MaterialQuantities = if HasMaterialQuantities then Record.Field(Record.Field(objectRecord, "properties"), "Material Quantities") else null,
-        Result = if MaterialQuantities = null then null else
-            if OutputAsList then
+        OutputAsList = if outputAsList = null then true else outputAsList,
+        MaterialQuantitiesPath = "properties.Material Quantities",
+        MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
+
+        QuantityFields = {"area", "volume"},
+
+        SetNestedField = (current as record, segments as list, value as any) as record =>
+            let
+                segment = segments{0},
+                remainingSegments = List.Skip(segments, 1),
+                existingValue = Record.FieldOrDefault(current, segment, []),
+                nestedValue =
+                    if List.IsEmpty(remainingSegments) then
+                        value
+                    else
+                        @SetNestedField(
+                            if existingValue is record then existingValue else [],
+                            remainingSegments,
+                            value
+                        ),
+                withoutExisting = Record.RemoveFields(current, {segment}, MissingField.Ignore),
+                withNested = Record.AddField(withoutExisting, segment, nestedValue)
+            in
+                withNested,
+
+        SetMaterialQuantityField = (current as record, segments as list, value as any) as record =>
+            let
+                parentSegments = List.FirstN(segments, List.Count(segments) - 1),
+                materialName = List.Last(parentSegments),
+                quantityField = List.Last(segments),
+                withMaterialName = SetNestedField(
+                    current,
+                    {materialName, "materialName"},
+                    materialName
+                ),
+                withQuantity = SetNestedField(
+                    withMaterialName,
+                    {materialName, quantityField},
+                    value
+                )
+            in
+                withQuantity,
+
+        AddMaterialQuantityPath = (current as record, segments as list, value as any) as record =>
+            if List.Count(segments) >= 2 and List.Contains(QuantityFields, List.Last(segments)) then
+                SetMaterialQuantityField(current, segments, value)
+            else
+                SetNestedField(current, segments, value),
+
+        FieldNames = Record.FieldNames(objectRecord),
+        ExactPathValue = Record.FieldOrDefault(objectRecord, MaterialQuantitiesPath, null),
+        ChildPaths = List.Select(FieldNames, each Text.StartsWith(_, MaterialQuantitiesPrefix)),
+        MaterialQuantitiesFromChildPaths = List.Accumulate(
+            ChildPaths,
+            [],
+            (state, path) =>
+                AddMaterialQuantityPath(
+                    state,
+                    Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), "."),
+                    Record.Field(objectRecord, path)
+                )
+        ),
+        MaterialQuantities =
+            if not List.IsEmpty(ChildPaths) then
+                MaterialQuantitiesFromChildPaths
+            else
+                ExactPathValue,
+        Result =
+            if MaterialQuantities = null then
+                null
+            else if OutputAsList and MaterialQuantities is record then
                 Record.ToList(MaterialQuantities)
             else
                 MaterialQuantities
