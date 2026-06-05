@@ -1,0 +1,83 @@
+// Fast path for grouping EAV rows without creating a dedicated properties column.
+(
+    baseUrl as text,
+    projectId as text,
+    modelId as text,
+    versionId as text,
+    rootObjectId as text,
+    token as text
+) as table =>
+    let
+        FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
+
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        EavTable = FetchEavParquet(
+            baseUrl,
+            projectId,
+            modelId,
+            versionId,
+            token
+        ),
+
+        RowsToRecord = (rows as table) as record =>
+            Record.FromList(rows[value_text], rows[path]),
+
+        RowsToGroupedObject = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows)
+            in
+                [
+                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                    Rows = rowsRecord
+                ],
+
+        GroupedByObjectId = Table.Group(
+            EavTable,
+            {"object_id"},
+            {{"Grouped Object", RowsToGroupedObject, type record}},
+            GroupKind.Local
+        ),
+
+        ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
+            GroupedByObjectId,
+            "Grouped Object",
+            {"Speckle Type", "Application ID", "Rows"},
+            {"Speckle Type", "Application ID", "Rows"}
+        ),
+
+        DataObjects = Table.SelectRows(
+            ExpandedGroupedByObjectId,
+            each [#"Speckle Type"] <> null
+                and Text.Contains(Text.From([#"Speckle Type"]), "DataObject")
+        ),
+
+        FinalGroupedByObjectId = if Table.IsEmpty(DataObjects) then
+            ExpandedGroupedByObjectId
+        else
+            DataObjects,
+
+        RenamedFinalTable = Table.RenameColumns(
+            FinalGroupedByObjectId,
+            {
+                {"object_id", "Object IDs"},
+                {"Rows", "data"}
+            }
+        )
+    in
+        RenamedFinalTable

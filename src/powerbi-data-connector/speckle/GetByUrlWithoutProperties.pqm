@@ -1,30 +1,10 @@
-(url as text, optional PropertiesColumn as text, optional ExpandProperties as logical) as table =>
+(url as text, optional ExpandProperties as logical) as table =>
     let
-        AllowedPropertiesColumnValues = {
-            "None (fastest)",
-            "Full paths",
-            "Short names (slowest)"
-        },
-        selectedPropertiesColumn = if PropertiesColumn = null then
-            "None (fastest)"
-        else if List.Contains(AllowedPropertiesColumnValues, PropertiesColumn) then
-            PropertiesColumn
-        else
-            error [
-                Reason = "Invalid PropertiesColumn",
-                Message = Text.Format(
-                    "PropertiesColumn must be one of: #{0}.",
-                    {Text.Combine(AllowedPropertiesColumnValues, ", ")}
-                ),
-                Detail = [Value = PropertiesColumn, AllowedValues = AllowedPropertiesColumnValues]
-            ],
-
         // set default value for ExpandProperties
         shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
 
         // import required functions
-        GetByUrlWithoutProperties = Extension.LoadFunction("GetByUrlWithoutProperties.pqm"),
-        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
+        GetStructuredData = Extension.LoadFunction("GetStructuredDataWithoutProperties.pqm"),
         SendToServer = Extension.LoadFunction("SendToServer.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
@@ -127,15 +107,13 @@
                     ServerUrl = effectiveParsedUrl[baseUrl]
                 ]
             ],
-            
+
         // only proceed if user has permisson to load
-        results = if selectedPropertiesColumn = "None (fastest)" then
-            GetByUrlWithoutProperties(url, shouldExpandProperties)
-        else if permissionCheck[authorized] then
+        results = if permissionCheck[authorized] then
             if effectiveParsedUrl[isFederated] = true then
                 // process each model in the federation
                 let
-                    rawModelsData = List.Transform(
+                    modelsData = List.Transform(
                         effectiveParsedUrl[federatedModels],
                         each ProcessSingleModel(
                             effectiveParsedUrl[baseUrl],
@@ -144,32 +122,27 @@
                             [versionId]
                         )
                     ),
-                    modelsData = if selectedPropertiesColumn = "Short names (slowest)" then
-                        List.Buffer(rawModelsData)
-                    else
-                        rawModelsData,
 
-                    allTables = if selectedPropertiesColumn = "Short names (slowest)" then
-                        let
-                            BuildPropertyPathLookup = Extension.LoadFunction("BuildPropertyPathLookup.pqm"),
-                            allEavTables = List.Buffer(List.Transform(modelsData, each [EavTable])),
-                            shortNameLookup = BuildPropertyPathLookup(allEavTables)
-                        in
-                            List.Transform(
-                                allEavTables,
-                                each GetStructuredData(_, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup)
-                            )
-                    else
-                        List.Transform(modelsData, each [Data]),
+                    // extract all data tables
+                    allTables = List.Transform(modelsData, each [Data]),
 
                     // encode once per model, then add the combined transport value
                     // only after the grouped parquet tables have been combined
+                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
+                    combinedRootIds = Text.Combine(allRootIds, ","),
                     allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
                     combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
                     combinedData = Table.Combine(allTables),
 
-                    finalData = Table.AddColumn(
+                    dataWithVersionObjectId = Table.AddColumn(
                         combinedData,
+                        "Version Object ID",
+                        each combinedRootIds,
+                        type text
+                    ),
+
+                    finalData = Table.AddColumn(
+                        dataWithVersionObjectId,
                         "Model Info",
                         each combinedEncodedUserInfos,
                         type text
@@ -187,31 +160,15 @@
                     sourceApplication = modelInfo[sourceApplication],
                     versionId = modelInfo[versionId],
 
-                    structuredData = if selectedPropertiesColumn = "Short names (slowest)" then
-                        let
-                            BuildPropertyPathLookup = Extension.LoadFunction("BuildPropertyPathLookup.pqm"),
-                            FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
-                            eavTable = Table.Buffer(FetchEavParquet(
-                                effectiveParsedUrl[baseUrl],
-                                effectiveParsedUrl[projectId],
-                                modelInfo[modelId],
-                                versionId,
-                                tokenToUse
-                            )),
-                            shortNameLookup = BuildPropertyPathLookup({eavTable})
-                        in
-                            GetStructuredData(eavTable, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup)
-                    else
-                        GetStructuredData(
-                            effectiveParsedUrl[baseUrl],
-                            effectiveParsedUrl[projectId],
-                            modelInfo[modelId],
-                            versionId,
-                            rootObjectId,
-                            tokenToUse,
-                            selectedPropertiesColumn,
-                            null
-                        ),
+                    // get structured data
+                    structuredData = GetStructuredData(
+                        effectiveParsedUrl[baseUrl],
+                        effectiveParsedUrl[projectId],
+                        modelInfo[modelId],
+                        versionId,
+                        rootObjectId,
+                        tokenToUse
+                    ),
 
                     userInfoData = [
                         rootObjectId = rootObjectId,
@@ -244,8 +201,15 @@
                     else
                         encodedUserInfo,
 
-                    result = Table.AddColumn(
+                    dataWithVersionObjectId = Table.AddColumn(
                         structuredData,
+                        "Version Object ID",
+                        each rootObjectId,
+                        type text
+                    ),
+
+                    result = Table.AddColumn(
+                        dataWithVersionObjectId,
                         "Model Info",
                         each trackedModelInfo,
                         type text
@@ -255,10 +219,10 @@
                     result
         else
             error Text.Format(
-                "Permission denied: #{0} (Error code: #{1})", 
+                "Permission denied: #{0} (Error code: #{1})",
                 {permissionCheck[message], permissionCheck[code]}
             ),
-                
+
         // helper function to try sending user info to desktop service for backward compatibility
         // returns true if successful, false otherwise (non-blocking)
         TrySendToDesktopService = (userInfoData as record) =>
@@ -303,28 +267,15 @@
                 sourceApplication = modelInfo[sourceApplication],
                 federatedVersionId = if versionId <> null then versionId else modelInfo[versionId],
 
-                modelData = if selectedPropertiesColumn = "Short names (slowest)" then
-                    let
-                        FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm")
-                    in
-                        Table.Buffer(FetchEavParquet(
-                            baseUrl,
-                            projectId,
-                            modelInfo[modelId],
-                            federatedVersionId,
-                            tokenToUse
-                        ))
-                else
-                    GetStructuredData(
-                        baseUrl,
-                        projectId,
-                        modelInfo[modelId],
-                        federatedVersionId,
-                        rootObjectId,
-                        tokenToUse,
-                        selectedPropertiesColumn,
-                        null
-                    ),
+                // get structured data
+                structuredData = GetStructuredData(
+                    baseUrl,
+                    projectId,
+                    modelInfo[modelId],
+                    federatedVersionId,
+                    rootObjectId,
+                    tokenToUse
+                ),
 
                 userInfoData = [
                     rootObjectId = rootObjectId,
@@ -357,20 +308,12 @@
                 else
                     encodedUserInfo,
 
-                result = modelData
+                result = structuredData
             in
-                if selectedPropertiesColumn = "Short names (slowest)" then
-                    [
-                        EavTable = result,
-                        EncodedUserInfo = trackedEncodedUserInfo
-                    ]
-                else
-                    [
-                        Data = result,
-                        EncodedUserInfo = trackedEncodedUserInfo
-                    ]
+                [
+                    Data = result,
+                    RootObjectId = rootObjectId,
+                    EncodedUserInfo = trackedEncodedUserInfo
+                ]
     in
-        if List.Contains(AllowedPropertiesColumnValues, selectedPropertiesColumn) then
-            results
-        else
-            error "Invalid PropertiesColumn validation state"
+        results

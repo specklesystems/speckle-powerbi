@@ -19,11 +19,14 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 
 - **Speckle.pq** - Entry point with OAuth2/PKCE auth and function registration
 - **speckle/GetByUrl.pqm** - Primary user function orchestrating data retrieval
+- **speckle/GetByUrlWithoutProperties.pqm** - `Properties column = None (fastest)` orchestration, kept close to the pre-properties-column fast path
 - **speckle/api/** - Core modules:
   - `Api.Fetch.pqm` - GraphQL client with error handling
   - `Parser.pqm` - URL parsing and federated model detection
   - `FetchEavParquet.pqm` - Fetches structured EAV data from `/api/v1/projects/{projectId}/models/{modelId}/versions/{versionId}/eav/query` as parquet
-  - `GetStructuredData.pqm` - Groups EAV parquet rows by object ID and prioritizes `DataObjects`
+  - `BuildPropertyPathLookup.pqm` - Builds federation-wide shortest-unique property names
+  - `GetStructuredDataWithoutProperties.pqm` - Fast path for `Properties column = None (fastest)`
+  - `GetStructuredData.pqm` - Groups buffered EAV rows by object ID and prioritizes `DataObjects`
   - `SendToServer.pqm` - Legacy Desktop Service helper; structured data no longer depends on it
   - `CheckPermissions.pqm` - Authorization validation
   - `Models.Federate.pqm` - Multi-model federation
@@ -34,10 +37,11 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 1. `Parser.pqm` parses the URL into a single model or federation.
 2. `CheckPermissions.pqm` validates access.
 3. `GetModel.pqm` resolves the model/version metadata and root object ID.
-4. `GetStructuredData.pqm` calls `FetchEavParquet.pqm` to download parquet from `/eav/query`.
-5. `GetStructuredData.pqm` groups EAV rows by object ID and returns the structured table.
-6. `Models.Federate.pqm` combines tables for federated models.
-7. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
+4. `GetByUrl.pqm` calls `FetchEavParquet.pqm` and buffers the raw EAV tables.
+5. Short-name loads build one property-path lookup across the model or complete federation.
+6. `GetStructuredDataWithoutProperties.pqm` handles `None (fastest)` without property-path processing; `GetStructuredData.pqm` handles `Full paths` and `Short names`.
+7. Federated model tables are combined after transformation.
+8. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
 
 ## Gotchas
 

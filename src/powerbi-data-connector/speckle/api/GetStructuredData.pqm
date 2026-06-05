@@ -1,11 +1,13 @@
-// function for getting structured object data
+// Groups EAV rows into structured object data.
 (
-    baseUrl as text,
-    projectId as text,
-    modelId as text,
-    versionId as text,
-    rootObjectId as text,
-    token as text
+    source as any,
+    optional projectId as nullable text,
+    optional modelId as nullable text,
+    optional versionId as nullable text,
+    optional rootObjectId as nullable text,
+    optional token as nullable text,
+    optional propertiesColumn as nullable text,
+    optional shortNameLookup as nullable record
 ) as table =>
     let
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
@@ -26,15 +28,20 @@
                             Detail = [File = fileName, Error = e]
                         ],
 
-        EavTable = Table.Buffer(
-            FetchEavParquet(
-                baseUrl,
-                projectId,
-                modelId,
-                versionId,
-                token
-            )
-        ),
+        EavTable = if Value.Is(source, type table) then
+            source
+        else
+            Table.Buffer(
+                FetchEavParquet(
+                    source,
+                    projectId,
+                    modelId,
+                    versionId,
+                    token
+                )
+            ),
+
+        SelectedPropertiesColumn = if propertiesColumn = null then "Full paths" else propertiesColumn,
 
         PropertyPathPrefix = "properties.",
         ExcludedPropertyPaths = {
@@ -46,15 +53,32 @@
         RowsToRecord = (rows as table) as record =>
             Record.FromList(rows[value_text], rows[path]),
 
-        RowsToGroupedObject = (rows as table) as record =>
+        IsEligiblePropertyPath = (path as any) as logical =>
+            Value.Is(path, type text)
+                and Text.StartsWith(path, PropertyPathPrefix)
+                and not List.Contains(ExcludedPropertyPaths, path),
+
+        RowsToGroupedObjectWithoutProperties = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows)
+            in
+                [
+                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                    Rows = rowsRecord
+                ],
+
+        RowsToGroupedObjectWithProperties = (rows as table) as record =>
             let
                 rowsRecord = RowsToRecord(rows),
-                propertyFields = List.Select(
-                    Record.FieldNames(rowsRecord),
-                    each Text.StartsWith(_, PropertyPathPrefix)
-                        and not List.Contains(ExcludedPropertyPaths, _)
-                ),
-                propertiesRecord = Record.SelectFields(rowsRecord, propertyFields)
+                propertyFields = List.Select(Record.FieldNames(rowsRecord), IsEligiblePropertyPath),
+                propertiesRecord = if SelectedPropertiesColumn = "Full paths" then
+                    Record.SelectFields(rowsRecord, propertyFields)
+                else
+                    Record.FromList(
+                        List.Transform(propertyFields, each Record.Field(rowsRecord, _)),
+                        List.Transform(propertyFields, each Record.Field(shortNameLookup, _))
+                    )
             in
                 [
                     #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
@@ -63,6 +87,12 @@
                     Rows = rowsRecord
                 ],
 
+        IncludePropertiesColumn = SelectedPropertiesColumn <> "None (fastest)",
+        RowsToGroupedObject = if IncludePropertiesColumn then
+            RowsToGroupedObjectWithProperties
+        else
+            RowsToGroupedObjectWithoutProperties,
+
         GroupedByObjectId = Table.Group(
             EavTable,
             {"object_id"},
@@ -70,11 +100,16 @@
             GroupKind.Local
         ),
 
+        GroupedObjectFields = if IncludePropertiesColumn then
+            {"Speckle Type", "Application ID", "properties", "Rows"}
+        else
+            {"Speckle Type", "Application ID", "Rows"},
+
         ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
             GroupedByObjectId,
             "Grouped Object",
-            {"Speckle Type", "Application ID", "properties", "Rows"},
-            {"Speckle Type", "Application ID", "properties", "Rows"}
+            GroupedObjectFields,
+            GroupedObjectFields
         ),
 
         DataObjects = Table.SelectRows(

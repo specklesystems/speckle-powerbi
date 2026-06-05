@@ -57,6 +57,16 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
+### Properties column loading
+
+`Speckle.GetByUrl(url, optional PropertiesColumn, optional ExpandProperties)` supports three dedicated `properties` column modes:
+
+- `None (fastest)` is the default and omits only the dedicated `properties` column. The complete EAV record, including properties, remains available in `data`.
+- `Full paths` preserves the dedicated column's existing full-path field names.
+- `Short names (slowest)` uses the shortest unique path suffix across the complete model or federation. It adds processing time, and names may change if future properties introduce collisions.
+
+`ExpandProperties` remains unchanged and is currently non-functional. With `None (fastest)`, the dedicated `properties` column is omitted regardless of `ExpandProperties`.
+
 ## Development Setup
 
 ### For local development of the 3D Visual
