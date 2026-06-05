@@ -59,13 +59,15 @@ To get started with Power BI connector, please take a look at the [documentation
 
 ### Properties column loading
 
-`Speckle.GetByUrl(url, optional PropertiesColumn, optional ExpandProperties)` supports three property loading modes:
+`Speckle.GetModelByUrl(url, optional PropertiesColumn, optional ExpandProperties)` supports three property loading modes:
 
 - `None (fastest)` is the default and omits property columns. The complete EAV record, including properties, remains available in `data`.
 - `Full paths` loads eligible properties with full EAV paths, such as `properties.Parameters.Length`.
 - `Short names (slowest)` uses the shortest unique path suffix across the complete model or federation. It adds processing time, and names may change if future properties introduce collisions.
 
 When `ExpandProperties` is `false`, `Full paths` and `Short names (slowest)` return a dedicated `properties` record column. When `ExpandProperties` is `true`, eligible properties are pivoted into top-level columns instead. `None (fastest)` ignores `ExpandProperties`.
+
+`Speckle.GetByUrl(url, optional ExpandProperties)` remains available for existing reports, but new reports should use `Speckle.GetModelByUrl`.
 
 ## Development Setup
 

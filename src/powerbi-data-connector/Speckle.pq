@@ -189,9 +189,34 @@ shared Speckle.Project.Issues = Value.ReplaceType(
     type function (url as Uri.Type, optional getReplies as logical) as table
 );
 
-[DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
+    type function (
+        url as (
+            Uri.Type meta [
+                Documentation.FieldCaption = "Speckle Model URL",
+                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
+            ]
+        ),
+        optional ExpandProperties as (
+            type logical meta [
+                Documentation.FieldCaption = "Expand Properties",
+                Documentation.FieldDescription = "Legacy option retained for existing reports. This function uses shortest unique property names.",
+                Documentation.AllowedValues = {false, true}
+            ]
+        )
+    ) as table meta [
+        Documentation.Name = "Speckle - Get Data by URL",
+        Documentation.DisplayName = "Speckle - Get Data by URL",
+        Documentation.LongDescription = "Legacy compatibility function for existing reports. Use Speckle.GetModelByUrl for new reports."
+    ]
+);
+
+[DataSource.Kind = "Speckle", Publish="GetModelByUrl.Publish"]
+shared Speckle.GetModelByUrl = Value.ReplaceType(
+    Speckle.LoadFunction("GetModelByUrl.pqm"),
     type function (
         url as (
             Uri.Type meta [
@@ -248,16 +273,16 @@ shared Speckle.Revit.Parameters.ToNameValueRecord = (r as record, optional exclu
     in
         result;
 
-// here we register the GetByUrl function to power bi ui
-GetByUrl.Publish = [
+// here we register the GetModelByUrl function to power bi ui
+GetModelByUrl.Publish = [
     Cateogry = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
-    SourceImage = GetByUrl.Icons,
-    SourceTypeImage = GetByUrl.Icons
+    SourceImage = GetModelByUrl.Icons,
+    SourceTypeImage = GetModelByUrl.Icons
 ];
 
-GetByUrl.Icons = [
+GetModelByUrl.Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];

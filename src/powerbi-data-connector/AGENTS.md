@@ -18,7 +18,8 @@ tools/InnoSetup/ISCC.exe tools/powerbi.iss  # Build installer
 Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 
 - **Speckle.pq** - Entry point with OAuth2/PKCE auth and function registration
-- **speckle/GetByUrl.pqm** - Primary user function orchestrating data retrieval
+- **speckle/GetModelByUrl.pqm** - Primary user function orchestrating data retrieval
+- **speckle/GetByUrl.pqm** - Legacy compatibility wrapper for existing reports
 - **speckle/GetByUrlWithoutProperties.pqm** - `Properties column = None (fastest)` orchestration, kept close to the pre-properties-column fast path
 - **speckle/api/** - Core modules:
   - `Api.Fetch.pqm` - GraphQL client with error handling
@@ -37,11 +38,11 @@ Modular Power Query M with dynamic function loading via `Speckle.LoadFunction`:
 1. `Parser.pqm` parses the URL into a single model or federation.
 2. `CheckPermissions.pqm` validates access.
 3. `GetModel.pqm` resolves the model/version metadata and root object ID.
-4. `GetByUrl.pqm` calls `FetchEavParquet.pqm` and buffers the raw EAV tables.
+4. `GetModelByUrl.pqm` calls `FetchEavParquet.pqm` and buffers the raw EAV tables.
 5. Short-name loads build one property-path lookup across the model or complete federation.
 6. `GetStructuredDataWithoutProperties.pqm` handles `None (fastest)` without property-path processing; `GetStructuredData.pqm` handles `Full paths` and `Short names`, returning a `properties` record by default or pivoted top-level property columns when `ExpandProperties = true`.
 7. Federated model tables are combined after transformation.
-8. `GetByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
+8. `GetModelByUrl.pqm` attempts a non-blocking Desktop Service user-info handoff for backward compatibility.
 
 ## Gotchas
 
