@@ -79,14 +79,13 @@
         RowsToGroupedObjectWithProperties = (rows as table) as record =>
             let
                 rowsRecord = RowsToRecord(rows),
-                propertyFields = List.Select(Record.FieldNames(rowsRecord), IsEligiblePropertyPath),
-                propertiesRecord = if SelectedPropertiesColumn = "Full paths" then
-                    Record.SelectFields(rowsRecord, propertyFields)
+                propertyRows = Table.SelectRows(rows, each IsEligiblePropertyPath([path])),
+                propertyPaths = propertyRows[path],
+                propertyNames = if SelectedPropertiesColumn = "Full paths" then
+                    propertyPaths
                 else
-                    Record.FromList(
-                        List.Transform(propertyFields, each Record.Field(rowsRecord, _)),
-                        List.Transform(propertyFields, each Record.Field(shortNameLookup, _))
-                    )
+                    List.Transform(propertyPaths, each Record.Field(shortNameLookup, _)),
+                propertiesRecord = Record.FromList(propertyRows[value_text], propertyNames)
             in
                 [
                     #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
