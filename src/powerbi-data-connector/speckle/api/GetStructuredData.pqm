@@ -129,13 +129,29 @@
 
         RowsToGroupedObjectWithoutProperties = (rows as table) as record =>
             let
-                rowsRecord = RowsToRecord(rows)
+                rowsRecord = RowsToRecord(rows),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
             in
-                [
-                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
-                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
-                    Rows = rowsRecord
-                ],
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        Rows = rowsRecord
+                    ],
 
         RowsToGroupedObjectWithProperties = (rows as table) as record =>
             let
@@ -146,14 +162,31 @@
                     propertyPaths
                 else
                     List.Transform(propertyPaths, each Record.Field(shortNameLookup, _)),
-                propertiesRecord = Record.FromList(propertyRows[value_text], propertyNames)
+                propertiesRecord = Record.FromList(propertyRows[value_text], propertyNames),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
             in
-                [
-                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
-                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
-                    properties = propertiesRecord,
-                    Rows = rowsRecord
-                ],
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        properties = propertiesRecord,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        properties = propertiesRecord,
+                        Rows = rowsRecord
+                    ],
 
         IncludePropertiesColumn = SelectedPropertiesColumn <> "None (fastest)" and not ShouldExpandProperties,
         ShouldPivotProperties = SelectedPropertiesColumn <> "None (fastest)" and ShouldExpandProperties,
@@ -169,10 +202,14 @@
             GroupKind.Local
         ),
 
-        GroupedObjectFields = if IncludePropertiesColumn then
+        BaseGroupedObjectFields = if IncludePropertiesColumn then
             {"Speckle Type", "Application ID", "properties", "Rows"}
         else
             {"Speckle Type", "Application ID", "Rows"},
+        GroupedObjectFields = if ShouldIncludeMaterialQuantities then
+            List.InsertRange(BaseGroupedObjectFields, 2, {"Material Quantities"})
+        else
+            BaseGroupedObjectFields,
 
         ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
             GroupedByObjectId,
@@ -240,51 +277,8 @@
         else
             FinalGroupedByObjectId,
 
-        MaterialQuantityRows = if ShouldIncludeMaterialQuantities then
-            Table.SelectRows(EavTable, each IsMaterialQuantityPath([path]))
-        else
-            #table({"object_id", "path", "value_text"}, {}),
-
-        GroupedMaterialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(MaterialQuantityRows) then
-            Table.Group(
-                MaterialQuantityRows,
-                {"object_id"},
-                {{"materialQuantities", RowsToMaterialQuantities, type list}}
-            )
-        else
-            null,
-
-        JoinedMaterialQuantities = if ShouldIncludeMaterialQuantities and GroupedMaterialQuantities <> null then
-            let
-                nested = Table.NestedJoin(
-                    ExpandedWithPivotedProperties,
-                    {"object_id"},
-                    GroupedMaterialQuantities,
-                    {"object_id"},
-                    "Material Quantities",
-                    JoinKind.LeftOuter
-                ),
-                expanded = Table.ExpandTableColumn(
-                    nested,
-                    "Material Quantities",
-                    {"materialQuantities"},
-                    {"Material Quantities"}
-                )
-            in
-                Table.ReplaceValue(
-                    expanded,
-                    null,
-                    {},
-                    Replacer.ReplaceValue,
-                    {"Material Quantities"}
-                )
-        else if ShouldIncludeMaterialQuantities then
-            Table.AddColumn(ExpandedWithPivotedProperties, "Material Quantities", each {}, type list)
-        else
-            ExpandedWithPivotedProperties,
-
         RenamedFinalTable = Table.RenameColumns(
-            JoinedMaterialQuantities,
+            ExpandedWithPivotedProperties,
             {
                 {"object_id", "Object IDs"},
                 {"Rows", "data"}

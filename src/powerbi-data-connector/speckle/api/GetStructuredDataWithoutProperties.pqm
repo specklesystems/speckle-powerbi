@@ -99,13 +99,29 @@
 
         RowsToGroupedObject = (rows as table) as record =>
             let
-                rowsRecord = RowsToRecord(rows)
+                rowsRecord = RowsToRecord(rows),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
             in
-                [
-                    #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
-                    #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
-                    Rows = rowsRecord
-                ],
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        Rows = rowsRecord
+                    ],
 
         GroupedByObjectId = Table.Group(
             EavTable,
@@ -114,11 +130,16 @@
             GroupKind.Local
         ),
 
+        GroupedObjectFields = if ShouldIncludeMaterialQuantities then
+            {"Speckle Type", "Application ID", "Material Quantities", "Rows"}
+        else
+            {"Speckle Type", "Application ID", "Rows"},
+
         ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
             GroupedByObjectId,
             "Grouped Object",
-            {"Speckle Type", "Application ID", "Rows"},
-            {"Speckle Type", "Application ID", "Rows"}
+            GroupedObjectFields,
+            GroupedObjectFields
         ),
 
         DataObjects = Table.SelectRows(
@@ -132,51 +153,8 @@
         else
             DataObjects,
 
-        MaterialQuantityRows = if ShouldIncludeMaterialQuantities then
-            Table.SelectRows(EavTable, each IsMaterialQuantityPath([path]))
-        else
-            #table({"object_id", "path", "value_text"}, {}),
-
-        GroupedMaterialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(MaterialQuantityRows) then
-            Table.Group(
-                MaterialQuantityRows,
-                {"object_id"},
-                {{"materialQuantities", RowsToMaterialQuantities, type list}}
-            )
-        else
-            null,
-
-        WithMaterialQuantities = if ShouldIncludeMaterialQuantities and GroupedMaterialQuantities <> null then
-            let
-                nested = Table.NestedJoin(
-                    FinalGroupedByObjectId,
-                    {"object_id"},
-                    GroupedMaterialQuantities,
-                    {"object_id"},
-                    "Material Quantities",
-                    JoinKind.LeftOuter
-                ),
-                expanded = Table.ExpandTableColumn(
-                    nested,
-                    "Material Quantities",
-                    {"materialQuantities"},
-                    {"Material Quantities"}
-                )
-            in
-                Table.ReplaceValue(
-                    expanded,
-                    null,
-                    {},
-                    Replacer.ReplaceValue,
-                    {"Material Quantities"}
-                )
-        else if ShouldIncludeMaterialQuantities then
-            Table.AddColumn(FinalGroupedByObjectId, "Material Quantities", each {}, type list)
-        else
-            FinalGroupedByObjectId,
-
         RenamedFinalTable = Table.RenameColumns(
-            WithMaterialQuantities,
+            FinalGroupedByObjectId,
             {
                 {"object_id", "Object IDs"},
                 {"Rows", "data"}
