@@ -8,7 +8,8 @@
     optional token as nullable text,
     optional propertiesColumn as nullable text,
     optional shortNameLookup as nullable record,
-    optional expandProperties as nullable logical
+    optional expandProperties as nullable logical,
+    optional includeMaterialQuantities as nullable logical
 ) as table =>
     let
         FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
@@ -44,8 +45,11 @@
 
         SelectedPropertiesColumn = if propertiesColumn = null then "Full paths" else propertiesColumn,
         ShouldExpandProperties = if expandProperties = null then false else expandProperties,
+        ShouldIncludeMaterialQuantities = if includeMaterialQuantities = null then false else includeMaterialQuantities,
 
         PropertyPathPrefix = "properties.",
+        MaterialQuantitiesPath = "properties.Material Quantities",
+        MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
         ExcludedPropertyPaths = {
             "properties.Composite Structure",
             "properties.Material Quantities",
@@ -67,6 +71,61 @@
             Value.Is(path, type text)
                 and Text.StartsWith(path, PropertyPathPrefix)
                 and not IsExcludedPropertyPath(path),
+
+        IsMaterialQuantityPath = (path as any) as logical =>
+            if not Value.Is(path, type text) or not Text.StartsWith(path, MaterialQuantitiesPrefix) then
+                false
+            else
+                List.Count(Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), ".")) >= 2,
+
+        MaterialRowsToRecord = (rows as table) as record =>
+            let
+                fieldNames = rows[fieldName],
+                values = rows[value_text],
+                fieldsRecord = List.Accumulate(
+                    List.Positions(fieldNames),
+                    [],
+                    (current, index) =>
+                        Record.AddField(
+                            Record.RemoveFields(current, {fieldNames{index}}, MissingField.Ignore),
+                            fieldNames{index},
+                            values{index}
+                        )
+                )
+            in
+                Record.AddField(
+                    Record.RemoveFields(fieldsRecord, {"materialName"}, MissingField.Ignore),
+                    "materialName",
+                    rows[materialName]{0}
+                ),
+
+        RowsToMaterialQuantities = (rows as table) as list =>
+            let
+                withSegments = Table.AddColumn(
+                    rows,
+                    "segments",
+                    each Text.Split(Text.AfterDelimiter([path], MaterialQuantitiesPrefix), "."),
+                    type list
+                ),
+                withMaterialName = Table.AddColumn(
+                    withSegments,
+                    "materialName",
+                    each List.Last(List.FirstN([segments], List.Count([segments]) - 1)),
+                    type text
+                ),
+                withFieldName = Table.AddColumn(
+                    withMaterialName,
+                    "fieldName",
+                    each List.Last([segments]),
+                    type text
+                ),
+                groupedByMaterial = Table.Group(
+                    withFieldName,
+                    {"materialName"},
+                    {{"Material Quantity", MaterialRowsToRecord, type record}}
+                )
+            in
+                groupedByMaterial[Material Quantity],
 
         RowsToGroupedObjectWithoutProperties = (rows as table) as record =>
             let
@@ -181,8 +240,51 @@
         else
             FinalGroupedByObjectId,
 
-        RenamedFinalTable = Table.RenameColumns(
+        MaterialQuantityRows = if ShouldIncludeMaterialQuantities then
+            Table.SelectRows(EavTable, each IsMaterialQuantityPath([path]))
+        else
+            #table({"object_id", "path", "value_text"}, {}),
+
+        GroupedMaterialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(MaterialQuantityRows) then
+            Table.Group(
+                MaterialQuantityRows,
+                {"object_id"},
+                {{"materialQuantities", RowsToMaterialQuantities, type list}}
+            )
+        else
+            null,
+
+        JoinedMaterialQuantities = if ShouldIncludeMaterialQuantities and GroupedMaterialQuantities <> null then
+            let
+                nested = Table.NestedJoin(
+                    ExpandedWithPivotedProperties,
+                    {"object_id"},
+                    GroupedMaterialQuantities,
+                    {"object_id"},
+                    "Material Quantities",
+                    JoinKind.LeftOuter
+                ),
+                expanded = Table.ExpandTableColumn(
+                    nested,
+                    "Material Quantities",
+                    {"materialQuantities"},
+                    {"Material Quantities"}
+                )
+            in
+                Table.ReplaceValue(
+                    expanded,
+                    null,
+                    {},
+                    Replacer.ReplaceValue,
+                    {"Material Quantities"}
+                )
+        else if ShouldIncludeMaterialQuantities then
+            Table.AddColumn(ExpandedWithPivotedProperties, "Material Quantities", each {}, type list)
+        else
             ExpandedWithPivotedProperties,
+
+        RenamedFinalTable = Table.RenameColumns(
+            JoinedMaterialQuantities,
             {
                 {"object_id", "Object IDs"},
                 {"Rows", "data"}

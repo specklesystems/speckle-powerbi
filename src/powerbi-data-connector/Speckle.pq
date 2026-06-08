@@ -235,6 +235,14 @@ shared Speckle.GetModelByUrl = Value.ReplaceType(
                 Documentation.FieldDescription = "When true, pivots eligible properties into top-level columns for Full paths or Short names. Ignored when Properties column is 'None (fastest)'.",
                 Documentation.AllowedValues = {false, true}
             ]
+        ),
+        optional IncludeMaterialQuantities as (
+            type logical meta [
+                Documentation.FieldCaption = "Material quantities column",
+                Documentation.FieldDescription = "When true, adds a Material Quantities column containing a list of per-material quantity records. Defaults to false.",
+                Documentation.DefaultValue = false,
+                Documentation.AllowedValues = {false, true}
+            ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Data by URL",

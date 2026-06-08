@@ -1,4 +1,4 @@
-(url as text, optional PropertiesColumn as text, optional ExpandProperties as logical) as table =>
+(url as text, optional PropertiesColumn as text, optional ExpandProperties as logical, optional IncludeMaterialQuantities as logical) as table =>
     let
         AllowedPropertiesColumnValues = {
             "None (fastest)",
@@ -21,6 +21,7 @@
 
         // set default value for ExpandProperties
         shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
+        shouldIncludeMaterialQuantities = if IncludeMaterialQuantities = null then false else IncludeMaterialQuantities,
 
         // import required functions
         GetByUrlWithoutProperties = Extension.LoadFunction("GetByUrlWithoutProperties.pqm"),
@@ -130,7 +131,7 @@
             
         // only proceed if user has permisson to load
         results = if selectedPropertiesColumn = "None (fastest)" then
-            GetByUrlWithoutProperties(url, shouldExpandProperties)
+            GetByUrlWithoutProperties(url, shouldExpandProperties, shouldIncludeMaterialQuantities)
         else if permissionCheck[authorized] then
             if effectiveParsedUrl[isFederated] = true then
                 // process each model in the federation
@@ -157,7 +158,7 @@
                         in
                             List.Transform(
                                 allEavTables,
-                                each GetStructuredData(_, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup, shouldExpandProperties)
+                                each GetStructuredData(_, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup, shouldExpandProperties, shouldIncludeMaterialQuantities)
                             )
                     else
                         List.Transform(modelsData, each [Data]),
@@ -209,7 +210,7 @@
                             )),
                             shortNameLookup = BuildPropertyPathLookup({eavTable})
                         in
-                            GetStructuredData(eavTable, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup, shouldExpandProperties)
+                            GetStructuredData(eavTable, null, null, null, null, null, selectedPropertiesColumn, shortNameLookup, shouldExpandProperties, shouldIncludeMaterialQuantities)
                     else
                         GetStructuredData(
                             effectiveParsedUrl[baseUrl],
@@ -220,7 +221,8 @@
                             tokenToUse,
                             selectedPropertiesColumn,
                             null,
-                            shouldExpandProperties
+                            shouldExpandProperties,
+                            shouldIncludeMaterialQuantities
                         ),
 
                     userInfoData = [
@@ -341,7 +343,8 @@
                         tokenToUse,
                         selectedPropertiesColumn,
                         null,
-                        shouldExpandProperties
+                        shouldExpandProperties,
+                        shouldIncludeMaterialQuantities
                     ),
 
                 userInfoData = [

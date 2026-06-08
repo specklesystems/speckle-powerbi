@@ -1,7 +1,8 @@
-(url as text, optional ExpandProperties as logical) as table =>
+(url as text, optional ExpandProperties as logical, optional IncludeMaterialQuantities as logical) as table =>
     let
         // set default value for ExpandProperties
         shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
+        shouldIncludeMaterialQuantities = if IncludeMaterialQuantities = null then false else IncludeMaterialQuantities,
 
         // import required functions
         GetStructuredData = Extension.LoadFunction("GetStructuredDataWithoutProperties.pqm"),
@@ -167,7 +168,8 @@
                         modelInfo[modelId],
                         versionId,
                         rootObjectId,
-                        tokenToUse
+                        tokenToUse,
+                        shouldIncludeMaterialQuantities
                     ),
 
                     userInfoData = [
@@ -274,7 +276,8 @@
                     modelInfo[modelId],
                     federatedVersionId,
                     rootObjectId,
-                    tokenToUse
+                    tokenToUse,
+                    shouldIncludeMaterialQuantities
                 ),
 
                 userInfoData = [
