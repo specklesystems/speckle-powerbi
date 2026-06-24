@@ -4,8 +4,12 @@ on:
     branches: ["installer-test/**"]
     tags: ["v202*.*.*"]
 permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build-connector:
+    name: Build Connector
     runs-on: windows-latest
     permissions:
       contents: read
@@ -35,7 +39,7 @@ jobs:
           fi
           SEMVER="${TAG#v}"
           FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+          FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
           echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
@@ -45,6 +49,7 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
           REF: ${{ github.ref }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - name: Set connector version
         run: |
@@ -62,12 +67,17 @@ jobs:
 
       - name: Setup Self-sign certificate
         run: |
-          echo "${{ secrets.SELF_CERT_FILE_B64 }}" > "certificate.txt"
-          certutil -decode certificate.txt ${{ env.CertFile  }}
-
+          echo $env:SELF_CERT_FILE_B64 > "certificate.txt"
+          certutil -decode certificate.txt $env:CertFile
+        env:
+          SELF_CERT_FILE_B64: ${{ env.SELF_CERT_FILE_B64  }}
+          CERT_FILE: ${{ env.CertFile  }}
       - name: Create PQX file
         run: |
-          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate ${{env.CertFile}} --password ${{secrets.SELF_CERT_PASSWORD}}
+          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate CERT_FILE --password SELF_CERT_PASSWORD
+        env:
+          CERT_FILE: ${{env.CertFile}}
+          SELF_CERT_PASSWORD: ${{secrets.SELF_CERT_PASSWORD}} # zizmor: ignore[secrets-outside-env]
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -78,6 +88,7 @@ jobs:
           retention-days: 1
 
   build-visual:
+    name: Build Visual
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,7 +112,7 @@ jobs:
           fi
           SEMVER="${TAG#v}"
           FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+          FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
           echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
@@ -111,6 +122,7 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
           REF: ${{ github.ref }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - run: npm ci
         working-directory: src/powerbi-visual
@@ -128,6 +140,7 @@ jobs:
           retention-days: 1
 
   deploy-installers:
+    name: Deploy Installers
     runs-on: ubuntu-latest
     needs:
       - build-connector
@@ -160,7 +173,7 @@ jobs:
         with:
           workflow: Build Installers
           repo: specklesystems/connector-installers
-          token: ${{ secrets.CONNECTORS_GH_TOKEN }}
+          token: ${{ secrets.CONNECTORS_GH_TOKEN }} # zizmor: ignore[secrets-outside-env]
           inputs: '{
             "run_id": "${{ github.run_id }}",
             "semver": "${{ needs.build-connector.outputs.semver }}",

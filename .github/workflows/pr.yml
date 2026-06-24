@@ -2,9 +2,13 @@ name: Test Build Connector and Visual
 on: pull_request
 
 permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-connector:
+    name: Build Connector
     runs-on: windows-latest
     permissions:
       contents: read
@@ -23,6 +27,7 @@ jobs:
           msbuild Speckle.proj /restore /consoleloggerparameters:NoSummary /property:GenerateFullPaths=true
 
   build-visual:
+    name: Build Visual
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -37,3 +42,19 @@ jobs:
         working-directory: src/powerbi-visual
       - run: npm run build
         working-directory: src/powerbi-visual
+
+  lint-github-actions:
+    name: Lint GitHub Actions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor 🌈
+        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
+        with:
+          advanced-security: false
