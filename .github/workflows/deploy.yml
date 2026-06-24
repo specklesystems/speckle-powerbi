@@ -74,7 +74,7 @@ jobs:
           CERT_FILE: ${{ env.CertFile  }}
       - name: Create PQX file
         run: |
-          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate CERT_FILE --password SELF_CERT_PASSWORD
+          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate $env:CERT_FILE --password $env:SELF_CERT_PASSWORD
         env:
           CERT_FILE: ${{env.CertFile}}
           SELF_CERT_PASSWORD: ${{secrets.SELF_CERT_PASSWORD}} # zizmor: ignore[secrets-outside-env]
