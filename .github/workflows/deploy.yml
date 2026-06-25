@@ -2,10 +2,17 @@ name: Build and deploy Connector and Visual
 on:
   push:
     branches: ["installer-test/**"]
-    tags: ["v3.*.*"] # Manual delivery on every 3.x tag
+    tags: ["v202*.*.*"]
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build-connector:
+    name: Build Connector
     runs-on: windows-latest
+    permissions:
+      contents: read
     outputs:
       semver: ${{ steps.set-version.outputs.semver }}
       file-version: ${{ steps.set-version.outputs.file-version }}
@@ -13,37 +20,45 @@ jobs:
       CertFile: "./speckle.pfx"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          python-version: "3.10"
+          persist-credentials: false
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.14"
 
       - id: set-version
         name: Set version to output
         shell: bash
         run: |
-          TAG=${{ github.ref_name }}
-          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
-            TAG="v3.0.99"
+          TAG=${REF_NAME}
+          if [[ "${REF}" != refs/tags/* ]]; then
+            TAG="v0.0.0"
           fi
           SEMVER="${TAG#v}"
           FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+          FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
           echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
 
           echo $SEMVER
           echo $FILE_VERSION
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - name: Set connector version
         run: |
-          python patch_version.py ${{steps.set-version.outputs.file-version}}
+          python patch_version.py ${FILE_VERSION}
+        env:
+          FILE_VERSION: ${{steps.set-version.outputs.file-version}}
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
 
       - name: Build Data Connector
         working-directory: src/powerbi-data-connector
@@ -52,15 +67,20 @@ jobs:
 
       - name: Setup Self-sign certificate
         run: |
-          echo "${{ secrets.SELF_CERT_FILE_B64 }}" > "certificate.txt"
-          certutil -decode certificate.txt ${{ env.CertFile  }}
-
+          echo "$env:SELF_CERT_FILE_B64" > "certificate.txt"
+          certutil -decode certificate.txt $env:CertFile
+        env:
+          SELF_CERT_FILE_B64: ${{ secrets.SELF_CERT_FILE_B64  }}
+          CERT_FILE: ${{ env.CertFile  }}
       - name: Create PQX file
         run: |
-          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate ${{env.CertFile}} --password ${{secrets.SELF_CERT_PASSWORD}}
+          .\tools\MakePQX\MakePQX.exe pack --mez src/powerbi-data-connector/bin/Speckle.mez --target src/powerbi-data-connector/bin/Speckle.pqx --certificate $env:CERT_FILE --password $env:SELF_CERT_PASSWORD
+        env:
+          CERT_FILE: ${{env.CertFile}}
+          SELF_CERT_PASSWORD: ${{secrets.SELF_CERT_PASSWORD}} # zizmor: ignore[secrets-outside-env]
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: powerbi-connector
           path: src/powerbi-data-connector/bin/Speckle.pqx
@@ -68,38 +88,51 @@ jobs:
           retention-days: 1
 
   build-visual:
+    name: Build Visual
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          node-version: 20
+          persist-credentials: false
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          package-manager-cache: false
 
       - id: set-version
         name: Set version to output
         shell: bash
         run: |
-          TAG=${{ github.ref_name }}
-          if [[ "${{ github.ref }}" != refs/tags/* ]]; then
-            TAG="v3.0.99"
+          TAG=${REF_NAME}
+          if [[ "${REF}" != refs/tags/* ]]; then
+            TAG="v0.0.0"
           fi
           SEMVER="${TAG#v}"
           FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
-          FILE_VERSION="$FILE_VERSION.${{ github.run_number }}"
+          FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
           echo "file-version=$FILE_VERSION" >> "$GITHUB_OUTPUT"
 
           echo $SEMVER
           echo $FILE_VERSION
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
+          RUN_NUMBER: ${{ github.run_number }}
 
       - run: npm ci
         working-directory: src/powerbi-visual
-      - run: npm version ${{steps.set-version.outputs.semver}} --allow-same-version
+      - run: npm version ${SEMVER} --allow-same-version
         working-directory: src/powerbi-visual
+        env:
+          SEMVER: ${{steps.set-version.outputs.semver}}
       - run: npm run build
         working-directory: src/powerbi-visual
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: powerbi-visual
           path: src/powerbi-visual/dist/*.pbiviz
@@ -107,6 +140,7 @@ jobs:
           retention-days: 1
 
   deploy-installers:
+    name: Deploy Installers
     runs-on: ubuntu-latest
     needs:
       - build-connector
@@ -115,12 +149,12 @@ jobs:
       IS_TAG_BUILD: ${{ github.ref_type == 'tag' }}
     steps:
       - name: download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: powerbi-connector
           path: artifacts/
       - name: download artifacts visual
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: powerbi-visual
           path: artifacts/
@@ -128,18 +162,18 @@ jobs:
         run: |
           cd artifacts && zip -r ../powerbi.zip .
       - name: upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: output-${{needs.build-connector.outputs.semver}}
           path: powerbi.zip
           if-no-files-found: error
           retention-days: 1
       - name: 🔫 Trigger Build Installer(s)
-        uses: the-actions-org/workflow-dispatch@v4.0.0
+        uses: benc-uk/workflow-dispatch@31e2b3319479a63f0ab15bf800eff9e913504e26 # v1.3.2
         with:
           workflow: Build Installers
           repo: specklesystems/connector-installers
-          token: ${{ secrets.CONNECTORS_GH_TOKEN }}
+          token: ${{ secrets.CONNECTORS_GH_TOKEN }} # zizmor: ignore[secrets-outside-env]
           inputs: '{
             "run_id": "${{ github.run_id }}",
             "semver": "${{ needs.build-connector.outputs.semver }}",
@@ -149,11 +183,9 @@ jobs:
             }'
           ref: main
           wait-for-completion: true
-          wait-for-completion-interval: 10s
-          wait-for-completion-timeout: 10m
-          display-workflow-run-url: true
-          display-workflow-run-url-interval: 10s
+          sync-status: true
+        timeout-minutes: 15
 
-      - uses: geekyeggo/delete-artifact@v5
+      - uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118 # v6.0.0
         with:
           name: output-*
