@@ -1,0 +1,322 @@
+(url as text, optional ExpandProperties as logical, optional IncludeMaterialQuantities as logical) as table =>
+    let
+        // set default value for ExpandProperties
+        shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
+        shouldIncludeMaterialQuantities = if IncludeMaterialQuantities = null then false else IncludeMaterialQuantities,
+
+        // import required functions
+        GetStructuredData = Extension.LoadFunction("GetStructuredDataWithoutProperties.pqm"),
+        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
+        EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
+        GetVersion = Extension.LoadFunction("GetVersion.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
+        ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
+
+        // the logic for importing functions from other files
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        ProjectWideModelLimit = 10000,
+
+        // parse the URL to determine load shape
+        parsedUrl = Parser(url),
+
+        expandedResourceIdString = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine(ProjectModels(parsedUrl[baseUrl], parsedUrl[projectId], ProjectWideModelLimit), ",")
+        else
+            parsedUrl[resourceIdString],
+
+        effectiveUrl = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine({
+                parsedUrl[baseUrl],
+                "/projects/",
+                parsedUrl[projectId],
+                "/models/",
+                expandedResourceIdString
+            })
+        else
+            url,
+
+        effectiveParsedUrl = Parser(effectiveUrl),
+
+        metadataUrl = if parsedUrl[isProjectWideModelLoad] then url else effectiveUrl,
+
+        // check if user has permission to load the model
+        permissionCheck = CheckPermissions(metadataUrl),
+
+        // assert that permission check returned a valid result
+        permissionAssert = if not Record.HasFields(permissionCheck, {"authorized", "code", "message"}) then
+            error "Invalid permission check result"
+        else
+            null,
+
+        // if not authorized, throw an error with the message from the server
+        authCheck = if not permissionCheck[authorized] then
+            error Text.Format(
+                "Permission denied: #{0} (Error code: #{1})",
+                {permissionCheck[message], permissionCheck[code]}
+            )
+        else
+            null,
+
+        // get user info, connector version, and workspace info for encoding
+        userInfo = GetUser(metadataUrl),
+        powerfulToken = userInfo[Token],
+        userEmail = userInfo[UserEmail],
+        connectorVersion = GetVersion(),
+        workspaceInfo = GetWorkspace(metadataUrl),
+
+        // exchange powerful token for weak token with limited scopes
+        tokenExchangeResult = ExchangeToken(
+            powerfulToken,
+            {"profile:read", "streams:read", "users:read"},
+            effectiveParsedUrl[projectId],
+            effectiveParsedUrl[baseUrl],
+            effectiveParsedUrl[resourceIdString]
+        ),
+
+        // throw error if token exchange failed - do NOT use powerful token as fallback
+        tokenToUse = if tokenExchangeResult[Success] then
+            tokenExchangeResult[Token]
+        else
+            error [
+                Reason = "TokenExchangeFailed",
+                Message.Format = "Failed to exchange token for limited scope token: #{0}",
+                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
+                Detail = [
+                    ErrorMessage = tokenExchangeResult[ErrorMessage],
+                    ProjectId = effectiveParsedUrl[projectId],
+                    ServerUrl = effectiveParsedUrl[baseUrl]
+                ]
+            ],
+
+        // only proceed if user has permisson to load
+        results = if permissionCheck[authorized] then
+            if effectiveParsedUrl[isFederated] = true then
+                // process each model in the federation
+                let
+                    modelsData = List.Transform(
+                        effectiveParsedUrl[federatedModels],
+                        each ProcessSingleModel(
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
+                            [modelId],
+                            [versionId]
+                        )
+                    ),
+
+                    // extract all data tables
+                    allTables = List.Transform(modelsData, each [Data]),
+
+                    // encode once per model, then add the combined transport value
+                    // only after the grouped parquet tables have been combined
+                    allRootIds = List.Transform(modelsData, each [RootObjectId]),
+                    combinedRootIds = Text.Combine(allRootIds, ","),
+                    allEncodedUserInfos = List.Transform(modelsData, each [EncodedUserInfo]),
+                    combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
+                    combinedData = Table.Combine(allTables),
+
+                    dataWithVersionObjectId = Table.AddColumn(
+                        combinedData,
+                        "Version Object ID",
+                        each combinedRootIds,
+                        type text
+                    ),
+
+                    finalData = Table.AddColumn(
+                        dataWithVersionObjectId,
+                        "Model Info",
+                        each combinedEncodedUserInfos,
+                        type text
+                    )
+
+                in
+                    finalData
+            else
+                // use existing functionality for single models
+                let
+                    // get model info
+                    modelInfo = GetModel(effectiveUrl),
+                    modelName = modelInfo[modelName],
+                    rootObjectId = modelInfo[rootObjectId],
+                    sourceApplication = modelInfo[sourceApplication],
+                    versionId = modelInfo[versionId],
+
+                    // get structured data
+                    structuredData = GetStructuredData(
+                        effectiveParsedUrl[baseUrl],
+                        effectiveParsedUrl[projectId],
+                        modelInfo[modelId],
+                        versionId,
+                        rootObjectId,
+                        tokenToUse,
+                        shouldIncludeMaterialQuantities
+                    ),
+
+                    userInfoData = [
+                        rootObjectId = rootObjectId,
+                        server = effectiveParsedUrl[baseUrl],
+                        email = userEmail,
+                        projectId = effectiveParsedUrl[projectId],
+                        token = tokenToUse,
+                        workspaceId = workspaceInfo[workspaceId],
+                        workspaceName = workspaceInfo[workspaceName],
+                        workspaceLogo = workspaceInfo[workspaceLogo],
+                        version = connectorVersion,
+                        sourceApplication = sourceApplication,
+                        canHideBranding = workspaceInfo[canHideBranding],
+                        versionId = versionId,
+                        url = effectiveUrl
+                    ],
+
+                    encodedUserInfo = EncodeUserInfo(userInfoData),
+
+                    receiptTrackingResult = MarkReceived(
+                        powerfulToken,
+                        versionId,
+                        effectiveParsedUrl[projectId],
+                        effectiveParsedUrl[baseUrl]
+                    ),
+
+                    // Reference the best-effort result so Power Query's lazy evaluator sends the request.
+                    trackedModelInfo = if receiptTrackingResult or not receiptTrackingResult then
+                        encodedUserInfo
+                    else
+                        encodedUserInfo,
+
+                    dataWithVersionObjectId = Table.AddColumn(
+                        structuredData,
+                        "Version Object ID",
+                        each rootObjectId,
+                        type text
+                    ),
+
+                    result = Table.AddColumn(
+                        dataWithVersionObjectId,
+                        "Model Info",
+                        each trackedModelInfo,
+                        type text
+                    )
+
+                in
+                    result
+        else
+            error Text.Format(
+                "Permission denied: #{0} (Error code: #{1})",
+                {permissionCheck[message], permissionCheck[code]}
+            ),
+
+        // helper function to try sending user info to desktop service for backward compatibility
+        // returns true if successful, false otherwise (non-blocking)
+        TrySendToDesktopService = (userInfoData as record) =>
+            try
+                let
+                    userInfoJson = Json.FromValue(userInfoData),
+                    response = Web.Contents(
+                        "http://127.0.0.1:29364/store-user-info",
+                        [
+                            Headers = [
+                                #"Content-Type" = "application/json",
+                                #"Method" = "POST"
+                            ],
+                            Content = userInfoJson,
+                            ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504},
+                            Timeout = #duration(0, 0, 0, 2)
+                        ]
+                    ),
+                    statusCode = Value.Metadata(response)[Response.Status]
+                in
+                    statusCode >= 200 and statusCode < 300
+            otherwise
+                false,
+
+        // function to process a single model and get its data
+        ProcessSingleModel = (baseUrl, projectId, modelId, versionId) =>
+            let
+                // construct a standard URL for the model
+                singleModelUrl = Text.Combine({
+                    baseUrl,
+                    "/projects/",
+                    projectId,
+                    "/models/",
+                    modelId,
+                    if versionId <> null then Text.Combine({"@", versionId}) else ""
+                }),
+
+                // get model info
+                modelInfo = GetModel(singleModelUrl),
+                rootObjectId = modelInfo[rootObjectId],
+                modelName = modelInfo[modelName],
+                sourceApplication = modelInfo[sourceApplication],
+                federatedVersionId = if versionId <> null then versionId else modelInfo[versionId],
+
+                // get structured data
+                structuredData = GetStructuredData(
+                    baseUrl,
+                    projectId,
+                    modelInfo[modelId],
+                    federatedVersionId,
+                    rootObjectId,
+                    tokenToUse,
+                    shouldIncludeMaterialQuantities
+                ),
+
+                userInfoData = [
+                    rootObjectId = rootObjectId,
+                    server = baseUrl,
+                    email = userEmail,
+                    projectId = projectId,
+                    token = tokenToUse,
+                    workspaceId = workspaceInfo[workspaceId],
+                    workspaceName = workspaceInfo[workspaceName],
+                    workspaceLogo = workspaceInfo[workspaceLogo],
+                    version = connectorVersion,
+                    sourceApplication = sourceApplication,
+                    canHideBranding = workspaceInfo[canHideBranding],
+                    versionId = federatedVersionId,
+                    url = singleModelUrl
+                ],
+
+                encodedUserInfo = EncodeUserInfo(userInfoData),
+
+                receiptTrackingResult = MarkReceived(
+                    powerfulToken,
+                    federatedVersionId,
+                    projectId,
+                    baseUrl
+                ),
+
+                // Reference the best-effort result so Power Query's lazy evaluator sends the request.
+                trackedEncodedUserInfo = if receiptTrackingResult or not receiptTrackingResult then
+                    encodedUserInfo
+                else
+                    encodedUserInfo,
+
+                result = structuredData
+            in
+                [
+                    Data = result,
+                    RootObjectId = rootObjectId,
+                    EncodedUserInfo = trackedEncodedUserInfo
+                ]
+    in
+        results

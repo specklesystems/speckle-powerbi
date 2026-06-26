@@ -1,18 +1,57 @@
+// Helper function to extract dot-notation properties.Composite Structure fields.
 (objectRecord as record, optional outputAsList as nullable logical) as any =>
     let
-        compositeStructure =
-            if Record.HasFields(objectRecord[properties], "Composite Structure") then
-                objectRecord[properties][Composite Structure]
-            else if Record.HasFields(objectRecord[properties], "Parameters") and 
-                    Record.HasFields(objectRecord[properties][Parameters], "Type Parameters") and
-                    Record.HasFields(objectRecord[properties][Parameters][Type Parameters], "Structure") then
-                objectRecord[properties][Parameters][Type Parameters][Structure]
+        OutputAsList = if outputAsList = null then true else outputAsList,
+        CompositeStructurePrefix = "properties.Composite Structure.",
+        TypeStructurePrefix = "properties.Parameters.Type Parameters.Structure.",
+
+        SetNestedField = (current as record, segments as list, value as any) as record =>
+            let
+                segment = segments{0},
+                remainingSegments = List.Skip(segments, 1),
+                existingValue = Record.FieldOrDefault(current, segment, []),
+                nestedValue =
+                    if List.IsEmpty(remainingSegments) then
+                        value
+                    else
+                        @SetNestedField(
+                            if existingValue is record then existingValue else [],
+                            remainingSegments,
+                            value
+                        ),
+                withoutExisting = Record.RemoveFields(current, {segment}, MissingField.Ignore),
+                withNested = Record.AddField(withoutExisting, segment, nestedValue)
+            in
+                withNested,
+
+        BuildStructureFromPaths = (paths as list, prefix as text) as record =>
+            List.Accumulate(
+                paths,
+                [],
+                (state, path) =>
+                    SetNestedField(
+                        state,
+                        Text.Split(Text.AfterDelimiter(path, prefix), "."),
+                        Record.Field(objectRecord, path)
+                    )
+            ),
+
+        FieldNames = Record.FieldNames(objectRecord),
+        CompositeStructurePaths = List.Select(FieldNames, each Text.StartsWith(_, CompositeStructurePrefix)),
+        TypeStructurePaths = List.Select(FieldNames, each Text.StartsWith(_, TypeStructurePrefix)),
+        CompositeStructure =
+            if not List.IsEmpty(CompositeStructurePaths) then
+                BuildStructureFromPaths(CompositeStructurePaths, CompositeStructurePrefix)
+            else if not List.IsEmpty(TypeStructurePaths) then
+                BuildStructureFromPaths(TypeStructurePaths, TypeStructurePrefix)
             else
                 null,
-        result =
-            if outputAsList = true then
-                if compositeStructure <> null then Record.ToList(compositeStructure) else null
+        Result =
+            if CompositeStructure = null then
+                null
+            else if OutputAsList and CompositeStructure is record then
+                Record.ToList(CompositeStructure)
             else
-                compositeStructure
+                CompositeStructure
     in
-        result
+        Result

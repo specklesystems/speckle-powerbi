@@ -1,0 +1,93 @@
+// Builds a global property-path to shortest-unique-suffix lookup.
+(eavTables as list) as record =>
+    let
+        PropertyPathPrefix = "properties.",
+        ExcludedPropertyPaths = {
+            "properties.Composite Structure",
+            "properties.Material Quantities",
+            "properties.Parameters.Type Parameters.Structure"
+        },
+
+        IsExcludedPropertyPath = (path as text) as logical =>
+            List.AnyTrue(
+                List.Transform(
+                    ExcludedPropertyPaths,
+                    (excludedPath) => path = excludedPath or Text.StartsWith(path, excludedPath & ".")
+                )
+            ),
+
+        IsEligiblePropertyPath = (path as any) as logical =>
+            Value.Is(path, type text)
+                and Text.StartsWith(path, PropertyPathPrefix)
+                and not IsExcludedPropertyPath(path),
+
+        EligiblePaths = List.Buffer(
+            List.Distinct(
+                List.Combine(
+                    List.Transform(
+                        eavTables,
+                        each List.Select(Table.Column(_, "path"), IsEligiblePropertyPath)
+                    )
+                )
+            )
+        ),
+
+        InitialStates = List.Transform(
+            EligiblePaths,
+            each [
+                Path = _,
+                Segments = Text.Split(Text.AfterDelimiter(_, PropertyPathPrefix), "."),
+                Depth = 1
+            ]
+        ),
+
+        StateName = (state as record) as text =>
+            Text.Combine(List.LastN(state[Segments], state[Depth]), "."),
+
+        ResolveCollisions = (states as list) as list =>
+            let
+                names = List.Buffer(List.Transform(states, StateName)),
+                collisionNames = List.Select(
+                    List.Distinct(names),
+                    (name) => List.Count(List.Select(names, each _ = name)) > 1
+                ),
+                canResolveCollision = List.AnyTrue(
+                    List.Transform(
+                        states,
+                        each List.Contains(collisionNames, StateName(_))
+                            and [Depth] < List.Count([Segments])
+                    )
+                ),
+                nextStates = List.Transform(
+                    states,
+                    each
+                        if List.Contains(collisionNames, StateName(_))
+                            and [Depth] < List.Count([Segments])
+                        then
+                            [
+                                Path = [Path],
+                                Segments = [Segments],
+                                Depth = [Depth] + 1
+                            ]
+                        else
+                            _
+                )
+            in
+                if List.IsEmpty(collisionNames) then
+                    states
+                else if not canResolveCollision then
+                    error [
+                        Reason = "PropertyShortNameCollision",
+                        Message = "Unable to create unique short names for all eligible property paths.",
+                        Detail = [Collisions = collisionNames]
+                    ]
+                else
+                    @ResolveCollisions(nextStates),
+
+        ResolvedStates = ResolveCollisions(InitialStates),
+        Lookup = Record.FromList(
+            List.Transform(ResolvedStates, StateName),
+            List.Transform(ResolvedStates, each [Path])
+        )
+    in
+        Lookup

@@ -1,0 +1,164 @@
+// Fast path for grouping EAV rows without creating a dedicated properties column.
+(
+    baseUrl as text,
+    projectId as text,
+    modelId as text,
+    versionId as text,
+    rootObjectId as text,
+    token as text,
+    optional includeMaterialQuantities as nullable logical
+) as table =>
+    let
+        FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
+
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        EavTable = FetchEavParquet(
+            baseUrl,
+            projectId,
+            modelId,
+            versionId,
+            token
+        ),
+
+        ShouldIncludeMaterialQuantities = if includeMaterialQuantities = null then false else includeMaterialQuantities,
+        MaterialQuantitiesPath = "properties.Material Quantities",
+        MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
+
+        RowsToRecord = (rows as table) as record =>
+            Record.FromList(rows[value_text], rows[path]),
+
+        IsMaterialQuantityPath = (path as any) as logical =>
+            if not Value.Is(path, type text) or not Text.StartsWith(path, MaterialQuantitiesPrefix) then
+                false
+            else
+                List.Count(Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), ".")) >= 2,
+
+        MaterialRowsToRecord = (rows as table) as record =>
+            let
+                fieldNames = rows[fieldName],
+                values = rows[value_text],
+                fieldsRecord = List.Accumulate(
+                    List.Positions(fieldNames),
+                    [],
+                    (current, index) =>
+                        Record.AddField(
+                            Record.RemoveFields(current, {fieldNames{index}}, MissingField.Ignore),
+                            fieldNames{index},
+                            values{index}
+                        )
+                )
+            in
+                Record.AddField(
+                    Record.RemoveFields(fieldsRecord, {"materialName"}, MissingField.Ignore),
+                    "materialName",
+                    rows[materialName]{0}
+                ),
+
+        RowsToMaterialQuantities = (rows as table) as list =>
+            let
+                withSegments = Table.AddColumn(
+                    rows,
+                    "segments",
+                    each Text.Split(Text.AfterDelimiter([path], MaterialQuantitiesPrefix), "."),
+                    type list
+                ),
+                withMaterialName = Table.AddColumn(
+                    withSegments,
+                    "materialName",
+                    each List.Last(List.FirstN([segments], List.Count([segments]) - 1)),
+                    type text
+                ),
+                withFieldName = Table.AddColumn(
+                    withMaterialName,
+                    "fieldName",
+                    each List.Last([segments]),
+                    type text
+                ),
+                groupedByMaterial = Table.Group(
+                    withFieldName,
+                    {"materialName"},
+                    {{"Material Quantity", MaterialRowsToRecord, type record}}
+                )
+            in
+                groupedByMaterial[Material Quantity],
+
+        RowsToGroupedObject = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
+            in
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        Rows = rowsRecord
+                    ],
+
+        GroupedByObjectId = Table.Group(
+            EavTable,
+            {"object_id"},
+            {{"Grouped Object", RowsToGroupedObject, type record}},
+            GroupKind.Local
+        ),
+
+        GroupedObjectFields = if ShouldIncludeMaterialQuantities then
+            {"Speckle Type", "Application ID", "Material Quantities", "Rows"}
+        else
+            {"Speckle Type", "Application ID", "Rows"},
+
+        ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
+            GroupedByObjectId,
+            "Grouped Object",
+            GroupedObjectFields,
+            GroupedObjectFields
+        ),
+
+        DataObjects = Table.SelectRows(
+            ExpandedGroupedByObjectId,
+            each [#"Speckle Type"] <> null
+                and Text.Contains(Text.From([#"Speckle Type"]), "DataObject")
+        ),
+
+        FinalGroupedByObjectId = if Table.IsEmpty(DataObjects) then
+            ExpandedGroupedByObjectId
+        else
+            DataObjects,
+
+        RenamedFinalTable = Table.RenameColumns(
+            FinalGroupedByObjectId,
+            {
+                {"object_id", "Object IDs"},
+                {"Rows", "data"}
+            }
+        )
+    in
+        RenamedFinalTable

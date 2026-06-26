@@ -1,13 +1,50 @@
-// Helper function to extract [properties][Material Quantities] and optionally output as list
+// Extracts dot-notation properties.Material Quantities fields.
 (objectRecord as record, optional outputAsList as logical) as any =>
     let
-        // Ensure outputAsList is logical and defaults to false if not provided
-        OutputAsList = if outputAsList = null then false else outputAsList,
-        // Check if 'properties' and 'Material Quantities' exist
-        HasMaterialQuantities = Record.HasFields(objectRecord, {"properties"}) and Record.HasFields(Record.Field(objectRecord, "properties"), {"Material Quantities"}),
-        MaterialQuantities = if HasMaterialQuantities then Record.Field(Record.Field(objectRecord, "properties"), "Material Quantities") else null,
-        Result = if MaterialQuantities = null then null else
-            if OutputAsList then
+        OutputAsList = if outputAsList = null then true else outputAsList,
+        MaterialQuantitiesPath = "properties.Material Quantities",
+        MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
+        QuantityFields = {"area", "volume"},
+
+        IsMaterialQuantityPath = (path as text) as logical =>
+            let
+                segments = Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), ".")
+            in
+                List.Count(segments) >= 2 and List.Contains(QuantityFields, List.Last(segments)),
+
+        AddMaterialQuantity = (current as record, path as text) as record =>
+            let
+                segments = Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), "."),
+                materialName = List.Last(List.FirstN(segments, List.Count(segments) - 1)),
+                quantityField = List.Last(segments),
+                existingMaterial = Record.FieldOrDefault(current, materialName, []),
+                materialRecord = if existingMaterial is record then existingMaterial else [],
+                withMaterialName =
+                    if Record.HasFields(materialRecord, {"materialName"}) then
+                        materialRecord
+                    else
+                        Record.AddField(materialRecord, "materialName", materialName),
+                withoutQuantity = Record.RemoveFields(withMaterialName, {quantityField}, MissingField.Ignore),
+                withQuantity = Record.AddField(withoutQuantity, quantityField, Record.Field(objectRecord, path)),
+                withoutMaterial = Record.RemoveFields(current, {materialName}, MissingField.Ignore),
+                withMaterial = Record.AddField(withoutMaterial, materialName, withQuantity)
+            in
+                withMaterial,
+
+        FieldNames = Record.FieldNames(objectRecord),
+        MaterialQuantityPaths = List.Select(
+            FieldNames,
+            each Text.StartsWith(_, MaterialQuantitiesPrefix) and IsMaterialQuantityPath(_)
+        ),
+        MaterialQuantities = List.Accumulate(
+            MaterialQuantityPaths,
+            [],
+            AddMaterialQuantity
+        ),
+        Result =
+            if Record.FieldCount(MaterialQuantities) = 0 then
+                null
+            else if OutputAsList then
                 Record.ToList(MaterialQuantities)
             else
                 MaterialQuantities

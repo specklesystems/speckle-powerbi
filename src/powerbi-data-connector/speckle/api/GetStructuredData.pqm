@@ -1,11 +1,19 @@
-// function for getting structured object data
-(url as text) as table =>
+// Groups EAV rows into structured object data.
+(
+    source as any,
+    optional projectId as nullable text,
+    optional modelId as nullable text,
+    optional versionId as nullable text,
+    optional rootObjectId as nullable text,
+    optional token as nullable text,
+    optional propertiesColumn as nullable text,
+    optional shortNameLookup as nullable record,
+    optional expandProperties as nullable logical,
+    optional includeMaterialQuantities as nullable logical
+) as table =>
     let
-        // import the required functions
-        GetModel = Extension.LoadFunction("GetModel.pqm"),
-        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
-       
-        // the logic for importing functions from other files
+        FetchEavParquet = Extension.LoadFunction("FetchEavParquet.pqm"),
+
         Extension.LoadFunction = (fileName as text) =>
             let
                 binary = Extension.Contents(fileName),
@@ -21,98 +29,260 @@
                             Message.Parameters = {fileName, e[Reason], e[Message]},
                             Detail = [File = fileName, Error = e]
                         ],
-       
-        // get model info and server data
-        modelInfo = GetModel(url),
-        rootId = modelInfo[rootObjectId],
-       
-        // Get the data from SendToServer - this is already a response from the service
-        JsonResponse = SendToServer(url),
-       
-        // convert list to table with all columns expanded
-        TableFromList = Table.FromList(
-            JsonResponse,
-            Splitter.SplitByNothing(),
-            null,
-            null,
-            ExtraValues.Error
-        ),
-        // fields to remove from data record
-        FieldsToRemove = {"__closure", "totalChildrenCount", "renderMaterialProxies"},
-        
-        // create basic table with cleaned data records (no properties column yet)
-        BasicTable = Table.FromRecords(
-            List.Transform(
-                TableFromList[Column1],
-                each let
-                    record = _,
-                    fieldsToRemoveForThisRecord = List.Select(
-                        FieldsToRemove,
-                        each Record.HasFields(record, {_})
-                    ),
-                    cleanedRecord = Record.RemoveFields(record, fieldsToRemoveForThisRecord)
-                in
-                    [
-                        #"Object IDs" = record[id], // Object IDs
-                        #"Speckle Type" = record[speckle_type], // Speckle Type
-                        #"Version Object ID" = rootId,
-                        #"Model Info" = rootId,
-                        #"Application ID" = Record.FieldOrDefault(record, "applicationId", null), // Application ID
-                        data = cleanedRecord // Data
-                    ]
-            )
-        ),
-       
-        // function to check if a row should be excluded based on speckle type
-        ShouldExcludeRow = (row as record) as logical =>
+
+        EavTable = if Value.Is(source, type table) then
+            source
+        else
+            Table.Buffer(
+                FetchEavParquet(
+                    source,
+                    projectId,
+                    modelId,
+                    versionId,
+                    token
+                )
+            ),
+
+        SelectedPropertiesColumn = if propertiesColumn = null then "Full paths" else propertiesColumn,
+        ShouldExpandProperties = if expandProperties = null then false else expandProperties,
+        ShouldIncludeMaterialQuantities = if includeMaterialQuantities = null then false else includeMaterialQuantities,
+
+        PropertyPathPrefix = "properties.",
+        MaterialQuantitiesPath = "properties.Material Quantities",
+        MaterialQuantitiesPrefix = MaterialQuantitiesPath & ".",
+        ExcludedPropertyPaths = {
+            "properties.Composite Structure",
+            "properties.Material Quantities",
+            "properties.Parameters.Type Parameters.Structure"
+        },
+
+        RowsToRecord = (rows as table) as record =>
+            Record.FromList(rows[value_text], rows[path]),
+
+        IsExcludedPropertyPath = (path as text) as logical =>
+            List.AnyTrue(
+                List.Transform(
+                    ExcludedPropertyPaths,
+                    (excludedPath) => path = excludedPath or Text.StartsWith(path, excludedPath & ".")
+                )
+            ),
+
+        IsEligiblePropertyPath = (path as any) as logical =>
+            Value.Is(path, type text)
+                and Text.StartsWith(path, PropertyPathPrefix)
+                and not IsExcludedPropertyPath(path),
+
+        IsMaterialQuantityPath = (path as any) as logical =>
+            if not Value.Is(path, type text) or not Text.StartsWith(path, MaterialQuantitiesPrefix) then
+                false
+            else
+                List.Count(Text.Split(Text.AfterDelimiter(path, MaterialQuantitiesPrefix), ".")) >= 2,
+
+        MaterialRowsToRecord = (rows as table) as record =>
             let
-                speckleType = Record.FieldOrDefault(row[data], "speckle_type", "")
+                fieldNames = rows[fieldName],
+                values = rows[value_text],
+                fieldsRecord = List.Accumulate(
+                    List.Positions(fieldNames),
+                    [],
+                    (current, index) =>
+                        Record.AddField(
+                            Record.RemoveFields(current, {fieldNames{index}}, MissingField.Ignore),
+                            fieldNames{index},
+                            values{index}
+                        )
+                )
             in
-                speckleType = "Speckle.Core.Models.DataChunk" or 
-                Text.Contains(speckleType, "Objects.Other.RawEncoding"),
-       
-        // Filtering logic here 
-        // If model data contains any DataObject -> fetch only data objects (excluding unwanted types)
-        // If there are no data objects in the data -> fetch everything but exclude DataChunks and RawEncoding
-        // Check if model contains any DataObject
-        HasDataObjects = Table.RowCount(
-            Table.SelectRows(
-                BasicTable, 
-                each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject") 
-                     and not ShouldExcludeRow(_)
-            )
-        ) > 0,
+                Record.AddField(
+                    Record.RemoveFields(fieldsRecord, {"materialName"}, MissingField.Ignore),
+                    "materialName",
+                    rows[materialName]{0}
+                ),
 
-        // load the Objects.Properties function only if we have DataObjects
-        ObjectsProperties = if HasDataObjects then Extension.LoadFunction("Objects.Properties.pqm") else null,
-        
-        // Add properties column only if model has DataObjects
-        FinalTable = if HasDataObjects then
-            Table.AddColumn(
-                BasicTable,
-                "properties",
-                each let
-                    dataRecord = [data],
-                    isDataObject = Text.Contains(Record.FieldOrDefault(dataRecord, "speckle_type", ""), "DataObject"),
-                    hasProperties = Record.HasFields(dataRecord, {"properties"}),
-                    extractedProperties = if hasProperties and isDataObject then 
-                        try ObjectsProperties(dataRecord) otherwise []
-                    else 
-                        []
-                in
-                    if Record.FieldCount(extractedProperties) > 0 then extractedProperties else null
+        RowsToMaterialQuantities = (rows as table) as list =>
+            let
+                withSegments = Table.AddColumn(
+                    rows,
+                    "segments",
+                    each Text.Split(Text.AfterDelimiter([path], MaterialQuantitiesPrefix), "."),
+                    type list
+                ),
+                withMaterialName = Table.AddColumn(
+                    withSegments,
+                    "materialName",
+                    each List.Last(List.FirstN([segments], List.Count([segments]) - 1)),
+                    type text
+                ),
+                withFieldName = Table.AddColumn(
+                    withMaterialName,
+                    "fieldName",
+                    each List.Last([segments]),
+                    type text
+                ),
+                groupedByMaterial = Table.Group(
+                    withFieldName,
+                    {"materialName"},
+                    {{"Material Quantity", MaterialRowsToRecord, type record}}
+                )
+            in
+                groupedByMaterial[Material Quantity],
+
+        RowsToGroupedObjectWithoutProperties = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
+            in
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        Rows = rowsRecord
+                    ],
+
+        RowsToGroupedObjectWithProperties = (rows as table) as record =>
+            let
+                rowsRecord = RowsToRecord(rows),
+                propertyRows = Table.SelectRows(rows, each IsEligiblePropertyPath([path])),
+                propertyPaths = propertyRows[path],
+                propertyNames = if SelectedPropertiesColumn = "Full paths" then
+                    propertyPaths
+                else
+                    List.Transform(propertyPaths, each Record.Field(shortNameLookup, _)),
+                propertiesRecord = Record.FromList(propertyRows[value_text], propertyNames),
+                materialRows = if ShouldIncludeMaterialQuantities then
+                    Table.SelectRows(rows, each IsMaterialQuantityPath([path]))
+                else
+                    #table({"object_id", "path", "value_text"}, {}),
+                materialQuantities = if ShouldIncludeMaterialQuantities and not Table.IsEmpty(materialRows) then
+                    RowsToMaterialQuantities(materialRows)
+                else
+                    {}
+            in
+                if ShouldIncludeMaterialQuantities then
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        #"Material Quantities" = materialQuantities,
+                        properties = propertiesRecord,
+                        Rows = rowsRecord
+                    ]
+                else
+                    [
+                        #"Speckle Type" = Record.FieldOrDefault(rowsRecord, "speckle_type", null),
+                        #"Application ID" = Record.FieldOrDefault(rowsRecord, "applicationId", null),
+                        properties = propertiesRecord,
+                        Rows = rowsRecord
+                    ],
+
+        IncludePropertiesColumn = SelectedPropertiesColumn <> "None (fastest)" and not ShouldExpandProperties,
+        ShouldPivotProperties = SelectedPropertiesColumn <> "None (fastest)" and ShouldExpandProperties,
+        RowsToGroupedObject = if IncludePropertiesColumn then
+            RowsToGroupedObjectWithProperties
+        else
+            RowsToGroupedObjectWithoutProperties,
+
+        GroupedByObjectId = Table.Group(
+            EavTable,
+            {"object_id"},
+            {{"Grouped Object", RowsToGroupedObject, type record}},
+            GroupKind.Local
+        ),
+
+        BaseGroupedObjectFields = if IncludePropertiesColumn then
+            {"Speckle Type", "Application ID", "properties", "Rows"}
+        else
+            {"Speckle Type", "Application ID", "Rows"},
+        GroupedObjectFields = if ShouldIncludeMaterialQuantities then
+            List.InsertRange(BaseGroupedObjectFields, 2, {"Material Quantities"})
+        else
+            BaseGroupedObjectFields,
+
+        ExpandedGroupedByObjectId = Table.ExpandRecordColumn(
+            GroupedByObjectId,
+            "Grouped Object",
+            GroupedObjectFields,
+            GroupedObjectFields
+        ),
+
+        DataObjects = Table.SelectRows(
+            ExpandedGroupedByObjectId,
+            each [#"Speckle Type"] <> null
+                and Text.Contains(Text.From([#"Speckle Type"]), "DataObject")
+        ),
+
+        FinalGroupedByObjectId = if Table.IsEmpty(DataObjects) then
+            ExpandedGroupedByObjectId
+        else
+            DataObjects,
+
+        EligiblePropertyRows = if ShouldPivotProperties then
+            Table.SelectRows(EavTable, each IsEligiblePropertyPath([path]))
+        else
+            #table({"object_id", "path", "value_text"}, {}),
+
+        NamedPropertyRows = if ShouldPivotProperties and SelectedPropertiesColumn = "Short names (slowest)" then
+            Table.TransformColumns(
+                EligiblePropertyRows,
+                {{"path", each Record.Field(shortNameLookup, _), type text}}
             )
         else
-            BasicTable,
+            EligiblePropertyRows,
 
-        // Apply the same filtering logic as before
-        FilteredTable = if HasDataObjects then
-            Table.SelectRows(
-                FinalTable, 
-                each Text.Contains(Record.FieldOrDefault([data], "speckle_type", ""), "DataObject") 
-                     and not ShouldExcludeRow(_)
+        PivotPropertyNames = if ShouldPivotProperties then
+            List.Buffer(List.Distinct(NamedPropertyRows[path]))
+        else
+            {},
+
+        PivotedProperties = if ShouldPivotProperties and not List.IsEmpty(PivotPropertyNames) then
+            Table.Pivot(
+                Table.SelectColumns(NamedPropertyRows, {"object_id", "path", "value_text"}),
+                PivotPropertyNames,
+                "path",
+                "value_text"
             )
         else
-            Table.SelectRows(FinalTable, each not ShouldExcludeRow(_))
+            null,
+
+        ExpandedWithPivotedProperties = if ShouldPivotProperties and not List.IsEmpty(PivotPropertyNames) then
+            let
+                nested = Table.NestedJoin(
+                    FinalGroupedByObjectId,
+                    {"object_id"},
+                    PivotedProperties,
+                    {"object_id"},
+                    "Pivoted Properties",
+                    JoinKind.LeftOuter
+                )
+            in
+                Table.ExpandTableColumn(
+                    nested,
+                    "Pivoted Properties",
+                    PivotPropertyNames,
+                    PivotPropertyNames
+                )
+        else
+            FinalGroupedByObjectId,
+
+        RenamedFinalTable = Table.RenameColumns(
+            ExpandedWithPivotedProperties,
+            {
+                {"object_id", "Object IDs"},
+                {"Rows", "data"}
+            }
+        )
     in
-        FilteredTable
+        RenamedFinalTable

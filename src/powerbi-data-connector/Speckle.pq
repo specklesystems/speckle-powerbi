@@ -19,16 +19,16 @@ GeneratePKCEVerifier = () =>
         // Generate cryptographically secure random string using allowed characters
         // RFC 7636: [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~"
         allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",
-        
+
         // Generate multiple GUIDs to create entropy
         guid1 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
         guid2 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
         guid3 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "{", ""),
         guid4 = Text.Replace(Text.Replace(Text.NewGuid(), "-", ""), "}", ""),
-        
+
         // Combine and convert to allowed characters
         combined = guid1 & guid2 & guid3 & guid4,
-        
+
         // Map hex characters to allowed PKCE characters
         mapped = Text.Replace(
             Text.Replace(
@@ -41,7 +41,7 @@ GeneratePKCEVerifier = () =>
                     "3", "D"),
                 "4", "E"),
             "5", "F"),
-        
+
         // Continue mapping remaining hex chars to allowed chars
         verifier = Text.Replace(
             Text.Replace(
@@ -62,7 +62,7 @@ GeneratePKCEVerifier = () =>
                     "d", "N"),
                 "e", "O"),
             "f", "P"),
-        
+
         // Ensure length is between 43-128 characters as per RFC 7636
         finalVerifier = Text.Start(verifier, 43)
     in
@@ -97,13 +97,13 @@ shared Speckle.LoadFunction = (fileName as text) =>
 // here we register the functions to expose them globally
 [DataSource.Kind = "Speckle"]
 shared Speckle.Parser = Value.ReplaceType(
-    Speckle.LoadFunction("Parser.pqm"), 
+    Speckle.LoadFunction("Parser.pqm"),
     type function (url as Uri.Type) as record
 );
 
 [DataSource.Kind = "Speckle"]
 shared Speckle.Api.Fetch = Value.ReplaceType(
-    Speckle.LoadFunction("Api.Fetch.pqm"), 
+    Speckle.LoadFunction("Api.Fetch.pqm"),
     type function (url as Uri.Type, optional query as text, optional variables as record) as record
 );
 
@@ -115,7 +115,7 @@ shared Speckle.CheckPermissions = Value.ReplaceType(
 
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetUser = Value.ReplaceType(
-    Speckle.LoadFunction("GetUser.pqm"), 
+    Speckle.LoadFunction("GetUser.pqm"),
     type function (url as Uri.Type) as record
 );
 
@@ -123,12 +123,6 @@ shared Speckle.GetUser = Value.ReplaceType(
 shared Speckle.GetModel = Value.ReplaceType(
     Speckle.LoadFunction("GetModel.pqm"),
     type function (url as Uri.Type) as record
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.GetStructuredData = Value.ReplaceType(
-    Speckle.LoadFunction("GetStructuredData.pqm"),
-    type function (url as Uri.Type) as table
 );
 
 shared Speckle.GetVersion = Value.ReplaceType(
@@ -164,11 +158,6 @@ shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
     ) as table
 );
 
-shared Speckle.Objects.Collections = Value.ReplaceType(
-    Speckle.LoadFunction("Objects.Collections.pqm"),
-    type function (inputData as table) as table
-);
-
 shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
     Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
     type function (objectRecord as record, optional outputAsList as nullable logical) as any
@@ -195,7 +184,7 @@ shared Speckle.Project.Issues = Value.ReplaceType(
     type function (url as Uri.Type, optional getReplies as logical) as table
 );
 
-[DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
     type function (
@@ -208,9 +197,51 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         ),
         optional ExpandProperties as (
             type logical meta [
-                Documentation.FieldCaption = "Expand Properties (may slow query)",
-                Documentation.FieldDescription = "Expand the properties column into individual columns for easier analysis. When checked, each property from the 'properties' record column will have its own column. This can slow down the query if you have a lot of properties.",
-                Documentation.AllowedValues = {true, false}
+                Documentation.FieldCaption = "Expand Properties",
+                Documentation.FieldDescription = "Legacy option retained for existing reports. This function uses shortest unique property names.",
+                Documentation.AllowedValues = {false, true}
+            ]
+        )
+    ) as table meta [
+        Documentation.Name = "Speckle - Get Data by URL",
+        Documentation.DisplayName = "Speckle - Get Data by URL",
+        Documentation.LongDescription = "Legacy compatibility function for existing reports. Use Speckle.GetModelByUrl for new reports."
+    ]
+);
+
+[DataSource.Kind = "Speckle", Publish="GetModelByUrl.Publish"]
+shared Speckle.GetModelByUrl = Value.ReplaceType(
+    Speckle.LoadFunction("GetModelByUrl.pqm"),
+    type function (
+        url as (
+            Uri.Type meta [
+                Documentation.FieldCaption = "Speckle Model URL",
+                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
+            ]
+        ),
+        optional PropertiesColumn as (
+            type text meta [
+                Documentation.FieldCaption = "Properties column",
+                Documentation.FieldDescription = "Choose how to load properties. Properties always remain available in the data record.",
+                Documentation.SampleValues = {"None (fastest)"},
+                Documentation.DefaultValue = "None (fastest)",
+                Documentation.AllowedValues = {"None (fastest)", "Full paths", "Short names (slowest)"}
+            ]
+        ),
+        optional ExpandProperties as (
+            type logical meta [
+                Documentation.FieldCaption = "Expand Properties",
+                Documentation.FieldDescription = "When true, pivots eligible properties into top-level columns for Full paths or Short names. Ignored when Properties column is 'None (fastest)'.",
+                Documentation.AllowedValues = {false, true}
+            ]
+        ),
+        optional IncludeMaterialQuantities as (
+            type logical meta [
+                Documentation.FieldCaption = "Material quantities column",
+                Documentation.FieldDescription = "When true, adds a Material Quantities column containing a list of per-material quantity records. Defaults to false.",
+                Documentation.DefaultValue = false,
+                Documentation.AllowedValues = {false, true}
             ]
         )
     ) as table meta [
@@ -245,16 +276,16 @@ shared Speckle.Revit.Parameters.ToNameValueRecord = (r as record, optional exclu
     in
         result;
 
-// here we register the GetByUrl function to power bi ui
-GetByUrl.Publish = [
+// here we register the GetModelByUrl function to power bi ui
+GetModelByUrl.Publish = [
     Cateogry = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
-    SourceImage = GetByUrl.Icons,
-    SourceTypeImage = GetByUrl.Icons
+    SourceImage = GetModelByUrl.Icons,
+    SourceTypeImage = GetModelByUrl.Icons
 ];
 
-GetByUrl.Icons = [
+GetModelByUrl.Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
@@ -363,19 +394,19 @@ Speckle = [
                             ManualStatusHandling = {400, 401, 403, 500, 502, 503, 504}
                         ]
                     ) otherwise null,
-                    
+
                     // Check if request was successful
                     IsSuccess = Source <> null,
-                    
+
                     // If successful, parse the response
                     json = if IsSuccess then
                         try Json.Document(Source) otherwise null
                     else
                         null,
-                    
+
                     // Validate the response contains expected fields
                     IsValidResponse = json <> null and Record.HasFields(json, {"token"}),
-                    
+
                     // Return result with enhanced error handling
                     result = if IsValidResponse then
                         [

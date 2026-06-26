@@ -57,6 +57,20 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
+### Properties column loading
+
+`Speckle.GetModelByUrl(url, optional PropertiesColumn, optional ExpandProperties, optional IncludeMaterialQuantities)` supports three property loading modes:
+
+- `None (fastest)` is the default and omits property columns. The complete EAV record, including properties, remains available in `data`.
+- `Full paths` loads eligible properties with full EAV paths, such as `properties.Parameters.Length`.
+- `Short names (slowest)` uses the shortest unique path suffix across the complete model or federation. It adds processing time, and names may change if future properties introduce collisions.
+
+When `ExpandProperties` is `false`, `Full paths` and `Short names (slowest)` return a dedicated `properties` record column. When `ExpandProperties` is `true`, eligible properties are pivoted into top-level columns instead. `None (fastest)` ignores `ExpandProperties`.
+
+When `IncludeMaterialQuantities` is `true`, the connector adds a `Material Quantities` column. Each value is a list of records extracted directly from raw EAV parquet rows under `properties.Material Quantities.*`; each record includes `materialName` and all leaf quantity fields for that material. Objects without material quantities return an empty list. The default is `false`.
+
+`Speckle.GetByUrl(url, optional ExpandProperties)` remains available for existing reports, but new reports should use `Speckle.GetModelByUrl`.
+
 ## Development Setup
 
 ### For local development of the 3D Visual
