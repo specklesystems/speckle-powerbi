@@ -4,8 +4,8 @@
         shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
 
         // import required functions
-        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
-        SendToServer = Extension.LoadFunction("SendToServer.pqm"),
+        GetDenseEavData = Extension.LoadFunction("GetDenseEavData.pqm"),
+        AssignDenseIndexes = Extension.LoadFunction("AssignDenseIndexes.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
@@ -139,26 +139,21 @@
                     // (delimiter chosen to avoid conflicts with base64 characters)
                     combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
 
-                    // combine all data tables
-                    combinedData = Table.Combine(allTables),
+                    combinedData = AssignDenseIndexes(Table.Combine(allTables)),
 
-                    // replace both columns with combined values
-                    transformedData = Table.TransformColumns(
+                    withVersionObjectId = Table.AddColumn(
                         combinedData,
-                        {
-                            {"Version Object ID", each combinedRootIds},
-                            {"Model Info", each combinedEncodedUserInfos}
-                        }
+                        "Version Object ID",
+                        each combinedRootIds,
+                        type text
                     ),
 
-                    // expand properties column if requested and if it exists
-                    finalData = if shouldExpandProperties and Table.HasColumns(transformedData, {"properties"}) then
-                        try
-                            Speckle.Utils.ExpandRecord(transformedData, "properties")
-                        otherwise
-                            transformedData  // fallback to original data if expansion fails
-                    else
-                        transformedData
+                    finalData = Table.AddColumn(
+                        withVersionObjectId,
+                        "Model Info",
+                        each combinedEncodedUserInfos,
+                        type text
+                    )
                 in
                     finalData
             else
@@ -174,8 +169,15 @@
                     // mark version as received
                     markReceivedResult = MarkReceived(powerfulToken, versionId, effectiveParsedUrl[projectId], effectiveParsedUrl[baseUrl]),
 
-                    // get structured data
-                    structuredData = GetStructuredData(effectiveUrl),
+                    structuredData = AssignDenseIndexes(
+                        GetDenseEavData(
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
+                            modelInfo[modelId],
+                            versionId,
+                            tokenToUse
+                        )
+                    ),
 
                     // build userInfoData record for this model
                     userInfoData = [
@@ -201,23 +203,24 @@
                     // encode userInfoData as base64 JSON string
                     encodedUserInfo = EncodeUserInfo(userInfoData),
 
-                    // replace both columns with appropriate values
-                    transformedData = Table.TransformColumns(
+                    withVersionObjectId = Table.AddColumn(
                         structuredData,
-                        {
-                            {"Version Object ID", each rootObjectId},
-                            {"Model Info", each if (desktopServiceSent or not desktopServiceSent) and (markReceivedResult or not markReceivedResult) then encodedUserInfo else encodedUserInfo}
-                        }
+                        "Version Object ID",
+                        each rootObjectId,
+                        type text
                     ),
 
-                    // expand properties column if requested and if it exists
-                    result = if shouldExpandProperties and Table.HasColumns(transformedData, {"properties"}) then
-                        try
-                            Speckle.Utils.ExpandRecord(transformedData, "properties")
-                        otherwise
-                            transformedData  // fallback to original data if expansion fails
+                    trackedModelInfo = if (desktopServiceSent or not desktopServiceSent) and (markReceivedResult or not markReceivedResult) then
+                        encodedUserInfo
                     else
-                        transformedData
+                        encodedUserInfo,
+
+                    result = Table.AddColumn(
+                        withVersionObjectId,
+                        "Model Info",
+                        each trackedModelInfo,
+                        type text
+                    )
                 in
                     result
         else
@@ -273,8 +276,13 @@
                 // mark version as received (non-blocking, best-effort)
                 markReceivedResult = MarkReceived(powerfulToken, federatedVersionId, projectId, baseUrl),
 
-                // get structured data
-                structuredData = GetStructuredData(singleModelUrl),
+                structuredData = GetDenseEavData(
+                    baseUrl,
+                    projectId,
+                    modelInfo[modelId],
+                    federatedVersionId,
+                    tokenToUse
+                ),
 
                 // build userInfoData record for this model
                 userInfoData = [
