@@ -1,0 +1,77 @@
+(baseUrl as text, projectId as text, modelId as text, versionId as text, token as text) as table =>
+    let
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error [
+                        Reason = "Extension.LoadFunction Failure",
+                        Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                        Message.Parameters = {fileName, e[Reason], e[Message]},
+                        Detail = [File = fileName, Error = e]
+                    ],
+
+        FetchArtifacts = Extension.LoadFunction("FetchArtifacts.pqm"),
+        ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
+
+        files = FetchArtifacts(baseUrl, projectId, modelId, versionId, token),
+
+        objects = ReadBundleTable(files, ".eav.objects.parquet"),
+        paths = ReadBundleTable(files, ".eav.paths.parquet"),
+        eav = ReadBundleTable(files, ".eav.eav.parquet"),
+        objectType = ReadBundleTable(files, ".eav.object_type.parquet"),
+        typeEav = ReadBundleTable(files, ".eav.type_eav.parquet"),
+
+        instanceProps = Table.SelectColumns(
+            eav,
+            {"object_index", "path_index", "value_string", "value_double", "value_boolean"}
+        ),
+
+        typeProps = Table.SelectColumns(
+            Table.ExpandTableColumn(
+                Table.NestedJoin(objectType, {"type_index"}, typeEav, {"type_index"}, "_te", JoinKind.Inner),
+                "_te",
+                {"path_index", "value_string", "value_double", "value_boolean"},
+                {"path_index", "value_string", "value_double", "value_boolean"}
+            ),
+            {"object_index", "path_index", "value_string", "value_double", "value_boolean"}
+        ),
+
+        objectProps = Table.Combine({instanceProps, typeProps}),
+
+        withPath = Table.ExpandTableColumn(
+            Table.NestedJoin(objectProps, {"path_index"}, paths, {"path_index"}, "_p", JoinKind.Inner),
+            "_p",
+            {"path"},
+            {"path"}
+        ),
+
+        withApp = Table.ExpandTableColumn(
+            Table.NestedJoin(withPath, {"object_index"}, objects, {"object_index"}, "_o", JoinKind.Inner),
+            "_o",
+            {"application_id"},
+            {"application_id"}
+        ),
+
+        withValue = Table.AddColumn(
+            withApp,
+            "value",
+            each
+                if [value_string] <> null then [value_string]
+                else if [value_double] <> null then [value_double]
+                else if [value_boolean] <> null then [value_boolean]
+                else null
+        ),
+
+        withModel = Table.AddColumn(withValue, "model_id", each modelId, type text),
+
+        Selected = Table.SelectColumns(
+            withModel,
+            {"model_id", "object_index", "application_id", "path", "value"}
+        )
+    in
+        Selected

@@ -1,0 +1,47 @@
+(baseUrl as text, projectId as text, modelId as text, versionId as text, token as text) as list =>
+    let
+        url = Text.Combine({
+            baseUrl,
+            "/api/v2/projects/",
+            projectId,
+            "/models/",
+            modelId,
+            "/versions/",
+            versionId,
+            "/artifacts"
+        }),
+
+        Response = Web.Contents(
+            url,
+            [
+                Headers = [
+                    #"Authorization" = "Bearer " & token,
+                    #"Accept" = "application/json"
+                ],
+                ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+            ]
+        ),
+
+        StatusCode = Value.Metadata(Response)[Response.Status],
+
+        Result = if StatusCode >= 200 and StatusCode < 300 then
+            Json.Document(Response)[files]
+        else
+            let
+                ResponseText = try Text.FromBinary(Response) otherwise null
+            in
+                error [
+                    Reason = "ArtifactsFetchFailed",
+                    Message.Format = "Failed to fetch Speckle artefact bundle (Status: #{0}) at #{1} — server said: #{2}",
+                    Message.Parameters = {Text.From(StatusCode), url, ResponseText},
+                    Detail = [
+                        StatusCode = StatusCode,
+                        Url = url,
+                        Response = ResponseText,
+                        ProjectId = projectId,
+                        ModelId = modelId,
+                        VersionId = versionId
+                    ]
+                ]
+    in
+        Result

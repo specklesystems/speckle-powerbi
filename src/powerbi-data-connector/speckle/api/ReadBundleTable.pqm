@@ -1,0 +1,35 @@
+(files as list, suffix as text) as table =>
+    let
+        matches = List.Select(files, each Text.EndsWith(Record.Field(_, "name"), suffix)),
+
+        url = if List.Count(matches) > 0 then
+            Record.Field(matches{0}, "url")
+        else
+            error [
+                Reason = "MissingArtifact",
+                Message.Format = "No artefact file ending with '#{0}' in the bundle",
+                Message.Parameters = {suffix},
+                Detail = [Suffix = suffix]
+            ],
+
+        Response = Web.Contents(
+            url,
+            [ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}]
+        ),
+
+        StatusCode = Value.Metadata(Response)[Response.Status],
+
+        Result = if StatusCode >= 200 and StatusCode < 300 then
+            Parquet.Document(Binary.Buffer(Response))
+        else
+            let
+                ResponseText = try Text.FromBinary(Response) otherwise null
+            in
+                error [
+                    Reason = "ArtifactDownloadFailed",
+                    Message.Format = "Failed to download artefact '#{0}' (Status: #{1}) — storage said: #{2}",
+                    Message.Parameters = {suffix, Text.From(StatusCode), ResponseText},
+                    Detail = [StatusCode = StatusCode, Suffix = suffix, Url = url, Response = ResponseText]
+                ]
+    in
+        Result

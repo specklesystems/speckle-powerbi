@@ -1,0 +1,33 @@
+(combined as table) as table =>
+    let
+        ObjectKeys = Table.Buffer(
+            Table.AddIndexColumn(
+                Table.Distinct(Table.SelectColumns(combined, {"model_id", "object_index"})),
+                "global_object_index",
+                0,
+                1,
+                Int64.Type
+            )
+        ),
+
+        WithGlobal = Table.ExpandTableColumn(
+            Table.NestedJoin(combined, {"model_id", "object_index"}, ObjectKeys, {"model_id", "object_index"}, "_g", JoinKind.Inner),
+            "_g",
+            {"global_object_index"},
+            {"global_object_index"}
+        ),
+
+        Cleaned = Table.RemoveColumns(WithGlobal, {"model_id", "object_index"}),
+
+        Renamed = Table.RenameColumns(Cleaned, {{"global_object_index", "object_index"}}),
+
+        Typed = Table.TransformColumnTypes(
+            Renamed,
+            {
+                {"object_index", Int64.Type},
+                {"application_id", type text},
+                {"path", type text}
+            }
+        )
+    in
+        Typed

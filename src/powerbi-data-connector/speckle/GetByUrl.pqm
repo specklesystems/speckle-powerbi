@@ -4,8 +4,8 @@
         shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
 
         // import required functions
-        GetDenseEavData = Extension.LoadFunction("GetDenseEavData.pqm"),
-        AssignDenseIndexes = Extension.LoadFunction("AssignDenseIndexes.pqm"),
+        GetEavBundle = Extension.LoadFunction("GetEavBundle.pqm"),
+        FinalizeEavTable = Extension.LoadFunction("FinalizeEavTable.pqm"),
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
         CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
@@ -139,7 +139,7 @@
                     // (delimiter chosen to avoid conflicts with base64 characters)
                     combinedEncodedUserInfos = Text.Combine(allEncodedUserInfos, "|||"),
 
-                    combinedData = AssignDenseIndexes(Table.Combine(allTables)),
+                    combinedData = FinalizeEavTable(Table.Combine(allTables)),
 
                     withVersionObjectId = Table.AddColumn(
                         combinedData,
@@ -169,8 +169,8 @@
                     // mark version as received
                     markReceivedResult = MarkReceived(powerfulToken, versionId, effectiveParsedUrl[projectId], effectiveParsedUrl[baseUrl]),
 
-                    structuredData = AssignDenseIndexes(
-                        GetDenseEavData(
+                    structuredData = FinalizeEavTable(
+                        GetEavBundle(
                             effectiveParsedUrl[baseUrl],
                             effectiveParsedUrl[projectId],
                             modelInfo[modelId],
@@ -276,7 +276,7 @@
                 // mark version as received (non-blocking, best-effort)
                 markReceivedResult = MarkReceived(powerfulToken, federatedVersionId, projectId, baseUrl),
 
-                structuredData = GetDenseEavData(
+                structuredData = GetEavBundle(
                     baseUrl,
                     projectId,
                     modelInfo[modelId],
