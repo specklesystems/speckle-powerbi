@@ -113,7 +113,7 @@
             ],
 
         // maps the legacy JSON-path table onto the 4.0 column contract:
-        // "Application ID" := applicationId ?? speckle id, "Object Type" := Speckle Type
+        // "Application ID" := applicationId ?? speckle id
         LegacyToContract = (t as table) as table =>
             let
                 withAppId = Table.AddColumn(
@@ -133,7 +133,7 @@
                 ),
                 renamed = Table.RenameColumns(
                     cleaned,
-                    {{"__appId", "Application ID"}, {"Speckle Type", "Object Type"}},
+                    {{"__appId", "Application ID"}},
                     MissingField.Ignore
                 )
             in
@@ -201,14 +201,9 @@
                     EncodedUserInfo = encodedUserInfo
                 ],
 
-        // appends the shared per-load columns
-        WithLoadColumns = (t as table, versionIds as text, modelInfoBlob as text) as table =>
-            Table.AddColumn(
-                Table.AddColumn(t, "Version ID", each versionIds, type text),
-                "Model Info",
-                each modelInfoBlob,
-                type text
-            ),
+        // appends the shared per-load column (versionIds travel inside the blob)
+        WithLoadColumns = (t as table, modelInfoBlob as text) as table =>
+            Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
 
         results = Observe(
             permissionGuard,
@@ -229,15 +224,13 @@
                         (m) => Table.AddColumn(m[Data], "Source Model", (row) => m[SourceLabel], type text)
                     ),
 
-                    combinedVersionIds = Text.Combine(List.Transform(modelsData, each [VersionId]), ","),
-
                     // delimiter chosen to avoid conflicts with base64 characters
                     combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
 
                     // Table.Combine unions differing property columns (nulls elsewhere)
                     combinedData = Table.Combine(allTables)
                 in
-                    WithLoadColumns(combinedData, combinedVersionIds, combinedBlobs)
+                    WithLoadColumns(combinedData, combinedBlobs)
             else
                 let
                     single = ProcessSingleModel(
@@ -247,7 +240,7 @@
                         effectiveParsedUrl[versionId]
                     )
                 in
-                    WithLoadColumns(single[Data], single[VersionId], single[EncodedUserInfo])
+                    WithLoadColumns(single[Data], single[EncodedUserInfo])
         )
     in
         results
