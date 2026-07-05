@@ -23,10 +23,16 @@
             let
                 url = Record.Field(matches{0}, "url"),
 
-                // presigned URL: the signature is in the query string, no auth header
+                // presigned URL: the signature is in the query string. ManualCredentials
+                // stops the mashup engine from auto-attaching the OAuth Bearer header —
+                // S3 rejects requests carrying two auth mechanisms (400 InvalidArgument
+                // on ceph/DO Spaces; minio happens to tolerate it).
                 Response = Web.Contents(
                     url,
-                    [ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}]
+                    [
+                        ManualCredentials = true,
+                        ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+                    ]
                 ),
 
                 StatusCode = Value.Metadata(Response)[Response.Status],
