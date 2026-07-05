@@ -3,7 +3,7 @@
   "description": "A 3D viewer for Speckle Object in PowerBI",
   "repository": {
     "type": "github",
-    "url": "https://github.com/specklesystems/speckle-powerbi-visuals"
+    "url": "https://github.com/specklesystems/speckle-powerbi"
   },
   "license": "MIT",
   "scripts": {
@@ -17,10 +17,13 @@
     "@babel/runtime-corejs3": "^7.21.5",
     "@headlessui/vue": "^1.7.13",
     "@heroicons/vue": "^2.0.12",
-    "@speckle/objectloader2": "2.26.7",
+    "@speckle/eav-queries": "file:../../../speckle-server-internal/packages/eav-queries",
+    "@speckle/objectloader2": "file:../../../speckle-server-internal/packages/objectloader2",
+    "@speckle/packfile-manager": "file:../../../speckle-server-internal/packages/packfile-manager",
+    "@speckle/shared": "file:../../../speckle-server-internal/packages/shared",
     "@speckle/tailwind-theme": "2.23.2",
     "@speckle/ui-components": "2.23.2",
-    "@speckle/viewer": "2.26.5",
+    "@speckle/viewer": "file:../../../speckle-server-internal/packages/viewer",
     "color-interpolate": "^1.0.5",
     "core-js": "^3.30.2",
     "lodash": "^4.17.21",
@@ -86,5 +89,11 @@
   "engines": {
     "node": "^20.17.0"
   },
-  "packageManager": "npm@11.14.1"
+  "packageManager": "npm@11.14.1",
+  "overrides": {
+    "@speckle/shared": "$@speckle/shared",
+    "@speckle/objectloader2": "$@speckle/objectloader2",
+    "@speckle/packfile-manager": "$@speckle/packfile-manager",
+    "@speckle/eav-queries": "$@speckle/eav-queries"
+  }
 }

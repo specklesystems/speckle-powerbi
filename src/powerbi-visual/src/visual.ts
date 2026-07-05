@@ -10,7 +10,6 @@ import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 import { SpeckleDataInput } from './types'
 import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
-import { unzipModelObjects } from './utils/compression'
 
 import TooltipHandler from './handlers/tooltipHandler'
 import SelectionHandler from './handlers/selectionHandler'
@@ -22,30 +21,24 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
-import { SpeckleApiLoader } from './loader/SpeckleApiLoader'
 
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
   private selectionHandler: SelectionHandler
   private tooltipHandler: TooltipHandler
-  private isFirstViewerLoad: boolean
 
   private formattingSettings: SpeckleVisualSettingsModel
   private formattingSettingsService: FormattingSettingsService
 
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
-    this.isFirstViewerLoad = true
-    // Tracker.loaded()
     this.host = options.host
     this.formattingSettingsService = new FormattingSettingsService()
 
-    console.log('🚀 Init handlers')
     this.selectionHandler = new SelectionHandler(this.host)
     this.tooltipHandler = new TooltipHandler(this.host.tooltipService as ITooltipService)
 
-    console.log('🚀 Init Vue App')
     createApp(App)
       .use(pinia)
       .use(VueTippy, {
@@ -96,36 +89,6 @@ export class Visual implements IVisual {
     )
 
     visualStore.setFormattingSettings(this.formattingSettings)
-    console.log(
-      'Data Loading - Internalize Data:',
-      this.formattingSettings.dataLoading.internalizeData.value
-    )
-
-    // Handle toggle state changes
-    const currentToggleState = this.formattingSettings.dataLoading.internalizeData.value
-    const previousToggleState = visualStore.previousToggleState
-
-    // Detect user toggle changes
-    if (previousToggleState !== undefined && currentToggleState !== previousToggleState) {
-      console.log('🔄 User changed toggle from', previousToggleState, 'to', currentToggleState)
-
-      if (currentToggleState) {
-        // Toggle switched ON - internalize via streaming
-        if (visualStore.isViewerObjectsLoaded && visualStore.lastLoadedRootObjectId) {
-          console.log('📁 Toggle ON - starting internalization')
-          await this.internalizeCurrentViewerData()
-        } else {
-          console.log('📁 Toggle ON - no active session to internalize')
-        }
-      } else {
-        // Toggle switched OFF - remove internalized data
-        console.log('🗑️ Toggle OFF - removing internalized data')
-        this.removeInternalizedData()
-      }
-    }
-
-    // CRITICAL: Always update the previous state for next comparison
-    visualStore.setPreviousToggleState(currentToggleState)
 
     try {
       const matrixView = options.dataViews[0].matrix
@@ -243,17 +206,6 @@ export class Visual implements IVisual {
                 )
               }
 
-              // Log persisted data loading setting but don't force sync
-              if (
-                options.dataViews[0].metadata.objects.dataLoading?.internalizeData !== undefined
-              ) {
-                console.log(
-                  `Stored Data Loading - Internalize Data: ${
-                    options.dataViews[0].metadata.objects.dataLoading?.internalizeData as boolean
-                  }`
-                )
-              }
-
               // get receive info from file for persistence
               try {
                 const receiveInfoFromFile = JSON.parse(
@@ -267,35 +219,13 @@ export class Visual implements IVisual {
               }
             }
 
-            // Check for internalized data
-            const internalizedData = options.dataViews[0].metadata.objects?.storedData
-              ?.speckleObjects as string
-
             const input = await processMatrixView(
               matrixView,
               this.host,
               validationResult.colorBy,
-              this.formattingSettings,
-              (obj, id) => this.selectionHandler.set(obj, id),
-              internalizedData
+              (obj, id) => this.selectionHandler.set(obj, id)
             )
             this.updateViewer(input)
-
-            // Auto-internalize new API data if toggle is ON and this is fresh data (not from store)
-            // Imagine that user has a visual and select internalizing data and changes the data source
-            // This will automatically internalize the new data
-            if (
-              this.formattingSettings.dataLoading.internalizeData.value &&
-              input.modelObjects &&
-              input.modelObjects.length > 0 &&
-              !input.isFromStore
-            ) {
-              console.log('📦 Auto-internalizing new API data since toggle is ON')
-              // Trigger internalization after objects are loaded
-              setTimeout(() => {
-                this.internalizeCurrentViewerData()
-              }, 2000) // avoid a race condition (i know)
-            }
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
@@ -304,17 +234,14 @@ export class Visual implements IVisual {
           return
       }
     } catch (e) {
-      console.log('❌Input not valid:', (e as Error).message)
+      console.warn('Input not valid:', (e as Error).message)
       this.host.displayWarningIcon(
         `Incomplete data input.`,
-        `"Viewer Data" and "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
-      )
-      console.warn(
-        `Incomplete data input. "Viewer Data", "Object IDs" data inputs are mandatory. If your data connector does not output all these columns, please update it.`
+        `"Model Info" and "Application IDs" data inputs are mandatory. If your data connector does not output these columns, please update it to Speckle connector 4.x.`
       )
       visualStore.setFieldInputState({
-        rootObjectId: false,
-        objectIds: false,
+        modelInfo: false,
+        applicationIds: false,
         colorBy: false,
         tooltipData: false
       })
@@ -341,104 +268,6 @@ export class Visual implements IVisual {
       setTimeout(() => {
         visualStore.setDataInput(input)
       }, 250)
-    }
-  }
-
-  private tryReadFromFile(objectsFromFile: object[][], visualStore) {
-    visualStore.setViewerReadyToLoad(true)
-    visualStore.setIsLoadingFromFile(true)
-    setTimeout(() => {
-      visualStore.loadObjectsFromFile(objectsFromFile)
-      this.isFirstViewerLoad = false
-    }, 250)
-    console.log(`${objectsFromFile.length} objects retrieved from persistent properties!`)
-  }
-
-  private async internalizeCurrentViewerData() {
-    const visualStore = useVisualStore()
-
-    // Get the current root object ID from the last loaded data
-    if (!visualStore.lastLoadedRootObjectId) {
-      console.log('📁 No root object ID to internalize')
-      return
-    }
-
-    try {
-      console.log('📁 Starting internalization via Speckle API...')
-
-      visualStore.setLoadingProgress('📦 Internalizing data...', null)
-
-      // Get credentials from visualStore (already loaded from encoded data)
-      const token = visualStore.receiveInfo?.token
-      const serverUrl = visualStore.receiveInfo?.serverUrl
-      const projectId = visualStore.receiveInfo?.projectId
-      const rootObjectIds = visualStore.lastLoadedRootObjectId
-
-      if (!token || !serverUrl || !projectId) {
-        console.error('📁 Missing credentials for internalization')
-        visualStore.clearLoadingProgress()
-        return
-      }
-
-      // Handle federated models by processing each object ID separately
-      const objectIds = rootObjectIds.split(',')
-      let allObjects = []
-
-      for (const objectId of objectIds) {
-        console.log(`📁 Downloading objects for ID: ${objectId}`)
-
-        const loader = new SpeckleApiLoader(serverUrl, projectId, token)
-        const objects = await loader.downloadObjectsWithChildren(objectId)
-
-        console.log(`📁 Downloaded ${objects.length} objects for ID ${objectId}`)
-        allObjects.push(objects)
-      }
-
-      if (allObjects.length === 0 || allObjects.every((arr) => arr.length === 0)) {
-        console.error('📁 No objects retrieved from Speckle API')
-        visualStore.clearLoadingProgress()
-        return
-      }
-
-      console.log(`📁 Retrieved ${allObjects.reduce((sum, arr) => sum + arr.length, 0)} total objects from Speckle API`)
-
-      // Use existing writeObjectsToFile method from visualStore
-      // allObjects is already in the format object[][] expected by viewer
-      visualStore.writeObjectsToFile(allObjects)
-
-      // Clear loading message immediately when done
-      visualStore.clearLoadingProgress()
-
-      console.log('📁 Successfully internalized data via Speckle API!')
-    } catch (error) {
-      console.error('📁 Failed to internalize via Speckle API:', error)
-
-      // Clear loading message immediately on error
-      visualStore.clearLoadingProgress()
-    }
-  }
-
-  private removeInternalizedData() {
-    const visualStore = useVisualStore()
-
-    try {
-      // Clear stored data from PowerBI file
-      this.host.persistProperties({
-        merge: [
-          {
-            objectName: 'storedData',
-            properties: {
-              speckleObjects: null,
-              receiveInfo: null
-            },
-            selector: null
-          }
-        ]
-      })
-
-      console.log('🗑️ Successfully removed internalized data from file!')
-    } catch (error) {
-      console.error('🗑️ Failed to remove internalized data:', error)
     }
   }
 

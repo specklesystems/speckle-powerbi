@@ -60,8 +60,19 @@
       class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
       :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
-      <strong>Object IDs</strong>
+      <strong>Application IDs</strong>
       field is needed for interactivity with other visuals.
+    </div>
+
+    <div
+      v-if="hasLegacyModels"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white bg-opacity-90 text-black text-center text-xs px-6 py-4 rounded shadow font-medium cursor-default max-w-md"
+    >
+      <p class="mb-1"><strong>This version predates Speckle 4.0.</strong></p>
+      <p>
+        Table data was loaded through the legacy pipeline, but the 3D view needs a 4.0 artifact
+        bundle. Publish a new version from a Speckle 4.0 connector to enable the 3D view.
+      </p>
     </div>
 
     <div v-if="visualStore.isNavbarHidden" class="fixed top-4 right-2 z-20">
@@ -162,8 +173,10 @@ const sectionBoxVisible = computed(() => sectionBoxState.value === 'editing')
 const views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
-  () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds
+  () => visualStore.fieldInputState.modelInfo && visualStore.fieldInputState.applicationIds
 )
+
+const hasLegacyModels = computed(() => visualStore.dataInput?.hasLegacyModels ?? false)
 
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
 

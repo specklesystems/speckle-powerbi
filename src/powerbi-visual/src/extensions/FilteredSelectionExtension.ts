@@ -9,7 +9,8 @@ import {
   IViewer,
   ExtendedIntersection
 } from '@speckle/viewer'
-import { Vector2, Vector3 } from 'three'
+import { Vector2 } from 'three'
+import { applicationIdOf } from '@src/utils/objectNode'
 
 export enum FilteredSelectionEvent {
   FilteredObjectClicked = 'filtered-object-clicked'
@@ -82,10 +83,7 @@ export class FilteredSelectionExtension extends SelectionExtension {
   }
 
   protected onObjectClicked(selection: SelectionEvent | null) {
-    console.log('🎯 FilteredSelectionExtension.onObjectClicked called with:', selection)
-    
     if (!selection) {
-      console.log('🎯 No selection, calling super with null')
       super.onObjectClicked(selection)
       return
     }
@@ -101,14 +99,14 @@ export class FilteredSelectionExtension extends SelectionExtension {
 
     if (filteredSelection) {
       for (const hit of selection.hits) {
-        console.log('🎯 Checking hit:', hit.node.model.id, 'isVisible:', this.isVisibleForSelection(hit.node.model.id))
-        if (this.isVisibleForSelection(hit.node.model.id)) {
+        // isolation state is keyed by applicationId — resolve the mesh hit to
+        // its object node before the visibility check
+        const appId = applicationIdOf(hit.node)
+        if (this.isVisibleForSelection(appId ?? hit.node.model.id)) {
           filteredHits.push(hit)
         }
       }
     }
-
-    console.log('🎯 Filtered hits:', filteredHits.length)
 
     // Call base class with the filtered selection
     if (filteredSelection && filteredSelection.hits.length) {

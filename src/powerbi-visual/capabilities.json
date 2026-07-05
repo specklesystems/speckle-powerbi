@@ -3,12 +3,12 @@
     {
       "displayName": "Model Info",
       "kind": "Measure",
-      "name": "rootObjectId"
+      "name": "modelInfo"
     },
     {
-      "displayName": "Object IDs",
+      "displayName": "Application IDs",
       "kind": "Grouping",
-      "name": "objectIds"
+      "name": "applicationIds"
     },
     {
       "displayName": "Object Data (Tooltip)",
@@ -38,7 +38,7 @@
             },
             {
               "for": {
-                "in": "objectIds"
+                "in": "applicationIds"
               }
             }
           ]
@@ -47,7 +47,7 @@
           "select": [
             {
               "for": {
-                "in": "rootObjectId"
+                "in": "modelInfo"
               }
             },
             {
@@ -61,8 +61,8 @@
       "conditions": [
         {
           "colorBy": { "max": 1 },
-          "objectIds": { "max": 1 },
-          "rootObjectId": { "max": 1 }
+          "applicationIds": { "max": 1 },
+          "modelInfo": { "max": 1 }
         }
       ]
     }

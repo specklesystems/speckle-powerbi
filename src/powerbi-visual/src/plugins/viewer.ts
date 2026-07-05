@@ -6,20 +6,21 @@ import {
   SectionTool,
   SectionOutlines,
   ViewModes,
-  CameraEvent,
-  SpeckleView,
   ViewMode,
+  SpeckleView,
   Viewer,
   HybridCameraController,
-  SelectionExtension,
   FilteringExtension,
   UpdateFlags,
   ViewerEvent,
-  SelectionEvent
+  SelectionEvent,
+  SpecklePackfileLoader2,
+  LoaderEvent
 } from '@speckle/viewer'
 import { FilteredSelectionExtension, FilteredSelectionEvent } from '@src/extensions/FilteredSelectionExtension'
-import { SpeckleObjectsOfflineLoader } from '@src/laoder/SpeckleObjectsOfflineLoader'
 import { useVisualStore } from '@src/store/visualStore'
+import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
+import { resolveObjectNode } from '@src/utils/objectNode'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
 import { Box3, Vector3 } from 'three'
@@ -63,7 +64,7 @@ export interface IViewerEvents {
   toggleGhostHidden: (ghost: boolean) => void
   toggleSectionBox: (enabled: boolean) => void
   setSectionBoxVisible: (visible: boolean) => void
-  loadObjects: (objects: object[]) => void
+  loadModels: (models: DecodedModelInfo[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
 }
@@ -96,7 +97,7 @@ export class ViewerHandler {
     this.emitter.on('unIsolateObjects', this.unIsolateObjects)
     this.emitter.on('zoomExtends', this.zoomExtends)
     this.emitter.on('zoomObjects', this.zoomObjects)
-    this.emitter.on('loadObjects', this.loadObjects)
+    this.emitter.on('loadModels', this.loadModels)
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
@@ -117,13 +118,8 @@ export class ViewerHandler {
       this.cameraControls.toggleCameras()
     }
 
-    this.viewer.on(ViewerEvent.LoadComplete, (arg: string) => {
+    this.viewer.on(ViewerEvent.LoadComplete, () => {
       store.clearLoadingProgress()
-    })
-
-    // Set up event listener for viewer's built-in object clicked events
-    this.viewer.on(ViewerEvent.ObjectClicked, (selection: SelectionEvent | null) => {
-      console.log('🎯 Viewer ObjectClicked event received:', selection)
     })
 
     // Set up event listener for filtered selection events
@@ -278,38 +274,39 @@ export class ViewerHandler {
 
 
 
-  public loadObjects = async (modelObjects: object[][]) => {
+  public loadModels = async (models: DecodedModelInfo[]) => {
     // disable section box before unloading to prevent stale geometry references.
     // it will be re-applied from store after new objects are loaded (see applySectionBox below).
     this.toggleSectionBox(false)
     await this.viewer.unloadAll()
-    // const stringifiedObject = JSON.stringify(objects)
 
     const store = useVisualStore()
-    const speckleViews = []
 
-    // Use for...of loop to properly handle async operations
-    for (const objects of modelObjects) {
-      //@ts-ignore
-      const loader = new SpeckleObjectsOfflineLoader(this.viewer.getWorldTree(), objects)
+    // legacy-pipeline models can't be rendered by the artifact loader; the UI
+    // explains this (see ViewerWrapper) — only artifact models are loaded
+    const artifactModels = models.filter((m) => m.pipeline === 'artifact')
 
-      const speckleViewsInModel = objects.filter(
-        //@ts-ignore
-        (o) => o.speckle_type === 'Objects.BuiltElements.View:Objects.BuiltElements.View3D'
-      ) as SpeckleView[]
-      speckleViews.concat(speckleViewsInModel)
+    for (const model of artifactModels) {
+      const artifactsUrl = `${model.server}/api/v2/projects/${model.projectId}/models/${model.modelId}/versions/${model.versionId}/artifacts`
+      const loader = new SpecklePackfileLoader2(
+        this.viewer.getWorldTree(),
+        artifactsUrl,
+        model.token
+      )
+      loader.on(LoaderEvent.LoadProgress, (arg: { progress?: number }) => {
+        const pct = arg?.progress != null ? Math.round(arg.progress * 100) : null
+        store.setLoadingProgress('Loading model', pct)
+      })
+      loader.on(LoaderEvent.LoadWarning, (arg: { message?: string }) => {
+        console.warn('Loader warning:', arg?.message)
+      })
 
-      // Since you are setting another camera position, maybe you want the second argument to false
       await this.viewer.loadObject(loader, true)
-      this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after loadObjects
-
-      // Clean up loader resources after loading is complete
-      if (loader.dispose) {
-        await loader.dispose()
-      }
+      this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after load
     }
 
-    store.setSpeckleViews(speckleViews)
+    // scene views from the object graph don't exist on the artifact path
+    store.setSpeckleViews([])
     if (store.defaultViewModeInFile) {
       const viewMode = Number(store.defaultViewModeInFile) as ViewMode
       // Apply view mode with edges options from store (with safe defaults)
@@ -364,18 +361,19 @@ export class ViewerHandler {
   }
 
   private handleFilteredSelection = (selection: SelectionEvent | null) => {
-    console.log('🎯 Filtered selection event received:', selection)
-    
     let hit: Hit | null = null
     let isMultiSelect = false
     let mouseEvent: PointerEvent | undefined = undefined
-    
+
     if (selection && selection.hits.length > 0) {
-      // Convert the first hit to the Hit format expected by ViewerWrapper
+      // hits land on mesh nodes — resolve to the object node so guid is the
+      // applicationId shared with the data rows
       const firstHit = selection.hits[0]
+      const objectNode = resolveObjectNode(firstHit.node)
+      const model = objectNode ? objectNode.model : firstHit.node.model
       hit = {
-        guid: firstHit.node.model.id,
-        object: firstHit.node.model.raw,
+        guid: model.id,
+        object: model.raw,
         point: {
           x: firstHit.point.x,
           y: firstHit.point.y,
@@ -385,7 +383,7 @@ export class ViewerHandler {
       isMultiSelect = selection.multiple
       mouseEvent = selection.event
     }
-    
+
     // Emit the objectClicked event for ViewerWrapper to handle
     this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
   }
@@ -402,7 +400,7 @@ export class ViewerHandler {
 const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
   const viewerSettings = DefaultViewerParams
   viewerSettings.showStats = false
-  viewerSettings.verbose = true // Turning this on so we can see logs for now
+  viewerSettings.verbose = false
   const viewer = new Viewer(parent, viewerSettings)
   await viewer.init()
 

@@ -1,97 +1,86 @@
 /**
- * Interface for decoded user info data passed from the data connector
- * This data is base64-encoded in the "Version Object ID" field and decoded by the visual
+ * Decoded "Model Info" blob passed from the data connector (schemaVersion 2).
+ * The connector base64-encodes one JSON record per model into the "Model Info"
+ * column; federated loads join multiple blobs with the '|||' delimiter.
+ *
+ * pipeline tells the visual how the model data was produced:
+ *  - "artifact": 4.0 parquet artifact bundle — load via SpecklePackfileLoader2,
+ *    objects are keyed by applicationId
+ *  - "legacy": pre-4.0 version served through the old JSON path — the 3D view
+ *    is unavailable; the visual explains this instead of loading
  */
-export interface DecodedUserInfo {
-  rootObjectId: string
+export interface DecodedModelInfo {
+  schemaVersion: number
+  pipeline: 'artifact' | 'legacy'
   server: string
-  email: string
   projectId: string
+  modelId: string
+  versionId: string
   token: string // weak token with limited scopes
+  email?: string
   workspaceId?: string | null
   workspaceName?: string | null
   workspaceLogo?: string | null
-  version?: string
-  sourceApplication?: string
   canHideBranding?: boolean
-  versionId?: string
-  url?: string
+  sourceApplication?: string
+  version?: string
+  /** only present when pipeline === "legacy" */
+  rootObjectId?: string
 }
 
+const REQUIRED_FIELDS: (keyof DecodedModelInfo)[] = [
+  'schemaVersion',
+  'pipeline',
+  'server',
+  'projectId',
+  'modelId',
+  'versionId',
+  'token'
+]
 
-// Decodes a base64-encoded JSON string to extract userInfoData
-export function decodeUserInfo(encodedString: string): DecodedUserInfo {
+const OUTDATED_CONNECTOR_MESSAGE =
+  'This data was loaded with an older Speckle connector. Refresh the query with Speckle connector 4.x to use this visual.'
+
+// Decodes one base64-encoded model-info blob
+export function decodeModelInfo(encodedString: string): DecodedModelInfo {
+  let info: DecodedModelInfo
   try {
-    // Base64 decode using browser's atob()
-    const decodedString = atob(encodedString)
+    info = JSON.parse(atob(encodedString.trim())) as DecodedModelInfo
+  } catch (error) {
+    throw new Error(
+      `Failed to decode model info: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    )
+  }
 
-    // Parse JSON
-    const userInfo = JSON.parse(decodedString) as DecodedUserInfo
+  // v1 blobs (no schemaVersion) come from pre-4.0 connectors
+  if (!info.schemaVersion || info.schemaVersion < 2) {
+    throw new Error(OUTDATED_CONNECTOR_MESSAGE)
+  }
 
-    // Validate required fields
-    const requiredFields: (keyof DecodedUserInfo)[] = [
-      'rootObjectId',
-      'server',
-      'email',
-      'projectId',
-      'token'
-    ]
+  const missingFields = REQUIRED_FIELDS.filter((field) => !info[field])
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Missing required fields in decoded model info: ${missingFields.join(', ')}`
+    )
+  }
 
-    const missingFields = requiredFields.filter((field) => !userInfo[field])
+  return info
+}
 
-    if (missingFields.length > 0) {
+// Decodes the "Model Info" cell value, handling both single and federated
+// ('|||'-joined) encodings. Returns one record per model.
+export function decodeModelInfos(encodedString: string): DecodedModelInfo[] {
+  return encodedString.split('|||').map((segment, index) => {
+    try {
+      return decodeModelInfo(segment)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      if (message === OUTDATED_CONNECTOR_MESSAGE) throw error
       throw new Error(
-        `Missing required fields in decoded user info: ${missingFields.join(', ')}`
+        `Failed to decode segment ${index + 1} of federated model data: ${message}`
       )
     }
-
-    return userInfo
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to decode user info: ${error.message}`)
-    }
-    throw new Error('Failed to decode user info: Unknown error')
-  }
-}
-
-// Decodes multiple base64-encoded userInfo strings (for federated models)
-
-export function decodeMultipleUserInfo(encodedStrings: string): DecodedUserInfo[] {
-  try {
-    // Split by delimiter
-    const segments = encodedStrings.split('|||')
-
-    // Decode each segment
-    return segments.map((segment, index) => {
-      try {
-        return decodeUserInfo(segment.trim())
-      } catch (error) {
-        throw new Error(
-          `Failed to decode segment ${index + 1} of federated model data: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`
-        )
-      }
-    })
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to decode multiple user info: ${error.message}`)
-    }
-    throw new Error('Failed to decode multiple user info: Unknown error')
-  }
-}
-
-// Checks if an encoded string contains multiple models (federated)
-export function isFederatedEncoding(encodedString: string): boolean {
-  return encodedString.includes('|||')
-}
-
-// Safely decodes userInfo, handling both single and federated models
-// Returns an array of DecodedUserInfo (single item for non-federated)
-export function decodeUserInfoSafe(encodedString: string): DecodedUserInfo[] {
-  if (isFederatedEncoding(encodedString)) {
-    return decodeMultipleUserInfo(encodedString)
-  } else {
-    return [decodeUserInfo(encodedString)]
-  }
+  })
 }

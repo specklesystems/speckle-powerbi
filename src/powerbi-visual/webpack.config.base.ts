@@ -148,6 +148,14 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
         {
           test: /\.(woff|ttf|ico|woff2|jpg|jpeg|png|webp|svg)$/i,
           use: ['base64-inline-loader']
+        },
+        {
+          // Vite-style `?url` imports (duckdb wasm + worker glue in
+          // @speckle/packfile-manager): emit as files and import their URL.
+          // Served by the dev server; production packaging needs hosted
+          // bundles instead (single-file .pbiviz cannot carry sibling assets).
+          resourceQuery: /url/,
+          type: 'asset/resource'
         }
       ]
     },
@@ -155,7 +163,25 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.css'],
       alias: {
         src: path.resolve(__dirname, 'src/'),
-        assets: path.resolve(__dirname, 'assets/')
+        assets: path.resolve(__dirname, 'assets/'),
+        // one three instance for the visual AND the locally-linked viewer
+        // packages (file: symlinks resolve deps in the monorepo, not here)
+        three: path.resolve(
+          __dirname,
+          '../../../speckle-server-internal/node_modules/three'
+        ),
+        // duckdb-wasm's exports field blocks the worker subpaths that
+        // packfile-manager imports with `?url`; alias straight to the files.
+        // Must point at the monorepo copy — it carries the yarn patch whose
+        // JS glue matches the vendored wasm binaries.
+        '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js': path.resolve(
+          __dirname,
+          '../../../speckle-server-internal/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js'
+        ),
+        '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js': path.resolve(
+          __dirname,
+          '../../../speckle-server-internal/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js'
+        )
       },
       plugins: [new TsconfigPathsPlugin()],
       mainFields: ['module', 'browser', 'main']
