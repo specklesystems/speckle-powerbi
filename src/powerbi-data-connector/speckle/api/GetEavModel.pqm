@@ -1,0 +1,244 @@
+// Builds the star-schema tables from a 4.0 artifact bundle's eav parquet files.
+// The bundle IS a star schema (fact eav.eav, dims eav.objects/eav.paths); this
+// module preserves it so Power BI model relationships do the joins at query
+// time instead of M at refresh time.
+//
+// Returns a record of tables (record fields are lazy — flat shapes only
+// evaluate when their navigation entry is opened):
+//   Objects     object_key | Application ID                      (dimension; feeds the 3D visual)
+//   Properties  object_key | path_key | Value Text | Value Number | Value Bool | Value   (fact)
+//   Paths       path_key | Property                              (dimension)
+//   FlatTall    Application ID | Property | Value                (one row per object-property)
+//   FlatWide    Application ID | one column per property path
+//
+// Type-level parameters are projected into the fact via object_type + type_eav
+// (instance values win on the same path) — type names arrive as ordinary rows.
+//
+// keyOffset namespaces the bundle's dense-int keys per federated model
+// (ordinal * 2^32) so object/path indices never collide across models.
+//
+// deps carries the shared module functions so this file doesn't re-load them:
+//   deps[ReadBundleTable](files, suffix, required)
+(deps as record, files as list, keyOffset as number) as record =>
+    let
+        ReadBundleTable = deps[ReadBundleTable],
+
+        // ---- mandatory tables ----------------------------------------------
+        objects = Table.Buffer(
+            Table.SelectColumns(
+                ReadBundleTable(files, ".eav.objects.parquet", true),
+                {"object_index", "application_id"}
+            )
+        ),
+
+        // property paths that would collide with fixed output column names get
+        // suffixed once here; every downstream shape shares the transform
+        reservedNames = {
+            "Application ID", "Property", "Value", "Model Info", "Source Model",
+            "Value Text", "Value Number", "Value Bool",
+            "object_index", "application_id", "object_key", "path_key", "value"
+        },
+        paths = Table.Buffer(
+            Table.TransformColumns(
+                ReadBundleTable(files, ".eav.paths.parquet", true),
+                {{"path", each if List.Contains(reservedNames, _) then _ & " (property)" else _, type text}}
+            )
+        ),
+        eav = ReadBundleTable(files, ".eav.eav.parquet", true),
+
+        // ---- optional type tables (graceful skip when absent) --------------
+        objectTypeRaw = ReadBundleTable(files, ".eav.object_type.parquet", false),
+        objectType = if objectTypeRaw = null then null else Table.Buffer(objectTypeRaw),
+        typeEavRaw = ReadBundleTable(files, ".eav.type_eav.parquet", false),
+        typeEav = if typeEavRaw = null then null else Table.Buffer(typeEavRaw),
+        hasTypes = objectType <> null and typeEav <> null,
+
+        // ---- fact pipeline ---------------------------------------------------
+        propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
+        instanceProps = Table.Buffer(Table.SelectColumns(eav, propCols)),
+
+        // type-level params projected per object; instance values win:
+        // anti-join drops any (object, path) already present on the instance
+        typeProps = if hasTypes then
+            Table.RemoveColumns(
+                Table.NestedJoin(
+                    Table.SelectColumns(
+                        Table.ExpandTableColumn(
+                            Table.NestedJoin(
+                                objectType, {"type_index"},
+                                typeEav, {"type_index"},
+                                "_te", JoinKind.Inner
+                            ),
+                            "_te",
+                            {"path_index", "value_string", "value_double", "value_boolean"},
+                            {"path_index", "value_string", "value_double", "value_boolean"}
+                        ),
+                        propCols
+                    ),
+                    {"object_index", "path_index"},
+                    instanceProps, {"object_index", "path_index"},
+                    "_dup", JoinKind.LeftAnti
+                ),
+                {"_dup"}
+            )
+        else
+            #table(propCols, {}),
+
+        // (object, path) unique; buffer so the join pipeline evaluates once
+        fact = Table.Buffer(
+            Table.Distinct(
+                Table.Combine({instanceProps, typeProps}),
+                {"object_index", "path_index"}
+            )
+        ),
+
+        // ---- star tables -----------------------------------------------------
+        objectsTable = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.AddColumn(objects, "object_key", each [object_index] + keyOffset, Int64.Type),
+                {{"application_id", "Application ID"}}
+            ),
+            {{"Application ID", type text}}
+        ),
+        ObjectsOut = Table.SelectColumns(objectsTable, {"object_key", "Application ID"}),
+
+        PathsOut = Table.TransformColumnTypes(
+            Table.SelectColumns(
+                Table.RenameColumns(
+                    Table.AddColumn(paths, "path_key", each [path_index] + keyOffset, Int64.Type),
+                    {{"path", "Property"}}
+                ),
+                {"path_key", "Property"}
+            ),
+            {{"Property", type text}}
+        ),
+
+        PropertiesOut =
+            let
+                keyed = Table.AddColumn(
+                    Table.AddColumn(fact, "object_key", each [object_index] + keyOffset, Int64.Type),
+                    "path_key", each [path_index] + keyOffset, Int64.Type
+                ),
+                withDisplay = Table.AddColumn(
+                    keyed,
+                    "Value",
+                    each
+                        if [value_string] <> null then [value_string]
+                        else if [value_double] <> null then [value_double]
+                        else [value_boolean]
+                ),
+                renamed = Table.RenameColumns(
+                    withDisplay,
+                    {
+                        {"value_string", "Value Text"},
+                        {"value_double", "Value Number"},
+                        {"value_boolean", "Value Bool"}
+                    }
+                )
+            in
+                Table.TransformColumnTypes(
+                    Table.SelectColumns(
+                        renamed,
+                        {"object_key", "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
+                    ),
+                    {
+                        {"Value Text", type nullable text},
+                        {"Value Number", type nullable number},
+                        {"Value Bool", type nullable logical}
+                    }
+                ),
+
+        // ---- flat convenience shapes (lazy: evaluated only when opened) ------
+        // tall rows: object_index | path | value (coalesced)
+        slim = Table.SelectColumns(
+            Table.AddColumn(
+                Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        fact, {"path_index"},
+                        paths, {"path_index"},
+                        "_p", JoinKind.Inner
+                    ),
+                    "_p", {"path"}, {"path"}
+                ),
+                "value",
+                each
+                    if [value_string] <> null then [value_string]
+                    else if [value_double] <> null then [value_double]
+                    else [value_boolean]
+            ),
+            {"object_index", "path", "value"}
+        ),
+
+        FlatTallOut =
+            let
+                joined = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        objects, {"object_index"},
+                        slim, {"object_index"},
+                        "_props", JoinKind.LeftOuter
+                    ),
+                    "_props", {"path", "value"}, {"Property", "Value"}
+                )
+            in
+                Table.TransformColumnTypes(
+                    Table.RenameColumns(
+                        Table.RemoveColumns(joined, {"object_index"}),
+                        {{"application_id", "Application ID"}}
+                    ),
+                    {{"Application ID", type text}, {"Property", type nullable text}}
+                ),
+
+        FlatWideOut =
+            let
+                buffered = Table.Buffer(slim),
+                distinctPaths = List.Sort(List.Distinct(Table.Column(buffered, "path"))),
+
+                // group to one record per object and materialize via
+                // Table.FromRecords with an explicit column list. Do NOT use
+                // Table.Pivot or Table.ExpandRecordColumn here — both take
+                // minutes at real model scale (thousands of objects x 1000+
+                // paths); this runs in seconds.
+                grouped = Table.Group(
+                    buffered,
+                    {"object_index"},
+                    {{"__props", each Record.FromList([value], [path]), type record}}
+                ),
+                baseWithProps = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        objects, {"object_index"},
+                        grouped, {"object_index"},
+                        "_g", JoinKind.LeftOuter
+                    ),
+                    "_g", {"__props"}, {"__props"}
+                ),
+                fullRecords = Table.TransformRows(
+                    baseWithProps,
+                    (r) =>
+                        Record.Combine({
+                            [#"Application ID" = r[application_id]],
+                            if r[__props] = null then [] else r[__props]
+                        })
+                )
+            in
+                if List.IsEmpty(distinctPaths) then
+                    Table.TransformColumnTypes(
+                        Table.RenameColumns(
+                            Table.RemoveColumns(objects, {"object_index"}),
+                            {{"application_id", "Application ID"}}
+                        ),
+                        {{"Application ID", type text}}
+                    )
+                else
+                    Table.FromRecords(
+                        fullRecords,
+                        {"Application ID"} & distinctPaths,
+                        MissingField.UseNull
+                    )
+    in
+        [
+            Objects = ObjectsOut,
+            Properties = PropertiesOut,
+            Paths = PathsOut,
+            FlatTall = FlatTallOut,
+            FlatWide = FlatWideOut
+        ]

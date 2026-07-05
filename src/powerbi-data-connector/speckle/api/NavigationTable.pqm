@@ -1,0 +1,19 @@
+// Builds a Power BI navigation table from a list of entry records:
+//   { name, key, data, itemKind ("Table"), isLeaf }
+// Standard Table.ToNavigationTable pattern from the Power Query SDK docs.
+(rows as list) as table =>
+    let
+        entries = #table(
+            {"Name", "Key", "Data", "ItemKind", "ItemName", "IsLeaf"},
+            List.Transform(rows, each {[name], [key], [data], [itemKind], [itemKind], [isLeaf]})
+        ),
+        tableType = Value.Type(entries),
+        newTableType = Type.AddTableKey(tableType, {"Key"}, true) meta [
+            NavigationTable.NameColumn = "Name",
+            NavigationTable.DataColumn = "Data",
+            NavigationTable.ItemKindColumn = "ItemKind",
+            Preview.DelayColumn = "ItemName",
+            NavigationTable.IsLeafColumn = "IsLeaf"
+        ]
+    in
+        Value.ReplaceType(entries, newTableType)

@@ -171,18 +171,16 @@ shared Speckle.GetByUrl = Value.ReplaceType(
                 Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
                 Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
             ]
-        ),
-        optional ExpandProperties as (
-            type logical meta [
-                Documentation.FieldCaption = "Expand Properties (one column per property)",
-                Documentation.FieldDescription = "When unchecked (default), the table is TALL: one row per object property (Application ID, Property, Value, Model Info) — ideal for filtering and cross-highlighting the 3D visual. When checked, the table is WIDE: one row per object with a column for every property path.",
-                Documentation.AllowedValues = {true, false}
-            ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Data by URL",
         Documentation.DisplayName = "Speckle - Get Data by URL",
-        Documentation.LongDescription = "Returns structured data from a Speckle model URL.#(lf)
+        Documentation.LongDescription = "Returns the model data as a set of tables (star schema):#(lf)
+            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 3D visual#(lf)
+            - Properties (object_key, path_key, typed values) — one row per object property#(lf)
+            - Property Paths (path_key, Property)#(lf)
+            - Flat (Tall) / Flat (Wide) — pre-joined convenience tables#(lf)
+            Recommended relationships: Objects 1-* Properties *-1 Property Paths on object_key/path_key.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)

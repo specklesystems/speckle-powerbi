@@ -1,7 +1,5 @@
-(url as text, optional ExpandProperties as logical) as table =>
+(url as text) as table =>
     let
-        shouldExpandProperties = if ExpandProperties = null then false else ExpandProperties,
-
         // single source of truth for the connector version (keep Speckle.pq [Version]
         // and Speckle.proj <Version> aligned with this)
         ConnectorVersion = "4.0.0",
@@ -32,7 +30,8 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         FetchArtifacts = Extension.LoadFunction("FetchArtifacts.pqm"),
         ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
-        GetEavTable = Extension.LoadFunction("GetEavTable.pqm"),
+        GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
+        NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         ExpandRecord = Extension.LoadFunction("Utils.ExpandRecord.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
@@ -40,6 +39,9 @@
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
 
         deps = [ReadBundleTable = ReadBundleTable],
+
+        // federated models namespace their dense-int keys as ordinal * 2^32 + index
+        KeySpace = 4294967296,
 
         // M is lazy: a side-effecting call only executes if its result is observed.
         // Observe(sideEffect, value) evaluates sideEffect and returns value.
@@ -112,9 +114,25 @@
                 ]
             ],
 
-        // maps the legacy JSON-path table onto the 4.0 column contract:
-        // "Application ID" := applicationId ?? speckle id
-        LegacyToContract = (t as table) as table =>
+        // empty star-schema shapes contributed by legacy (pre-4.0) models — their
+        // properties come pre-flattened; the fact/paths entries are artifact-only
+        EmptyProperties = #table(
+            type table [
+                object_key = Int64.Type,
+                path_key = Int64.Type,
+                #"Value Text" = nullable text,
+                #"Value Number" = nullable number,
+                #"Value Bool" = nullable logical,
+                Value = any
+            ],
+            {}
+        ),
+        EmptyPaths = #table(type table [path_key = Int64.Type, Property = text], {}),
+
+        // maps the legacy JSON-path table onto the 4.0 shapes:
+        // "Application ID" := applicationId ?? speckle id; properties expanded to
+        // columns (Wide) and unpivoted to Property/Value rows (Tall)
+        LegacyShapes = (t as table) as record =>
             let
                 withAppId = Table.AddColumn(
                     t,
@@ -122,25 +140,37 @@
                     each if [Application ID] <> null then [Application ID] else [Object IDs],
                     type text
                 ),
-                expanded = if shouldExpandProperties and Table.HasColumns(withAppId, {"properties"}) then
+                expanded = if Table.HasColumns(withAppId, {"properties"}) then
                     try ExpandRecord(withAppId, "properties") otherwise withAppId
                 else
                     withAppId,
-                cleaned = Table.RemoveColumns(
-                    expanded,
-                    {"Application ID", "Object IDs", "Version Object ID", "Model Info", "data", "properties"},
-                    MissingField.Ignore
-                ),
-                renamed = Table.RenameColumns(
-                    cleaned,
+                wide = Table.RenameColumns(
+                    Table.RemoveColumns(
+                        expanded,
+                        {"Application ID", "Object IDs", "Version Object ID", "Model Info", "data", "properties"},
+                        MissingField.Ignore
+                    ),
                     {{"__appId", "Application ID"}},
                     MissingField.Ignore
+                ),
+                tall = Table.UnpivotOtherColumns(wide, {"Application ID"}, "Property", "Value"),
+                objectsOnly = Table.AddColumn(
+                    Table.Distinct(Table.SelectColumns(wide, {"Application ID"})),
+                    "object_key",
+                    each null,
+                    Int64.Type
                 )
             in
-                renamed,
+                [
+                    Objects = Table.SelectColumns(objectsOnly, {"object_key", "Application ID"}),
+                    Properties = EmptyProperties,
+                    Paths = EmptyPaths,
+                    FlatTall = tall,
+                    FlatWide = wide
+                ],
 
-        // loads one model and returns its table + the per-model metadata
-        ProcessSingleModel = (baseUrl as text, projectId as text, modelId as text, versionId as nullable text) as record =>
+        // loads one model and returns its star-schema shapes + per-model metadata
+        ProcessSingleModel = (baseUrl as text, projectId as text, modelId as text, versionId as nullable text, ordinal as number) as record =>
             let
                 singleModelUrl = Text.Combine({
                     baseUrl,
@@ -158,10 +188,10 @@
                 files = FetchArtifacts(baseUrl, projectId, modelInfo[modelId], resolvedVersionId, weakToken),
                 isArtifact = files <> null,
 
-                data = if isArtifact then
-                    GetEavTable(deps, files, shouldExpandProperties)
+                model = if isArtifact then
+                    GetEavModel(deps, files, ordinal * KeySpace)
                 else
-                    LegacyToContract(GetStructuredData(singleModelUrl, weakToken)),
+                    LegacyShapes(GetStructuredData(singleModelUrl, weakToken)),
 
                 // best-effort receipt tracking (forced via Observe below)
                 markReceivedResult = try MarkReceived(powerfulToken, resolvedVersionId, projectId, baseUrl) otherwise false,
@@ -191,7 +221,7 @@
                 encodedUserInfo = Observe(markReceivedResult, EncodeUserInfo(userInfoData))
             in
                 [
-                    Data = data,
+                    Model = model,
                     VersionId = resolvedVersionId,
                     // pinned federated entries stay distinguishable per version
                     SourceLabel = if versionId <> null then
@@ -202,45 +232,76 @@
                 ],
 
         // appends the shared per-load column (versionIds travel inside the blob)
-        WithLoadColumns = (t as table, modelInfoBlob as text) as table =>
+        WithModelInfo = (t as table, modelInfoBlob as text) as table =>
             Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
+
+        // combines per-model tables and assembles the navigation table.
+        // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
+        // on object_key / path_key.
+        BuildNavigation = (modelsData as list, addSourceModel as logical) as table =>
+            let
+                // delimiter chosen to avoid conflicts with base64 characters
+                combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
+
+                CombinePart = (getPart as function, withSource as logical) as table =>
+                    Table.Combine(
+                        List.Transform(
+                            modelsData,
+                            (m) =>
+                                let
+                                    t = getPart(m[Model])
+                                in
+                                    if withSource and addSourceModel then
+                                        Table.AddColumn(t, "Source Model", (row) => m[SourceLabel], type text)
+                                    else
+                                        t
+                        )
+                    ),
+
+                objectsT = WithModelInfo(CombinePart((mm) => mm[Objects], true), combinedBlobs),
+                propertiesT = CombinePart((mm) => mm[Properties], false),
+                pathsT = CombinePart((mm) => mm[Paths], false),
+                flatTallT = WithModelInfo(CombinePart((mm) => mm[FlatTall], true), combinedBlobs),
+                flatWideT = WithModelInfo(CombinePart((mm) => mm[FlatWide], true), combinedBlobs)
+            in
+                NavigationTable({
+                    [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
+                    [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
+                    [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
+                    [name = "Flat (Tall)", key = "flat-tall", data = flatTallT, itemKind = "Table", isLeaf = true],
+                    [name = "Flat (Wide)", key = "flat-wide", data = flatWideT, itemKind = "Table", isLeaf = true]
+                }),
 
         results = Observe(
             permissionGuard,
             if effectiveParsedUrl[isFederated] = true then
                 let
+                    feds = effectiveParsedUrl[federatedModels],
                     modelsData = List.Transform(
-                        effectiveParsedUrl[federatedModels],
-                        each ProcessSingleModel(
+                        List.Positions(feds),
+                        (i) => ProcessSingleModel(
                             effectiveParsedUrl[baseUrl],
                             effectiveParsedUrl[projectId],
-                            [modelId],
-                            [versionId]
+                            feds{i}[modelId],
+                            feds{i}[versionId],
+                            i
                         )
-                    ),
-
-                    allTables = List.Transform(
-                        modelsData,
-                        (m) => Table.AddColumn(m[Data], "Source Model", (row) => m[SourceLabel], type text)
-                    ),
-
-                    // delimiter chosen to avoid conflicts with base64 characters
-                    combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
-
-                    // Table.Combine unions differing property columns (nulls elsewhere)
-                    combinedData = Table.Combine(allTables)
-                in
-                    WithLoadColumns(combinedData, combinedBlobs)
-            else
-                let
-                    single = ProcessSingleModel(
-                        effectiveParsedUrl[baseUrl],
-                        effectiveParsedUrl[projectId],
-                        effectiveParsedUrl[modelId],
-                        effectiveParsedUrl[versionId]
                     )
                 in
-                    WithLoadColumns(single[Data], single[EncodedUserInfo])
+                    BuildNavigation(modelsData, true)
+            else
+                BuildNavigation(
+                    {
+                        ProcessSingleModel(
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
+                            effectiveParsedUrl[modelId],
+                            effectiveParsedUrl[versionId],
+                            0
+                        )
+                    },
+                    false
+                )
         )
     in
         results
