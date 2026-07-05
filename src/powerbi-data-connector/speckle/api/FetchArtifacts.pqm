@@ -1,0 +1,58 @@
+// Fetches the 4.0 artifact bundle file list for a version.
+// Returns the list of { name, url, expiresAt } records with presigned GET URLs,
+// or null when the version has no artifact bundle (pre-4.0 version -> caller
+// falls back to the legacy JSON path).
+(baseUrl as text, projectId as text, modelId as text, versionId as text, token as text) as nullable list =>
+    let
+        url = Text.Combine({
+            baseUrl,
+            "/api/v2/projects/",
+            projectId,
+            "/models/",
+            modelId,
+            "/versions/",
+            versionId,
+            "/artifacts"
+        }),
+
+        Response = Web.Contents(
+            url,
+            [
+                Headers = [
+                    #"Authorization" = "Bearer " & token,
+                    #"Accept" = "application/json"
+                ],
+                ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+            ]
+        ),
+
+        StatusCode = Value.Metadata(Response)[Response.Status],
+
+        Result = if StatusCode >= 200 and StatusCode < 300 then
+            let
+                files = try Json.Document(Response)[files] otherwise null
+            in
+                // an empty bundle is treated the same as a missing one
+                if files = null or List.IsEmpty(files) then null else files
+        else if StatusCode = 404 then
+            // no artifact bundle for this version -> legacy fallback signal
+            null
+        else
+            let
+                ResponseText = try Text.FromBinary(Response) otherwise null
+            in
+                error [
+                    Reason = "ArtifactsFetchFailed",
+                    Message.Format = "Failed to fetch Speckle artifact bundle (Status: #{0}) at #{1} — server said: #{2}",
+                    Message.Parameters = {Text.From(StatusCode), url, ResponseText},
+                    Detail = [
+                        StatusCode = StatusCode,
+                        Url = url,
+                        Response = ResponseText,
+                        ProjectId = projectId,
+                        ModelId = modelId,
+                        VersionId = versionId
+                    ]
+                ]
+    in
+        Result

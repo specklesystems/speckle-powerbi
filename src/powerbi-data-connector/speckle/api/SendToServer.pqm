@@ -1,9 +1,11 @@
-(url as text) as list =>
+// LEGACY PATH (pre-4.0 versions without an artifact bundle) — no new code here.
+// Downloads the raw object tree from {server}/objects/{projectId}/{rootObjectId}.
+// The caller passes the already-exchanged weak token; when omitted (direct use of
+// the shared export), the current credential's access token is used.
+(url as text, optional token as text) as list =>
     let
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         Parser = Extension.LoadFunction("Parser.pqm"),
-        GetUser = Extension.LoadFunction("GetUser.pqm"),
-        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
 
         // helper function to load .pqm modules dynamically
         Extension.LoadFunction = (fileName as text) =>
@@ -24,36 +26,23 @@
 
         modelInfo = GetModel(url),
         parsedUrl = Parser(url),
-        userInfo = GetUser(url),
-        powerfulToken = userInfo[Token],
 
-        // exchange powerful token for weak token using GraphQL
-        // this replaces the desktop service token exchange
-        tokenExchangeResult = ExchangeToken(
-            powerfulToken,
-            {"profile:read", "streams:read", "users:read"},
-            parsedUrl[projectId],
-            parsedUrl[baseUrl],
-            parsedUrl[resourceIdString]
-        ),
-
-        // throw error if token exchange failed - do NOT use powerful token as fallback
-        tokenToUse = if tokenExchangeResult[Success] then
-            tokenExchangeResult[Token]
+        tokenToUse = if token <> null then
+            token
         else
-            error [
-                Reason = "TokenExchangeFailed",
-                Message.Format = "Failed to exchange token for limited scope token: #{0}",
-                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
-                Detail = [
-                    ErrorMessage = tokenExchangeResult[ErrorMessage],
-                    ProjectId = parsedUrl[projectId],
-                    ServerUrl = parsedUrl[baseUrl]
-                ]
-            ],
+            let
+                credentialToken = try Extension.CurrentCredential()[access_token] otherwise null
+            in
+                if credentialToken <> null then
+                    credentialToken
+                else
+                    error [
+                        Reason = "MissingToken",
+                        Message = "No token supplied and no credential available for the object download."
+                    ],
 
         // downloads data directly from server
-        DirectDownload = (token as text) =>
+        DirectDownload = (downloadToken as text) =>
             let
                 objectUrl = Text.Combine({
                     parsedUrl[baseUrl],
@@ -67,7 +56,7 @@
                     objectUrl,
                     [
                         Headers = [
-                            #"Authorization" = "Bearer " & token,
+                            #"Authorization" = "Bearer " & downloadToken,
                             #"Accept" = "application/json"
                         ],
                         ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
@@ -93,8 +82,6 @@
             in
                 JsonResponse,
 
-        // download data using the token (weak if exchange succeeded, powerful otherwise)
         FinalResult = DirectDownload(tokenToUse)
-
     in
         FinalResult

@@ -1,4 +1,4 @@
-[Version = "3.0.0"]
+[Version = "4.0.0"]
 section Speckle;
 
 AuthAppId = "spklpwerbi";
@@ -125,21 +125,18 @@ shared Speckle.GetModel = Value.ReplaceType(
     type function (url as Uri.Type) as record
 );
 
+// LEGACY PATH export (pre-4.0 versions) — token optional for direct use
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetStructuredData = Value.ReplaceType(
     Speckle.LoadFunction("GetStructuredData.pqm"),
-    type function (url as Uri.Type) as table
+    type function (url as Uri.Type, optional token as text) as table
 );
 
-shared Speckle.GetVersion = Value.ReplaceType(
-    Speckle.LoadFunction("GetVersion.pqm"),
-    type function () as text
-);
-
+// LEGACY PATH export (pre-4.0 versions) — token optional for direct use
 [DataSource.Kind = "Speckle"]
 shared Speckle.SendToServer = Value.ReplaceType(
     Speckle.LoadFunction("SendToServer.pqm"),
-    type function (url as Uri.Type) as table
+    type function (url as Uri.Type, optional token as text) as list
 );
 
 [DataSource.Kind = "Speckle"]
@@ -164,37 +161,6 @@ shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
     ) as table
 );
 
-shared Speckle.Objects.Collections = Value.ReplaceType(
-    Speckle.LoadFunction("Objects.Collections.pqm"),
-    type function (inputData as table) as table
-);
-
-shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
-    Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
-    type function (objectRecord as record, optional outputAsList as nullable logical) as any
-);
-
-shared Speckle.Objects.MaterialQuantities = Value.ReplaceType(
-    Speckle.LoadFunction("Objects.MaterialQuantities.pqm"),
-    type function (objectRecord as record, optional outputAsList as logical) as any
-);
-
-shared Speckle.Models.Federate = Value.ReplaceType(
-    Speckle.LoadFunction("Models.Federate.pqm"),
-    type function (tables as list, optional excludeData as logical) as table
-);
-
-shared Speckle.Models.MaterialQuantities = Value.ReplaceType(
-    Speckle.LoadFunction("Models.MaterialQuantities.pqm"),
-    type function (inputTable as table, optional addPrefix as logical) as table
-);
-
-[DataSource.Kind = "Speckle"]
-shared Speckle.Project.Issues = Value.ReplaceType(
-    Speckle.LoadFunction("Project.Issues.pqm"),
-    type function (url as Uri.Type, optional getReplies as logical) as table
-);
-
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     Speckle.LoadFunction("GetByUrl.pqm"),
@@ -209,7 +175,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         optional ExpandProperties as (
             type logical meta [
                 Documentation.FieldCaption = "Expand Properties (may slow query)",
-                Documentation.FieldDescription = "Expand the properties column into individual columns for easier analysis. When checked, each property from the 'properties' record column will have its own column. This can slow down the query if you have a lot of properties.",
+                Documentation.FieldDescription = "When checked, every object property gets its own column (one column per property path). When unchecked, only the identity columns (Application ID, Object Type, Version ID, Model Info) are returned — the fast path for 3D-visual-only reports. Expanding can slow down the query if the model has many properties.",
                 Documentation.AllowedValues = {true, false}
             ]
         )
@@ -229,25 +195,9 @@ shared Speckle.GetByUrl = Value.ReplaceType(
     ]
 );
 
-shared Speckle.Revit.Parameters.ToNameValueRecord = (r as record, optional exclude as list) as record =>
-    let
-        defaultExclude = {"id", "speckle_type", "applicationId", "totalChildrenCount"},
-        fullExclusion = if exclude = null then defaultExclude else List.Union(defaultExclude, exclude),
-        clean = Record.RemoveFields(r, fullExclusion, MissingField.Ignore),
-        recTable = Record.ToTable(clean),
-        cleanTable = Table.RemoveColumns(recTable, "Name"),
-        expanded = Table.ExpandRecordColumn(
-            cleanTable, "Value", {"name", "value", "applicationInternalName"}, {"Name", "Value", "UID"}
-        ),
-        joined = Table.AddColumn(expanded, "Combo", each [Name] & " [" & [UID] & "]"),
-        renamed = Table.RenameColumns(joined, {{"Name", "x"}, {"Combo", "Name"}}),
-        result = Record.FromTable(renamed)
-    in
-        result;
-
 // here we register the GetByUrl function to power bi ui
 GetByUrl.Publish = [
-    Cateogry = "Other",
+    Category = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
     SourceImage = GetByUrl.Icons,

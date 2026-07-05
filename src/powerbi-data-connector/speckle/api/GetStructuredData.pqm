@@ -1,5 +1,6 @@
+// LEGACY PATH (pre-4.0 versions without an artifact bundle) — no new code here.
 // function for getting structured object data
-(url as text) as table =>
+(url as text, optional token as text) as table =>
     let
         // import the required functions
         GetModel = Extension.LoadFunction("GetModel.pqm"),
@@ -27,7 +28,7 @@
         rootId = modelInfo[rootObjectId],
        
         // Get the data from SendToServer - this is already a response from the service
-        JsonResponse = SendToServer(url),
+        JsonResponse = SendToServer(url, token),
        
         // convert list to table with all columns expanded
         TableFromList = Table.FromList(
