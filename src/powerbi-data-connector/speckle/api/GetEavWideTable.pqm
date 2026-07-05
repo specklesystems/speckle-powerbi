@@ -2,8 +2,9 @@
 //
 // One row per object (from eav.objects — objects with zero properties keep their row):
 //   "Application ID"  — the stable object identity (viewer 2.0 keys objects by this)
-//   "Object Type"     — type_key via object_type ⋈ types (null when the optional
-//                       type tables are absent from the bundle)
+//   "Object Type"     — a friendly type label: "Family Name: Type Name" when the
+//                       type tables carry them (Revit), else the raw type_key;
+//                       null when the optional type tables are absent
 //   + one column per property path when expand = true (instance values win over
 //     type-level values on the same path)
 //
@@ -13,42 +14,103 @@
     let
         ReadBundleTable = deps[ReadBundleTable],
 
-        // ---- mandatory identity table -------------------------------------
+        // ---- mandatory tables ----------------------------------------------
         objects = Table.Buffer(
             Table.SelectColumns(
                 ReadBundleTable(files, ".eav.objects.parquet", true),
                 {"object_index", "application_id"}
             )
         ),
+        paths = Table.Buffer(ReadBundleTable(files, ".eav.paths.parquet", true)),
 
         // ---- optional type tables (graceful skip when absent) --------------
-        objectType = ReadBundleTable(files, ".eav.object_type.parquet", false),
+        objectTypeRaw = ReadBundleTable(files, ".eav.object_type.parquet", false),
+        objectType = if objectTypeRaw = null then null else Table.Buffer(objectTypeRaw),
         types = ReadBundleTable(files, ".eav.types.parquet", false),
+        typeEavRaw = ReadBundleTable(files, ".eav.type_eav.parquet", false),
+        typeEav = if typeEavRaw = null then null else Table.Buffer(typeEavRaw),
         hasTypes = objectType <> null and types <> null,
 
-        typeKeyPerObject = if hasTypes then
+        // one row per type_index with the value of the first type_eav property
+        // whose path ends with the given suffix (e.g. ".Type Name")
+        TypePropBySuffix = (suffix as text, columnName as text) as table =>
+            let
+                matchingPaths = Table.SelectRows(paths, each Text.EndsWith([path], suffix)),
+                joined = Table.SelectColumns(
+                    Table.ExpandTableColumn(
+                        Table.NestedJoin(
+                            typeEav, {"path_index"},
+                            matchingPaths, {"path_index"},
+                            "_p", JoinKind.Inner
+                        ),
+                        "_p", {"path"}, {"__path"}
+                    ),
+                    {"type_index", "value_string"}
+                ),
+                distinct = Table.Distinct(joined, {"type_index"})
+            in
+                Table.RenameColumns(distinct, {{"value_string", columnName}}),
+
+        // type_index -> display label ("Family: Type Name" > type name > type_key)
+        typeDisplay = if not hasTypes then
+            null
+        else if typeEav = null then
+            Table.RenameColumns(Table.Buffer(types), {{"type_key", "__typeDisplay"}})
+        else
+            let
+                withName = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        Table.Buffer(types), {"type_index"},
+                        TypePropBySuffix(".Type Name", "__typeName"), {"type_index"},
+                        "_n", JoinKind.LeftOuter
+                    ),
+                    "_n", {"__typeName"}, {"__typeName"}
+                ),
+                withFamily = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        withName, {"type_index"},
+                        TypePropBySuffix(".Family Name", "__familyName"), {"type_index"},
+                        "_f", JoinKind.LeftOuter
+                    ),
+                    "_f", {"__familyName"}, {"__familyName"}
+                ),
+                withDisplay = Table.AddColumn(
+                    withFamily,
+                    "__typeDisplay",
+                    each
+                        if [__familyName] <> null and [__typeName] <> null then
+                            [__familyName] & ": " & [__typeName]
+                        else if [__typeName] <> null then [__typeName]
+                        else if [__familyName] <> null then [__familyName]
+                        else [type_key],
+                    type text
+                )
+            in
+                Table.Buffer(Table.SelectColumns(withDisplay, {"type_index", "__typeDisplay"})),
+
+        typeDisplayPerObject = if typeDisplay <> null then
             Table.SelectColumns(
                 Table.ExpandTableColumn(
                     Table.NestedJoin(
                         objectType, {"type_index"},
-                        Table.Buffer(types), {"type_index"},
+                        typeDisplay, {"type_index"},
                         "_t", JoinKind.Inner
                     ),
-                    "_t", {"type_key"}, {"type_key"}
+                    "_t", {"__typeDisplay"}, {"__typeDisplay"}
                 ),
-                {"object_index", "type_key"}
+                {"object_index", "__typeDisplay"}
             )
         else
             null,
 
-        base = if typeKeyPerObject <> null then
+        base = if typeDisplayPerObject <> null then
             Table.ExpandTableColumn(
                 Table.NestedJoin(
                     objects, {"object_index"},
-                    typeKeyPerObject, {"object_index"},
+                    typeDisplayPerObject, {"object_index"},
                     "_tk", JoinKind.LeftOuter
                 ),
-                "_tk", {"type_key"}, {"Object Type"}
+                "_tk", {"__typeDisplay"}, {"Object Type"}
             )
         else
             Table.AddColumn(objects, "Object Type", each null, type nullable text),
@@ -70,12 +132,10 @@
             leanTable
         else
             let
-                paths = Table.Buffer(ReadBundleTable(files, ".eav.paths.parquet", true)),
                 eav = ReadBundleTable(files, ".eav.eav.parquet", true),
-                typeEav = ReadBundleTable(files, ".eav.type_eav.parquet", false),
 
                 propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
-                instanceProps = Table.SelectColumns(eav, propCols),
+                instanceProps = Table.Buffer(Table.SelectColumns(eav, propCols)),
 
                 // type-level params projected per object; instance values win:
                 // anti-join drops any (object, path) already present on the instance
@@ -135,23 +195,48 @@
                     {{"path", each if List.Contains(reservedNames, _) then _ & " (property)" else _, type text}}
                 ),
 
-                // Table.Pivot has no aggregation: (object, path) must be unique
-                deduped = Table.Distinct(slim, {"object_index", "path"}),
+                // (object, path) must be unique for Record.FromList below; buffer so
+                // the whole join pipeline is evaluated exactly once
+                deduped = Table.Buffer(Table.Distinct(slim, {"object_index", "path"})),
 
                 distinctPaths = List.Sort(List.Distinct(Table.Column(deduped, "path"))),
+
+                // group to one record per object, weave the identity fields into each
+                // record, and materialize via Table.FromRecords with an explicit
+                // column list. Do NOT use Table.Pivot or Table.ExpandRecordColumn
+                // here — both take minutes at real model scale (thousands of objects
+                // x 1000+ paths); this shape runs in seconds.
+                grouped = Table.Group(
+                    deduped,
+                    {"object_index"},
+                    {{"__props", each Record.FromList([value], [path]), type record}}
+                ),
+
+                baseWithProps = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        base, {"object_index"},
+                        grouped, {"object_index"},
+                        "_g", JoinKind.LeftOuter
+                    ),
+                    "_g", {"__props"}, {"__props"}
+                ),
+
+                fullRecords = Table.TransformRows(
+                    baseWithProps,
+                    (r) =>
+                        Record.Combine({
+                            [#"Application ID" = r[application_id], #"Object Type" = r[#"Object Type"]],
+                            if r[__props] = null then [] else r[__props]
+                        })
+                ),
 
                 wide = if List.IsEmpty(distinctPaths) then
                     leanTable
                 else
-                    Finalize(
-                        Table.ExpandTableColumn(
-                            Table.NestedJoin(
-                                base, {"object_index"},
-                                Table.Pivot(deduped, distinctPaths, "path", "value"), {"object_index"},
-                                "_props", JoinKind.LeftOuter
-                            ),
-                            "_props", distinctPaths, distinctPaths
-                        )
+                    Table.FromRecords(
+                        fullRecords,
+                        {"Application ID", "Object Type"} & distinctPaths,
+                        MissingField.UseNull
                     )
             in
                 wide
