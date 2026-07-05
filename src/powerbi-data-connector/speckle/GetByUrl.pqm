@@ -32,7 +32,7 @@
         GetModel = Extension.LoadFunction("GetModel.pqm"),
         FetchArtifacts = Extension.LoadFunction("FetchArtifacts.pqm"),
         ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
-        GetEavWideTable = Extension.LoadFunction("GetEavWideTable.pqm"),
+        GetEavTable = Extension.LoadFunction("GetEavTable.pqm"),
         GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
         ExpandRecord = Extension.LoadFunction("Utils.ExpandRecord.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
@@ -159,7 +159,7 @@
                 isArtifact = files <> null,
 
                 data = if isArtifact then
-                    GetEavWideTable(deps, files, shouldExpandProperties)
+                    GetEavTable(deps, files, shouldExpandProperties)
                 else
                     LegacyToContract(GetStructuredData(singleModelUrl, weakToken)),
 

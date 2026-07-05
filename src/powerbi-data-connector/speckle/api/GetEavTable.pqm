@@ -1,12 +1,19 @@
-// Builds the wide per-object table from a 4.0 artifact bundle's eav parquet files.
+// Builds the object/property table from a 4.0 artifact bundle's eav parquet files.
 //
-// One row per object (from eav.objects — objects with zero properties keep their row):
+// Default (expand = false) — TALL: one row per (object, property):
+//   "Application ID" | "Object Type" | "Property" | "Value"
+//   Property paths and values come from eav.eav plus type-level parameters
+//   (instance values win on the same path); objects with zero properties keep
+//   a single row with null Property/Value. This shape drives cross-filtering:
+//   slice by Property/Value elsewhere -> the 3D visual receives the matching
+//   Application IDs.
+//
+// expand = true — WIDE: one row per object, one column per property path.
+//
 //   "Application ID"  — the stable object identity (viewer 2.0 keys objects by this)
 //   "Object Type"     — a friendly type label: "Family Name: Type Name" when the
 //                       type tables carry them (Revit), else the raw type_key;
 //                       null when the optional type tables are absent
-//   + one column per property path when expand = true (instance values win over
-//     type-level values on the same path)
 //
 // deps carries the shared module functions so this file doesn't re-load them:
 //   deps[ReadBundleTable](files, suffix, required)
@@ -22,6 +29,7 @@
             )
         ),
         paths = Table.Buffer(ReadBundleTable(files, ".eav.paths.parquet", true)),
+        eav = ReadBundleTable(files, ".eav.eav.parquet", true),
 
         // ---- optional type tables (graceful skip when absent) --------------
         objectTypeRaw = ReadBundleTable(files, ".eav.object_type.parquet", false),
@@ -115,97 +123,109 @@
         else
             Table.AddColumn(objects, "Object Type", each null, type nullable text),
 
-        Finalize = (t as table) as table =>
-            Table.TransformColumnTypes(
-                Table.RenameColumns(
-                    Table.RemoveColumns(t, {"object_index"}),
-                    {{"application_id", "Application ID"}}
+        // ---- tall property pipeline (both modes) ----------------------------
+        propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
+        instanceProps = Table.Buffer(Table.SelectColumns(eav, propCols)),
+
+        // type-level params projected per object; instance values win:
+        // anti-join drops any (object, path) already present on the instance
+        typeProps = if hasTypes and typeEav <> null then
+            Table.RemoveColumns(
+                Table.NestedJoin(
+                    Table.SelectColumns(
+                        Table.ExpandTableColumn(
+                            Table.NestedJoin(
+                                objectType, {"type_index"},
+                                typeEav, {"type_index"},
+                                "_te", JoinKind.Inner
+                            ),
+                            "_te",
+                            {"path_index", "value_string", "value_double", "value_boolean"},
+                            {"path_index", "value_string", "value_double", "value_boolean"}
+                        ),
+                        propCols
+                    ),
+                    {"object_index", "path_index"},
+                    instanceProps, {"object_index", "path_index"},
+                    "_dup", JoinKind.LeftAnti
                 ),
-                {{"Application ID", type text}, {"Object Type", type nullable text}}
+                {"_dup"}
+            )
+        else
+            #table(propCols, {}),
+
+        allProps = Table.Combine({instanceProps, typeProps}),
+
+        withPath = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                allProps, {"path_index"},
+                paths, {"path_index"},
+                "_p", JoinKind.Inner
             ),
+            "_p", {"path"}, {"path"}
+        ),
 
-        // ---- lean path: identity + type only -------------------------------
-        leanTable = Finalize(base),
+        // exactly one of the value_* columns is set per row; consumer coalesces
+        withValue = Table.AddColumn(
+            withPath,
+            "value",
+            each
+                if [value_string] <> null then [value_string]
+                else if [value_double] <> null then [value_double]
+                else [value_boolean]
+        ),
 
-        // ---- expanded path: pivot properties to wide columns ---------------
+        // paths that would collide with the fixed output columns get suffixed
+        // (only matters for the wide mode's generated column names)
+        reservedNames = {
+            "Application ID", "Object Type", "Property", "Value", "Version ID",
+            "Model Info", "Source Model", "object_index", "application_id", "value"
+        },
+        slim = Table.TransformColumns(
+            Table.SelectColumns(withValue, {"object_index", "path", "value"}),
+            {{"path", each if List.Contains(reservedNames, _) then _ & " (property)" else _, type text}}
+        ),
+
+        // (object, path) must be unique; buffer so the whole join pipeline is
+        // evaluated exactly once
+        deduped = Table.Buffer(Table.Distinct(slim, {"object_index", "path"})),
+
+        // ---- tall output: one row per (object, property) --------------------
+        tallTable =
+            let
+                joined = Table.ExpandTableColumn(
+                    Table.NestedJoin(
+                        base, {"object_index"},
+                        deduped, {"object_index"},
+                        "_props", JoinKind.LeftOuter
+                    ),
+                    "_props", {"path", "value"}, {"Property", "Value"}
+                )
+            in
+                Table.TransformColumnTypes(
+                    Table.RenameColumns(
+                        Table.RemoveColumns(joined, {"object_index"}),
+                        {{"application_id", "Application ID"}}
+                    ),
+                    {
+                        {"Application ID", type text},
+                        {"Object Type", type nullable text},
+                        {"Property", type nullable text}
+                    }
+                ),
+
+        // ---- wide output: one row per object, one column per path -----------
         result = if not expand then
-            leanTable
+            tallTable
         else
             let
-                eav = ReadBundleTable(files, ".eav.eav.parquet", true),
-
-                propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
-                instanceProps = Table.Buffer(Table.SelectColumns(eav, propCols)),
-
-                // type-level params projected per object; instance values win:
-                // anti-join drops any (object, path) already present on the instance
-                typeProps = if hasTypes and typeEav <> null then
-                    Table.RemoveColumns(
-                        Table.NestedJoin(
-                            Table.SelectColumns(
-                                Table.ExpandTableColumn(
-                                    Table.NestedJoin(
-                                        objectType, {"type_index"},
-                                        typeEav, {"type_index"},
-                                        "_te", JoinKind.Inner
-                                    ),
-                                    "_te",
-                                    {"path_index", "value_string", "value_double", "value_boolean"},
-                                    {"path_index", "value_string", "value_double", "value_boolean"}
-                                ),
-                                propCols
-                            ),
-                            {"object_index", "path_index"},
-                            instanceProps, {"object_index", "path_index"},
-                            "_dup", JoinKind.LeftAnti
-                        ),
-                        {"_dup"}
-                    )
-                else
-                    #table(propCols, {}),
-
-                allProps = Table.Combine({instanceProps, typeProps}),
-
-                withPath = Table.ExpandTableColumn(
-                    Table.NestedJoin(
-                        allProps, {"path_index"},
-                        paths, {"path_index"},
-                        "_p", JoinKind.Inner
-                    ),
-                    "_p", {"path"}, {"path"}
-                ),
-
-                // exactly one of the value_* columns is set per row; consumer coalesces
-                withValue = Table.AddColumn(
-                    withPath,
-                    "value",
-                    each
-                        if [value_string] <> null then [value_string]
-                        else if [value_double] <> null then [value_double]
-                        else [value_boolean]
-                ),
-
-                // paths that would collide with the fixed output columns get suffixed
-                reservedNames = {
-                    "Application ID", "Object Type", "Version ID", "Model Info",
-                    "Source Model", "object_index", "application_id", "value"
-                },
-                slim = Table.TransformColumns(
-                    Table.SelectColumns(withValue, {"object_index", "path", "value"}),
-                    {{"path", each if List.Contains(reservedNames, _) then _ & " (property)" else _, type text}}
-                ),
-
-                // (object, path) must be unique for Record.FromList below; buffer so
-                // the whole join pipeline is evaluated exactly once
-                deduped = Table.Buffer(Table.Distinct(slim, {"object_index", "path"})),
-
                 distinctPaths = List.Sort(List.Distinct(Table.Column(deduped, "path"))),
 
-                // group to one record per object, weave the identity fields into each
-                // record, and materialize via Table.FromRecords with an explicit
-                // column list. Do NOT use Table.Pivot or Table.ExpandRecordColumn
-                // here — both take minutes at real model scale (thousands of objects
-                // x 1000+ paths); this shape runs in seconds.
+                // group to one record per object, weave the identity fields into
+                // each record, and materialize via Table.FromRecords with an
+                // explicit column list. Do NOT use Table.Pivot or
+                // Table.ExpandRecordColumn here — both take minutes at real model
+                // scale (thousands of objects x 1000+ paths); this runs in seconds.
                 grouped = Table.Group(
                     deduped,
                     {"object_index"},
@@ -231,7 +251,13 @@
                 ),
 
                 wide = if List.IsEmpty(distinctPaths) then
-                    leanTable
+                    Table.TransformColumnTypes(
+                        Table.RenameColumns(
+                            Table.RemoveColumns(base, {"object_index"}),
+                            {{"application_id", "Application ID"}}
+                        ),
+                        {{"Application ID", type text}, {"Object Type", type nullable text}}
+                    )
                 else
                     Table.FromRecords(
                         fullRecords,

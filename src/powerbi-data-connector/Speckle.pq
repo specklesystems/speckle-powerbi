@@ -174,8 +174,8 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         ),
         optional ExpandProperties as (
             type logical meta [
-                Documentation.FieldCaption = "Expand Properties (may slow query)",
-                Documentation.FieldDescription = "When checked, every object property gets its own column (one column per property path). When unchecked, only the identity columns (Application ID, Object Type, Version ID, Model Info) are returned — the fast path for 3D-visual-only reports. Expanding can slow down the query if the model has many properties.",
+                Documentation.FieldCaption = "Expand Properties (one column per property)",
+                Documentation.FieldDescription = "When unchecked (default), the table is TALL: one row per object property (Application ID, Object Type, Property, Value, Version ID, Model Info) — ideal for filtering and cross-highlighting the 3D visual. When checked, the table is WIDE: one row per object with a column for every property path.",
                 Documentation.AllowedValues = {true, false}
             ]
         )
