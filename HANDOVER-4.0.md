@@ -1,5 +1,19 @@
 # Speckle 4.0 Power BI — Handover (2026-07-06)
 
+> **SUPERSEDED (2026-07-06 evening, Mac session)** — the blocker below is SOLVED
+> and the strategy REVERSED: the visual now runs the **duckdb loader**
+> (`SpecklePackfileLoader2`, forced in-memory) in the real Power BI Service —
+> full render + cross-visual filtering + selection verified live.
+> `SpecklePureJsLoader` is unused. The masked sendError crash was the webpack
+> **library global name**: the Service resolves a dev visual via
+> `window["<guid>_DEBUG"].default` and `output.library` lacked the `_DEBUG`
+> suffix (plus a second instance: worker chunks named `*.js` get embedded as
+> the visual by the packaging plugin — they ship as `.mjs` now). See
+> `PROBE-PLAN.md` for the full debugging chronicle, the sandbox wall-map, and
+> the probe diagnostic visual (`PROBE=1 npm run dev`). Monorepo needs branch
+> `oguzhan/powerbi-purejs-loader` commits af370d870 + c4911bd9a
+> (packfile-manager sandbox mode) + 2832e1c75 (loader in-memory mode).
+
 End-to-end refactor of the Power BI connector + 3D visual onto the Speckle 4.0
 artifact (parquet) pipeline. This doc is the pickup point for continuing on another machine.
 

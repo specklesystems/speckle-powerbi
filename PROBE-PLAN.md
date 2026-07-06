@@ -1,9 +1,16 @@
-# scratch/duckdb-probe — staged duckdb rematch (throwaway branch)
+# The duckdb rematch — debugging chronicle + sandbox probe
 
-Goal: instead of debugging the full 12 MB visual downward, bisect upward from a
-minimal visual that provably renders in the Power BI Service iframe, adding one
-duckdb-pipeline layer at a time until it breaks. `SpecklePureJsLoader` is out of
-scope on this branch.
+**OUTCOME (2026-07-06): WON.** The real visual runs `SpecklePackfileLoader2`
+(duckdb-wasm, forced in-memory) in the live Power BI Service: full render,
+cross-visual filtering, selection, camera persistence. Everything below is the
+staged bisect that got there, kept as reference. The probe visual remains a
+permanent diagnostic tool: `PROBE=1 npm run dev` serves it instead of the real
+visual — capability wall-map rows + minimal render/selection harness behind a
+🔬 debug button.
+
+Original goal: instead of debugging the full 12 MB visual downward, bisect
+upward from a minimal visual that provably renders in the Power BI Service
+iframe, adding one duckdb-pipeline layer at a time until it breaks.
 
 ## Stage 0 — capability probe (CURRENT)
 
