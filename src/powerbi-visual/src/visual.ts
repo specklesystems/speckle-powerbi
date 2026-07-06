@@ -22,6 +22,17 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
 
+// VisualUpdateType is a bit-flag enum (powerbi-visuals-api). Defined locally as
+// plain constants: the ambient `powerbi` runtime global is not reliably present
+// in every host context and referencing it threw ReferenceError inside update().
+const UpdateType = {
+  Data: 1 << 1,
+  Resize: 1 << 2,
+  ViewMode: 1 << 3,
+  Style: 1 << 4,
+  ResizeEnd: 1 << 5
+} as const
+
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
@@ -105,9 +116,6 @@ export class Visual implements IVisual {
       return
     }
 
-    // @ts-ignore
-    console.log('⤴️ Update type 👉', powerbi.VisualUpdateType[options.type])
-
     this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(
       SpeckleVisualSettingsModel,
       options.dataViews[0]
@@ -124,14 +132,11 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
-      switch (options.type) {
-        case powerbi.VisualUpdateType.Resize:
-        case powerbi.VisualUpdateType.ResizeEnd:
-        case powerbi.VisualUpdateType.Style:
-        case powerbi.VisualUpdateType.ViewMode:
-        case powerbi.VisualUpdateType.Resize + powerbi.VisualUpdateType.ResizeEnd:
-          return
-        case powerbi.VisualUpdateType.Data:
+      // only react to Data updates; resize/style/viewmode-only updates are no-ops
+      if (!(options.type & UpdateType.Data)) {
+        return
+      }
+      {
           try {
             // read saved settings from file if any
             console.log('🔍 Checking for other saved settings:')
@@ -254,9 +259,6 @@ export class Visual implements IVisual {
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')
           }
-          break
-        default:
-          return
       }
     } catch (e) {
       console.warn('Input not valid:', (e as Error).message)
