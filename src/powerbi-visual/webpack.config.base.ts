@@ -87,6 +87,12 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     },
     optimization: {
       concatenateModules: false,
+      // a Power BI visual must be ONE js file: the pbiviz manifest/packaging
+      // picks a single asset, and with multiple emitted chunks it grabs the
+      // wrong one (alphabetically-first chunk), so the sandbox evaluates a
+      // chunk instead of the visual -> "Visual does not have a plugin"
+      splitChunks: false,
+      runtimeChunk: false,
       minimize: isProd // enable minimization for create *.pbiviz file less than 2 Mb, can be disabled for dev mode
     },
     // external map file — inline-source-map balloons visual.js to ~29MB, which
@@ -95,6 +101,19 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     devtool: isProd ? false : 'source-map',
     mode: isProd ? 'production' : 'development',
     module: {
+      parser: {
+        javascript: {
+          // no worker chunks: `new Worker(new URL(...))` in packfile-manager
+          // must not split a file out of the single-bundle build (the sandbox
+          // can't load sibling files anyway; blob-based worker creation is
+          // handled at runtime)
+          worker: false,
+          // no `new URL(..., import.meta.url)` asset extraction
+          url: false,
+          // inline all dynamic import() chunks into the main bundle
+          dynamicImportMode: 'eager'
+        }
+      },
       rules: [
         {
           test: /\.vue$/,

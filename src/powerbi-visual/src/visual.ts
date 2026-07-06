@@ -22,6 +22,49 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
 
+// TEMP sandbox diagnostics: the PBI sandbox's own error reporter crashes while
+// reporting load failures (reads .name on undefined), swallowing the original
+// error. These eval-time traps surface what actually happened. Remove once the
+// Service dev-visual flow is stable.
+;(() => {
+  try {
+    /* eslint-disable no-console */
+    console.error('SPECKLE-DIAG: visual.ts module evaluated')
+    // inside the sandbox isolate wrapper `window` is a fake clone;
+    // document.defaultView is the real one where uncaught errors surface
+    const realWindow = (document.defaultView || window) as unknown as Window
+    realWindow.addEventListener('error', (e: ErrorEvent) =>
+      console.error(
+        'SPECKLE-TRAP error:',
+        e.message,
+        '|',
+        e.filename + ':' + e.lineno,
+        '|',
+        e.error && e.error.stack
+      )
+    )
+    realWindow.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) =>
+      console.error(
+        'SPECKLE-TRAP rejection:',
+        e.reason && ((e.reason as Error).stack || String(e.reason))
+      )
+    )
+    setTimeout(() => {
+      try {
+        const pv = (realWindow as unknown as Record<string, any>).powerbi
+        console.error(
+          'SPECKLE-DIAG registry after eval:',
+          pv && pv.visuals && pv.visuals.plugins ? Object.keys(pv.visuals.plugins) : 'no registry'
+        )
+      } catch (e) {
+        console.error('SPECKLE-DIAG registry check failed', e)
+      }
+    }, 0)
+  } catch (e) {
+    console.error('SPECKLE-DIAG setup failed', e)
+  }
+})()
+
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
