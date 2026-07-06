@@ -220,6 +220,12 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       // sends access-control-allow-origin: * so cross-origin fetches work.
       publicPath: isProd ? '/assets/' : 'https://localhost:8080/assets/',
       path: path.join(__dirname, '/.tmp', 'drop'),
+      // the PBI packaging plugin embeds the LAST *.js asset it iterates as the
+      // visual's code — a worker chunk named *.js gets picked INSTEAD of
+      // visual.js and the visual dies with the masked undefined-plugin crash.
+      // Emit non-entry chunks (the duckdb worker) as .mjs: correct MIME for the
+      // dev server, invisible to the plugin's extension check.
+      chunkFilename: '[name].mjs',
       // the library global must match the guid the SERVED pbiviz.json
       // advertises — in dev mode the PBI plugin renames it to <guid>_DEBUG,
       // and the Service host resolves the visual via window[<guid>].default
