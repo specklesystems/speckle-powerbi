@@ -29,9 +29,31 @@ import DataViewMatrixNode = powerbi.DataViewMatrixNode
 const PROBE_TIMEOUT_MS = 5000
 const LOG_PREFIX = 'Speckle probe:'
 
+// first executable statement: if this banner shows in the console but nothing
+// else does, module evaluation died between here and the class definition
+try {
+  console.log(LOG_PREFIX, 'module evaluating')
+} catch {
+  /* not even console — nothing to do */
+}
+
 // the isolate wrapper runs the visual with `self`/`window` bound to a CLONED
-// window; event listeners and globals must reach the real one
-const realGlobal = Function('return this')() as typeof globalThis & Window
+// window; event listeners and globals must reach the real one. The Function
+// constructor is eval under CSP — a sandbox without 'unsafe-eval' throws right
+// here, so it MUST be guarded (an unguarded throw at module scope kills plugin
+// registration and surfaces as the host's masked sendError crash).
+let evalAllowed = false
+const realGlobal = ((): typeof globalThis & Window => {
+  try {
+    const g = Function('return this')() as typeof globalThis & Window
+    evalAllowed = true
+    return g
+  } catch {
+    /* CSP without unsafe-eval */
+  }
+  if (typeof globalThis !== 'undefined') return globalThis as typeof globalThis & Window
+  return window as typeof globalThis & Window
+})()
 
 type ProbeStatus = 'pending' | 'ok' | 'fail' | 'info'
 
@@ -305,7 +327,8 @@ export class Visual implements IVisual {
       'info',
       `secureContext=${safe(() => realGlobal.isSecureContext)} ` +
         `inIframe=${safe(() => realGlobal.top !== realGlobal.self)} ` +
-        `isolateClone=${safe(() => (self as unknown) !== (realGlobal as unknown))}`
+        `isolateClone=${safe(() => (self as unknown) !== (realGlobal as unknown))} ` +
+        `evalAllowed=${evalAllowed ? 'yes' : 'NO (CSP blocks Function/eval)'}`
     )
     this.addRow(
       'apis',
