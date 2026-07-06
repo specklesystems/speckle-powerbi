@@ -14,7 +14,7 @@ import {
   UpdateFlags,
   ViewerEvent,
   SelectionEvent,
-  SpecklePureJsLoader,
+  SpecklePackfileLoader2,
   LoaderEvent
 } from '@speckle/viewer'
 import { FilteredSelectionExtension, FilteredSelectionEvent } from '@src/extensions/FilteredSelectionExtension'
@@ -288,10 +288,15 @@ export class ViewerHandler {
 
     for (const model of artifactModels) {
       const artifactsUrl = `${model.server}/api/v2/projects/${model.projectId}/models/${model.modelId}/versions/${model.versionId}/artifacts`
-      const loader = new SpecklePureJsLoader(
+      // duckdb loader in forced in-memory mode — the PBI sandbox denies OPFS,
+      // and our webpack build inlines the engine worker (data: URL, opaque
+      // origin) so OPFS is unavailable even outside the Service
+      const loader = new SpecklePackfileLoader2(
         this.viewer.getWorldTree(),
         artifactsUrl,
-        model.token
+        model.token,
+        undefined,
+        true
       )
       loader.on(LoaderEvent.LoadProgress, (arg: { progress?: number }) => {
         const pct = arg?.progress != null ? Math.round(arg.progress * 100) : null

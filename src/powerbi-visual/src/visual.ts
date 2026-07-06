@@ -1,3 +1,4 @@
+import './duckdbWorkerShim' // MUST be first: patches global Worker before any duckdb code
 import 'core-js/stable'
 import 'regenerator-runtime/runtime'
 import '../style/visual.css'

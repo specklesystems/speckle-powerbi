@@ -80,14 +80,34 @@ Implemented:
    the full shim chain) and `duckdb-bundle` (download all parquets in-memory,
    register buffers, attach views, count objects, read raw SGEO page).
 
-## Stage 2 — Service round-trip for duckdb-boot + duckdb-bundle (NEXT)
+## Stage 2 — duckdb in the live Service sandbox — DONE ✅
 
-Bind Model Info in the Service report; expect duckdb-boot green (worker+wasm
-verified individually by stage-0 rows) and duckdb-bundle to exercise the
-loader's whole data layer. Then stage 3: teach SpecklePackfileLoader2 the
-in-memory path (fetch→registerFileBuffer→attachParquetBundleFromBuffers→
-readGeometryBlobs(raw)) behind a functional OPFS check, and point the visual
-at it.
+Round 6 (after fixing chunkFilename: the PBI plugin embeds the LAST *.js
+asset as the visual, so the worker chunk had clobbered visual.js → emit
+chunks as .mjs): **all rows green in the real Service** —
+`duckdb-boot: SELECT 42 -> 42` and
+`duckdb-bundle: 13 parquets (7.5MB) in-memory, 12 views attached,
+objects=6697, 50 geometry blobs read (type=mesh, magic="SGEO") — 5.0s`.
+duckdb-wasm is fully operational inside the Power BI sandbox.
+
+## Stage 3 — real loader + viewer render (CURRENT)
+
+- `SpecklePackfileLoader2` gained an in-memory mode (viewer commit
+  2832e1c75): auto-detected functional-OPFS or forced via 5th ctor arg;
+  fetch→registerFileBuffer→attachParquetBundleFromBuffers→
+  readGeometryBlobs(raw)→dropFile.
+- Probe row `viewer-render`: creates a real Viewer in the panel and loads the
+  bound model through the real loader (forced in-memory).
+- Real visual updated for PROBE=0: visual.ts imports duckdbWorkerShim first;
+  plugins/viewer.ts uses SpecklePackfileLoader2 (in-memory) instead of
+  SpecklePureJsLoader.
+
+## Stage 4 — the real visual in the Service
+
+`PROBE=0 npm run dev` and re-run the Developer Visual: full Vue UI +
+selection/color/tooltip against the duckdb loader. Then fold the branch
+learnings back: cherry-pick the webpack fixes (library _DEBUG suffix,
+chunkFilename .mjs, ?url rules) onto big-truck-star-schema.
 
 ## Stage 2 — duckdb boot
 

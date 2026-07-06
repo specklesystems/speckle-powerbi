@@ -571,6 +571,36 @@ export class Visual implements IVisual {
           `${views.length} views attached, objects=${objectCount}, ${geomInfo} — ${secs}s`
         )
       }, 180000)
+
+      // ── stage 3: the REAL loader + viewer, rendering into the panel ────────
+      await this.probe('viewer-render', async () => {
+        const viewerMod = await import('@speckle/viewer')
+        const holder = document.createElement('div')
+        holder.style.cssText =
+          'position:relative;width:100%;height:340px;margin-top:8px;border:1px solid #30363d'
+        this.panel.appendChild(holder)
+
+        const params = viewerMod.DefaultViewerParams
+        params.showStats = false
+        params.verbose = false
+        const viewer = new viewerMod.Viewer(holder, params)
+        await viewer.init()
+        viewer.createExtension(viewerMod.CameraController)
+
+        const artifactsUrl = `${server}/api/v2/projects/${projectId}/models/${modelId}/versions/${versionId}/artifacts`
+        const t0 = performance.now()
+        // 5th arg forces the in-memory (no-OPFS) path
+        const loader = new viewerMod.SpecklePackfileLoader2(
+          viewer.getWorldTree(),
+          artifactsUrl,
+          token,
+          undefined,
+          true
+        )
+        await viewer.loadObject(loader, true)
+        const secs = ((performance.now() - t0) / 1000).toFixed(1)
+        return `RENDERED — worldTree nodes=${viewer.getWorldTree().nodeCount} in ${secs}s`
+      }, 300000)
     }
 
     this.log('data probes finished')
