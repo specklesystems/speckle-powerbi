@@ -103,18 +103,27 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     module: {
       parser: {
         javascript: {
-          // no worker chunks: `new Worker(new URL(...))` in packfile-manager
-          // must not split a file out of the single-bundle build (the sandbox
-          // can't load sibling files anyway; blob-based worker creation is
-          // handled at runtime)
-          worker: false,
-          // no `new URL(..., import.meta.url)` asset extraction
-          url: false,
-          // inline all dynamic import() chunks into the main bundle
+          // inline all dynamic import() chunks into the main bundle — a Power
+          // BI visual must be ONE js file
           dynamicImportMode: 'eager'
         }
       },
       rules: [
+        {
+          // no worker chunks / new URL() asset extraction from the viewer
+          // stack: `new Worker(new URL(...))` in packfile-manager must not
+          // split files out of the single-bundle build (the sandbox can't
+          // load sibling files anyway; blob-based worker creation is handled
+          // at runtime). Scoped here because url:false globally would break
+          // css-loader's asset handling (fonts turn into file:/// paths).
+          test: /speckle-server-internal[\\/]/,
+          // NOTE: Rule.parser options are FLAT (unlike module.parser.javascript)
+          parser: {
+            worker: false,
+            url: false,
+            dynamicImportMode: 'eager'
+          }
+        },
         {
           test: /\.vue$/,
           use: ['vue-loader']
