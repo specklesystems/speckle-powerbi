@@ -169,6 +169,8 @@ export class Visual implements IVisual {
   private updateCount = 0
   private dataProbeRan = false
   private constructedAt = performance.now()
+  /** live viewer instance (set by viewer-render) — resized on host resize events */
+  private liveViewer: { resize(): void } | null = null
 
   constructor(options: VisualConstructorOptions) {
     try {
@@ -200,6 +202,12 @@ export class Visual implements IVisual {
         (dv?.matrix ? ' matrix=yes' : ' matrix=no')
       this.updatesEl.textContent = summary
       this.log('update', summary)
+
+      // the viewer only re-measures on window resize, which the sandbox does
+      // not reliably fire — forward host resize updates ourselves
+      if (options.type & (UpdateType.Resize | UpdateType.ResizeEnd)) {
+        this.liveViewer?.resize()
+      }
 
       if (dv?.matrix && !this.dataProbeRan) {
         const modelInfoRaw = this.findModelInfoValue(dv)
@@ -256,8 +264,10 @@ export class Visual implements IVisual {
     // top layer: 🔬 toggle button with a fail-count badge
     this.debugBtn = document.createElement('button')
     this.debugBtn.textContent = '🔬 debug'
+    // top-LEFT: Power BI's own hover header (pin/filter/popout) floats over the
+    // visual's top-right corner and swallows clicks there
     this.debugBtn.style.cssText =
-      'position:absolute;top:8px;right:8px;z-index:30;background:#21262d;color:#e6edf3;' +
+      'position:absolute;top:8px;left:8px;z-index:30;background:#21262d;color:#e6edf3;' +
       'border:1px solid #30363d;border-radius:6px;padding:4px 10px;cursor:pointer;' +
       'font:11px ui-monospace,Menlo,Consolas,monospace'
     this.debugBtn.onclick = () => {
@@ -645,8 +655,19 @@ export class Visual implements IVisual {
           true
         )
         await viewer.loadObject(loader, true)
+        this.liveViewer = viewer
+        // the viewer sizes itself ONCE at init from container.offsetWidth and
+        // only re-measures on window resize (which the sandbox may never fire)
+        // — force a measure + full re-render now that layout is settled
+        viewer.resize()
+        viewer.requestRender(viewerMod.UpdateFlags.RENDER_RESET)
         const secs = ((performance.now() - t0) / 1000).toFixed(1)
-        return `RENDERED — worldTree nodes=${viewer.getWorldTree().nodeCount} in ${secs}s`
+        const canvas = this.viewerHost.querySelector('canvas')
+        return (
+          `RENDERED — worldTree nodes=${viewer.getWorldTree().nodeCount} in ${secs}s | ` +
+          `host=${this.viewerHost.offsetWidth}x${this.viewerHost.offsetHeight} ` +
+          `canvas=${canvas?.width ?? '?'}x${canvas?.height ?? '?'}`
+        )
       }, 300000)
     }
 
