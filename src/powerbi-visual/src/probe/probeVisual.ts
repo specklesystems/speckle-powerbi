@@ -158,7 +158,12 @@ interface DecodedModelInfoLite {
 }
 
 export class Visual implements IVisual {
+  /** full-screen viewer host (bottom layer) */
+  private viewerHost!: HTMLElement
+  /** debug overlay (toggled by the 🔬 button) — holds all probe rows */
   private panel!: HTMLElement
+  private debugBtn!: HTMLButtonElement
+  private statusChip!: HTMLElement
   private rowsContainer!: HTMLElement
   private updatesEl!: HTMLElement
   private updateCount = 0
@@ -218,13 +223,25 @@ export class Visual implements IVisual {
   /* ---------------------------------------------------------------- panel */
 
   private buildPanel(parent: HTMLElement) {
+    const root = document.createElement('div')
+    root.style.cssText = 'position:absolute;inset:0;background:#0d1117;overflow:hidden'
+    parent.appendChild(root)
+
+    // bottom layer: the viewer gets the WHOLE visual viewport
+    this.viewerHost = document.createElement('div')
+    this.viewerHost.style.cssText = 'position:absolute;inset:0'
+    root.appendChild(this.viewerHost)
+
+    // debug overlay (hidden by default) — all probe rows live here
     this.panel = document.createElement('div')
     this.panel.style.cssText =
-      'position:absolute;inset:0;overflow:auto;background:#0d1117;color:#e6edf3;' +
-      'font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:10px;box-sizing:border-box'
+      'position:absolute;inset:0;overflow:auto;background:rgba(13,17,23,0.96);color:#e6edf3;' +
+      'font:11px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:10px 10px 10px;' +
+      'box-sizing:border-box;z-index:20;display:none'
+    root.appendChild(this.panel)
 
     const title = document.createElement('div')
-    title.textContent = '🔬 Speckle sandbox probe — stage 0'
+    title.textContent = '🔬 Speckle sandbox probe'
     title.style.cssText = 'font-weight:bold;font-size:13px;margin-bottom:2px;color:#58a6ff'
     this.panel.appendChild(title)
 
@@ -236,7 +253,35 @@ export class Visual implements IVisual {
     this.rowsContainer = document.createElement('div')
     this.panel.appendChild(this.rowsContainer)
 
-    parent.appendChild(this.panel)
+    // top layer: 🔬 toggle button with a fail-count badge
+    this.debugBtn = document.createElement('button')
+    this.debugBtn.textContent = '🔬 debug'
+    this.debugBtn.style.cssText =
+      'position:absolute;top:8px;right:8px;z-index:30;background:#21262d;color:#e6edf3;' +
+      'border:1px solid #30363d;border-radius:6px;padding:4px 10px;cursor:pointer;' +
+      'font:11px ui-monospace,Menlo,Consolas,monospace'
+    this.debugBtn.onclick = () => {
+      this.panel.style.display = this.panel.style.display === 'none' ? 'block' : 'none'
+    }
+    root.appendChild(this.debugBtn)
+
+    // slim status chip so there's liveness feedback while the overlay is closed
+    this.statusChip = document.createElement('div')
+    this.statusChip.style.cssText =
+      'position:absolute;left:8px;bottom:8px;z-index:30;background:rgba(33,38,45,0.9);' +
+      'color:#8b949e;border-radius:4px;padding:2px 8px;max-width:70%;overflow:hidden;' +
+      'white-space:nowrap;text-overflow:ellipsis;' +
+      'font:10px ui-monospace,Menlo,Consolas,monospace'
+    this.statusChip.textContent = 'probe starting…'
+    root.appendChild(this.statusChip)
+  }
+
+  private refreshDebugBadge() {
+    let fails = 0
+    for (const el of Array.from(this.rowsContainer.children)) {
+      if (el.firstChild?.textContent === '❌') fails++
+    }
+    this.debugBtn.textContent = fails > 0 ? `🔬 debug (${fails}❌)` : '🔬 debug'
   }
 
   private addRow(name: string, status: ProbeStatus, detail: string): ProbeRow {
@@ -268,6 +313,11 @@ export class Visual implements IVisual {
     row.statusEl.textContent = icons[status]
     row.detailEl.textContent = detail
     row.detailEl.style.color = status === 'fail' ? '#ff7b72' : status === 'ok' ? '#7ee787' : '#e6edf3'
+    if (status !== 'info') {
+      const name = row.el.children[1]?.textContent ?? ''
+      this.statusChip.textContent = `${icons[status]} ${name}: ${detail}`.slice(0, 160)
+    }
+    this.refreshDebugBadge()
   }
 
   private log(...args: unknown[]) {
@@ -572,18 +622,15 @@ export class Visual implements IVisual {
         )
       }, 180000)
 
-      // ── stage 3: the REAL loader + viewer, rendering into the panel ────────
+      // ── stage 3: the REAL loader + viewer, full-screen behind the overlay ──
       await this.probe('viewer-render', async () => {
         const viewerMod = await import('@speckle/viewer')
-        const holder = document.createElement('div')
-        holder.style.cssText =
-          'position:relative;width:100%;height:340px;margin-top:8px;border:1px solid #30363d'
-        this.panel.appendChild(holder)
+        this.viewerHost.innerHTML = ''
 
         const params = viewerMod.DefaultViewerParams
         params.showStats = false
         params.verbose = false
-        const viewer = new viewerMod.Viewer(holder, params)
+        const viewer = new viewerMod.Viewer(this.viewerHost, params)
         await viewer.init()
         viewer.createExtension(viewerMod.CameraController)
 
