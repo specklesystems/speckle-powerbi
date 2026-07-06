@@ -19,6 +19,7 @@
  * Everything is caught and rendered in-panel; nothing intentionally throws
  * into the host, so the sandbox's crash-prone sendError reporter never runs.
  */
+import '../duckdbWorkerShim' // MUST be first: patches global Worker before any duckdb code
 import './probe.css'
 import powerbi from 'powerbi-visuals-api'
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions
@@ -68,11 +69,11 @@ const WASM_EMPTY_MODULE = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]
 const errMsg = (e: unknown): string =>
   e instanceof Error ? `${e.name}: ${e.message}` : String(e)
 
-const withTimeout = <T>(p: Promise<T>, label: string): Promise<T> =>
+const withTimeout = <T>(p: Promise<T>, label: string, ms = PROBE_TIMEOUT_MS): Promise<T> =>
   Promise.race([
     p,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`timeout after ${PROBE_TIMEOUT_MS}ms`)), PROBE_TIMEOUT_MS)
+      setTimeout(() => reject(new Error(`${label}: timeout after ${ms}ms`)), ms)
     )
   ])
 
@@ -402,13 +403,24 @@ export class Visual implements IVisual {
       return `HTTP ${resp.status}`
     })
 
+    // ── stage 1: the duckdb engine itself, through the worker shim ──────────
+    // dynamic import so a bundling/eval problem in the duckdb subtree can't
+    // kill the probe module — it fails as a red row instead
+    await this.probe('duckdb-boot', async () => {
+      const pm = await import('@speckle/packfile-manager')
+      const tab = pm.getTabClient()
+      const q = await withTimeout(tab.query('SELECT 42 AS answer'), 'duckdb-boot', 60000)
+      const row = q.get(0)
+      return `worker+wasm up, SELECT 42 -> ${String(row?.answer)}`
+    })
+
     this.log('capability probes finished')
   }
 
-  private async probe(name: string, fn: () => Promise<string>) {
+  private async probe(name: string, fn: () => Promise<string>, timeoutMs?: number) {
     const row = this.addRow(name, 'pending', 'running…')
     try {
-      const detail = await fn()
+      const detail = timeoutMs ? await withTimeout(fn(), name, timeoutMs) : await fn()
       if (detail.startsWith('FAIL')) this.setRow(row, 'fail', detail)
       else this.setRow(row, 'ok', detail)
     } catch (e) {
@@ -468,7 +480,7 @@ export class Visual implements IVisual {
     const { server, projectId, modelId, versionId, token } = info as DecodedModelInfoLite
     if (!server || !projectId) return
 
-    let firstFileUrl: string | null = null
+    let files: { name: string; url: string }[] = []
     await this.probe('artifacts-list', async () => {
       const url = `${server}/api/v2/projects/${projectId}/models/${modelId}/versions/${versionId}/artifacts`
       const resp = await withTimeout(
@@ -477,19 +489,18 @@ export class Visual implements IVisual {
       )
       if (!resp.ok) return `FAIL HTTP ${resp.status}`
       const body = (await resp.json()) as { files?: { name: string; url: string }[] }
-      const files = body.files || []
-      firstFileUrl = files[0]?.url ?? null
+      files = body.files || []
       return `${files.length} files: ${files
         .slice(0, 6)
         .map((f) => f.name)
         .join(', ')}${files.length > 6 ? ', …' : ''}`
     })
 
-    if (firstFileUrl) {
+    if (files.length > 0) {
       await this.probe('presigned-range-read', async () => {
         // NO auth header here — presigned URLs reject bearer tokens on S3
         const resp = await withTimeout(
-          fetch(firstFileUrl as string, { headers: { Range: 'bytes=0-63' } }),
+          fetch(files[0].url, { headers: { Range: 'bytes=0-63' } }),
           'range'
         )
         if (!resp.ok && resp.status !== 206) return `FAIL HTTP ${resp.status}`
@@ -499,6 +510,67 @@ export class Visual implements IVisual {
           .join('')
         return `HTTP ${resp.status}, ${buf.byteLength} bytes, magic="${head}"`
       })
+
+      // ── stage 2: the loader's whole data layer, in-memory (no OPFS) ────────
+      // download the bundle, register every parquet as a duckdb file buffer,
+      // attach the eav/envelope views, count objects, and read a page of raw
+      // SGEO geometry blobs — SpecklePackfileLoader2 minus the WorldTree.
+      await this.probe('duckdb-bundle', async () => {
+        const pm = await import('@speckle/packfile-manager')
+        const tab = pm.getTabClient()
+        const t0 = performance.now()
+
+        let bytes = 0
+        for (const f of files) {
+          const resp = await withTimeout(fetch(f.url), `download ${f.name}`, 120000)
+          if (!resp.ok) return `FAIL download ${f.name}: HTTP ${resp.status}`
+          const buf = new Uint8Array(await resp.arrayBuffer())
+          bytes += buf.byteLength
+          await tab.registerFileBuffer(f.name, buf)
+        }
+
+        const geometryFiles = files.filter((f) =>
+          /\.geometries(?:\.\d+)?\.parquet$/.test(f.name)
+        )
+        const views = files
+          .map((f) => ({
+            name: f.name,
+            view: f.name.match(/\.(?:eav|envelope)\.(.+)\.parquet$/)?.[1] ?? null
+          }))
+          .filter((v): v is { name: string; view: string } => v.view !== null)
+
+        const schema = `probe_${versionId}`
+        await tab.attachParquetBundleFromBuffers(
+          schema,
+          views.map((v) => ({ view: v.view, name: v.name }))
+        )
+
+        const q = await tab.query(`SELECT count(*) AS n FROM "${schema}"."objects"`)
+        const objectCount = Number(q.get(0)?.n ?? -1)
+
+        let geomInfo = 'no geometry shard'
+        if (geometryFiles.length > 0) {
+          const blobs = await tab.readGeometryBlobs(
+            geometryFiles.map((g) => g.name),
+            0,
+            50,
+            true
+          )
+          const first = blobs[0]
+          const magic = first
+            ? Array.from(first.content.slice(0, 4))
+                .map((b) => String.fromCharCode(b))
+                .join('')
+            : 'n/a'
+          geomInfo = `${blobs.length} geometry blobs read (first: type=${first?.type}, magic="${magic}")`
+        }
+
+        const secs = ((performance.now() - t0) / 1000).toFixed(1)
+        return (
+          `${files.length} parquets (${(bytes / 1024 / 1024).toFixed(1)}MB) in-memory, ` +
+          `${views.length} views attached, objects=${objectCount}, ${geomInfo} — ${secs}s`
+        )
+      }, 180000)
     }
 
     this.log('data probes finished')

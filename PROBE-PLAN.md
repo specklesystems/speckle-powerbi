@@ -60,18 +60,34 @@ Wall-map from the live sandbox (probe panel):
 - iframe: app.powerbi.com cshtml document, opaque ("null") effective origin —
   same-origin fetches of own document CORS-fail
 
-## Stage 1 — worker transport + storage fixes (in packfile-manager)
+## Stage 1 — worker transport + storage fixes — DONE (local)
 
-Confirmed needs from the wall-map:
-1. TabClient `new Worker(new URL('./duckdbWorker.js', import.meta.url),
-   {type:'module'})` → classic blob worker with inlined code (resurrect the
-   `322fecb` blob/data-URL machinery — classic+nested workers verified green).
-2. OPFS is dead in the Service sandbox → the loader/duckdb must run fully
-   in-memory (`registerFileBuffer` instead of OPFS streaming).
-3. `navigator.locks` → no-op fallback when unavailable.
-Open unknown: CORS on the presigned S3 parquet URLs from the sandbox's null
-origin — bind Model Info in the probe report to run the artifacts +
-presigned-range-read rows.
+Data-path rows all green in the Service (artifacts list via bearer, presigned
+S3 range-read HTTP 206 "PAR1" from the null origin — no bucket-CORS problem).
+
+Implemented:
+1. `duckdbWorkerShim.ts` resurrected from `322fecb` + strips `{type:'module'}`
+   when blob-ifying (module blob workers are blocked in the Service, classic
+   pass). Imported FIRST by the probe. Webpack rules: duckdb-browser worker
+   `?url` → data: inline; wasm `?url` → absolute-URL asset.
+2. packfile-manager sandbox mode (branch `oguzhan/powerbi-purejs-loader`,
+   commits af370d870 + c4911bd9a): OPFS spill probed FUNCTIONALLY with
+   in-memory fallback (the data:-inlined inner engine worker has an opaque
+   origin — OPFS is denied there even outside PBI); locks SecurityError
+   swallowed; `registerFileBuffer` idempotent; new
+   `attachParquetBundleFromBuffers` + `readGeometryBlobs(raw)` + `dropFile`.
+3. Probe rows: `duckdb-boot` (engine up + SELECT 42 — passes locally through
+   the full shim chain) and `duckdb-bundle` (download all parquets in-memory,
+   register buffers, attach views, count objects, read raw SGEO page).
+
+## Stage 2 — Service round-trip for duckdb-boot + duckdb-bundle (NEXT)
+
+Bind Model Info in the Service report; expect duckdb-boot green (worker+wasm
+verified individually by stage-0 rows) and duckdb-bundle to exercise the
+loader's whole data layer. Then stage 3: teach SpecklePackfileLoader2 the
+in-memory path (fetch→registerFileBuffer→attachParquetBundleFromBuffers→
+readGeometryBlobs(raw)) behind a functional OPFS check, and point the visual
+at it.
 
 ## Stage 2 — duckdb boot
 
