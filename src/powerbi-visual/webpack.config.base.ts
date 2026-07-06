@@ -336,10 +336,11 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
         minifyJS: isProd,
         minify: isProd,
         modules: true,
-        // scratch/duckdb-probe branch: bundle the stage-0 probe visual by
-        // default; set PROBE=0 to build the real visual instead
+        // PROBE=1 builds the sandbox diagnostic probe (src/probe/probeVisual)
+        // instead of the real visual — a full capability report + minimal
+        // render/selection harness for debugging the Service sandbox
         visualSourceLocation:
-          process.env.PROBE === '0' ? '../../src/visual' : '../../src/probe/probeVisual',
+          process.env.PROBE === '1' ? '../../src/probe/probeVisual' : '../../src/visual',
         pluginLocation: pluginLocation,
         packageOutPath: path.join(__dirname, 'dist')
       }),
