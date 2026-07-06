@@ -174,8 +174,18 @@ export class Visual implements IVisual {
   private updateCount = 0
   private dataProbeRan = false
   private constructedAt = performance.now()
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   /** live viewer instance (set by viewer-render) — resized on host resize events */
-  private liveViewer: { resize(): void } | null = null
+  private liveViewer: any = null
+  /** FilteringExtension — drives isolate/ghost from cross-visual highlights */
+  private filtering: any = null
+  /** CameraController — zoom-to-selection */
+  private cameraCtl: any = null
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  /** ids currently isolated (null = nothing isolated) */
+  private isolatedIds: string[] | null = null
+  /** largest row count seen — a shrunken matrix means filter-mode interaction */
+  private baselineRowCount = 0
 
   constructor(options: VisualConstructorOptions) {
     try {
@@ -214,6 +224,12 @@ export class Visual implements IVisual {
         this.liveViewer?.resize()
       }
 
+      // cross-visual selection: PBI re-sends the matrix with per-row
+      // `highlight` values — isolate the highlighted ids in the viewer
+      if (dv?.matrix && this.liveViewer && this.filtering) {
+        this.handleSelectionUpdate(dv.matrix)
+      }
+
       if (dv?.matrix && !this.dataProbeRan) {
         const modelInfoRaw = this.findModelInfoValue(dv)
         if (modelInfoRaw) {
@@ -233,11 +249,72 @@ export class Visual implements IVisual {
     this.log('destroy called')
   }
 
+  /**
+   * Mirrors the real visual's matrix parsing (matrixViewUtils.processObjectValues):
+   * leaf rows carry the applicationId in `node.value`; each measure cell has a
+   * `highlight` field during a cross-visual selection — `undefined` means no
+   * highlight pass, `null` means the row is NOT selected, a value means it IS.
+   */
+  private handleSelectionUpdate(matrix: powerbi.DataViewMatrix): void {
+    const all: string[] = []
+    const selected: string[] = []
+
+    const walk = (node: DataViewMatrixNode): void => {
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) walk(child)
+        return
+      }
+      if (node.value === undefined || node.value === null) return
+      const id = String(node.value)
+      all.push(id)
+      if (node.values) {
+        for (const key of Object.keys(node.values)) {
+          const cell = node.values[Number(key)]
+          if (cell && cell.highlight !== undefined && cell.highlight !== null) {
+            selected.push(id)
+            break
+          }
+        }
+      }
+    }
+    if (matrix.rows?.root) walk(matrix.rows.root)
+
+    this.baselineRowCount = Math.max(this.baselineRowCount, all.length)
+    // filter-mode interaction: no highlights, the matrix itself shrinks
+    if (selected.length === 0 && all.length < this.baselineRowCount) {
+      selected.push(...all)
+    }
+
+    const isPartial = selected.length > 0 && selected.length < this.baselineRowCount
+    try {
+      if (isPartial) {
+        // same call shape as ViewerHandler.filterSelection: isolate + ghost + zoom
+        if (this.isolatedIds) {
+          this.filtering.unIsolateObjects(this.isolatedIds, 'probe', true)
+        }
+        this.filtering.isolateObjects(selected, 'probe', true, true)
+        this.isolatedIds = selected
+        this.cameraCtl?.setCameraView(selected, true)
+        this.statusChip.textContent = `🔎 isolated ${selected.length}/${this.baselineRowCount} objects`
+        this.log(`selection: isolated ${selected.length}/${this.baselineRowCount}`)
+      } else if (this.isolatedIds) {
+        this.filtering.unIsolateObjects(this.isolatedIds, 'probe', true)
+        this.isolatedIds = null
+        this.cameraCtl?.setCameraView(undefined, true)
+        this.statusChip.textContent = `↺ selection cleared (${all.length} objects)`
+        this.log('selection: cleared')
+      }
+    } catch (e) {
+      this.addRow('selection-error', 'fail', errMsg(e))
+    }
+  }
+
   /* ---------------------------------------------------------------- panel */
 
   private buildPanel(parent: HTMLElement) {
+    // light theme: the viewer canvas is transparent, this shines through
     const root = document.createElement('div')
-    root.style.cssText = 'position:absolute;inset:0;background:#0d1117;overflow:hidden'
+    root.style.cssText = 'position:absolute;inset:0;background:#ffffff;overflow:hidden'
     parent.appendChild(root)
 
     // bottom layer: the viewer gets the WHOLE visual viewport
@@ -647,7 +724,8 @@ export class Visual implements IVisual {
         params.verbose = false
         const viewer = new viewerMod.Viewer(this.viewerHost, params)
         await viewer.init()
-        viewer.createExtension(viewerMod.CameraController)
+        this.cameraCtl = viewer.createExtension(viewerMod.CameraController)
+        this.filtering = viewer.createExtension(viewerMod.FilteringExtension)
 
         const artifactsUrl = `${server}/api/v2/projects/${projectId}/models/${modelId}/versions/${versionId}/artifacts`
         const t0 = performance.now()
