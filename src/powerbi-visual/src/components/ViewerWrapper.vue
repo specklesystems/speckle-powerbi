@@ -7,7 +7,7 @@
       >
         <div class="flex items-center transition-all justify-between w-full">
           <div
-            v-if="visualStore.receiveInfo.workspaceName"
+            v-if="visualStore.receiveInfo?.workspaceName"
             class="flex items-center gap-2 p-0.5 pr-1.5 hover:bg-highlight-2 rounded ml-2"
           >
             <WorkspaceAvatar
@@ -41,7 +41,7 @@
               Update
             </FormButton>
             <div class="font-thin text-xs text-gray-400">
-              v{{ visualStore.receiveInfo.version }}
+              v{{ visualStore.receiveInfo?.version }}
             </div>
             <button
               class="text-gray-400 hover:text-gray-700 transition"

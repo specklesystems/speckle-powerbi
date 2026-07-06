@@ -166,6 +166,13 @@ export const useVisualStore = defineStore('visualStore', () => {
   const setDataInput = async (newValue: SpeckleDataInput) => {
     dataInput.value = newValue
 
+    // decode failures produce an empty input (commonError is set) and the
+    // wrapper may not have attached the emitter yet — bail instead of
+    // cascading TypeErrors ("viewerEmit.value is not a function")
+    if (!viewerEmit.value || dataInput.value.modelInfos.length === 0) {
+      return
+    }
+
     if (viewerReloadNeeded.value) {
       lastLoadedVersionKey.value = dataInput.value.versionKey
       await viewerEmit.value('loadModels', dataInput.value.modelInfos)
