@@ -47,6 +47,7 @@ export interface ViewModeOptions {
 
 export interface IViewerEvents {
   ping: (message: string) => void
+  resize: () => void
   setSelection: (objectIds: string[]) => void
   resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
@@ -88,6 +89,7 @@ export class ViewerHandler {
     this.emitter = createNanoEvents()
     this.emit = this.emit.bind(this)
     this.emitter.on('ping', this.handlePing)
+    this.emitter.on('resize', this.resizeViewer)
     this.emitter.on('filterSelection', this.filterSelection)
     this.emitter.on('resetFilter', this.resetFilter)
     this.emitter.on('setSelection', this.selectObjects)
@@ -137,6 +139,14 @@ export class ViewerHandler {
 
   public zoomExtends = () => {
     this.cameraControls.setCameraView(undefined, true)
+    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
+  }
+
+  /** The viewer re-measures its container only on window resize, which the PBI
+   *  sandbox doesn't reliably fire — the host forwards its resize updates here. */
+  public resizeViewer = () => {
+    if (!this.viewer) return
+    this.viewer.resize()
     this.viewer.requestRender(UpdateFlags.RENDER_RESET)
   }
   public toggleProjection = () => this.cameraControls.toggleCameras()
@@ -309,6 +319,10 @@ export class ViewerHandler {
       await this.viewer.loadObject(loader, true)
       this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after load
     }
+
+    // re-measure + full render now that layout settled — in the PBI sandbox the
+    // init-time measure can be stale and window resize never fires
+    this.resizeViewer()
 
     // scene views from the object graph don't exist on the artifact path
     store.setSpeckleViews([])

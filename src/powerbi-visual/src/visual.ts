@@ -133,6 +133,12 @@ export class Visual implements IVisual {
       visualStore.setFieldInputState(validationResult)
       console.log('❓Field inputs', validationResult)
 
+      // the viewer only re-measures on window resize, which the sandbox does
+      // not reliably fire — forward host resize updates to the viewer handler
+      if (options.type & (UpdateType.Resize | UpdateType.ResizeEnd)) {
+        visualStore.viewerEmit?.('resize')
+      }
+
       // only react to Data updates; resize/style/viewmode-only updates are no-ops
       if (!(options.type & UpdateType.Data)) {
         return
