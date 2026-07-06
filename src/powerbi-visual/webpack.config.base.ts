@@ -183,11 +183,23 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           use: ['base64-inline-loader']
         },
         {
-          // Vite-style `?url` imports (duckdb wasm + worker glue in
-          // @speckle/packfile-manager): emit as files and import their URL.
-          // Served by the dev server; production packaging needs hosted
-          // bundles instead (single-file .pbiviz cannot carry sibling assets).
+          // duckdb's nested browser worker (~800KB) is imported `?url` and
+          // constructed via `new Worker(url)` INSIDE the packfile worker. A
+          // cross-origin script URL is CSP-blocked there and the worker can't
+          // run the shim; inline it as a data: URL so `new Worker(data:...)`
+          // works natively (CSP allows data:).
+          test: /duckdb-browser.*worker.*\.js$/,
           resourceQuery: /url/,
+          type: 'asset/inline'
+        },
+        {
+          // Other `?url` imports (the 33-37MB duckdb wasm) — far too big to
+          // inline; emit as files with an absolute URL (publicPath). Fetched
+          // cross-origin with CORS from the worker. Prod hosts these on Speckle.
+          // Exclude the browser worker so the asset/inline rule above wins
+          // (otherwise this later rule's `type` overrides it).
+          resourceQuery: /url/,
+          exclude: /duckdb-browser.*worker.*\.js$/,
           type: 'asset/resource'
         }
       ]
