@@ -118,9 +118,11 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           // css-loader's asset handling (fonts turn into file:/// paths).
           test: /speckle-server-internal[\\/]/,
           // NOTE: Rule.parser options are FLAT (unlike module.parser.javascript)
+          // worker/url left ON so webpack rewrites the duckdb worker URL to a
+          // real emitted chunk (loadable same-origin on the dev server) instead
+          // of the raw file:/// source path. Sandbox single-file packaging is
+          // handled separately via blob inlining.
           parser: {
-            worker: false,
-            url: false,
             dynamicImportMode: 'eager'
           }
         },

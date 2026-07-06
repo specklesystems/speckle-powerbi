@@ -1,3 +1,6 @@
+// MUST be first: patches the global Worker to create blob: workers so the
+// duckdb-wasm workers load inside the Power BI sandbox CSP.
+import './duckdbWorkerShim'
 import 'core-js/stable'
 import 'regenerator-runtime/runtime'
 import '../style/visual.css'
