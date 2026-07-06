@@ -206,7 +206,15 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       // sends access-control-allow-origin: * so cross-origin fetches work.
       publicPath: isProd ? '/assets/' : 'https://localhost:8080/assets/',
       path: path.join(__dirname, '/.tmp', 'drop'),
-      library: +powerbiApi.version.replace(/\./g, '') >= 320 ? pbivizFile.visual.guid : undefined,
+      // the library global must match the guid the SERVED pbiviz.json
+      // advertises — in dev mode the PBI plugin renames it to <guid>_DEBUG,
+      // and the Service host resolves the visual via window[<guid>].default
+      library:
+        +powerbiApi.version.replace(/\./g, '') >= 320
+          ? isProd
+            ? pbivizFile.visual.guid
+            : `${pbivizFile.visual.guid}_DEBUG`
+          : undefined,
       libraryTarget: +powerbiApi.version.replace(/\./g, '') >= 320 ? 'var' : undefined
     },
     ...(isProd
