@@ -66,6 +66,11 @@ interface ProbeRow {
 
 const WASM_EMPTY_MODULE = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]
 
+// VisualUpdateType bit-flags, defined locally: the ambient powerbi enum is a
+// TYPE-ONLY declaration — referencing it at runtime throws ReferenceError
+const UPDATE_RESIZE = 1 << 2
+const UPDATE_RESIZE_END = 1 << 5
+
 const errMsg = (e: unknown): string =>
   e instanceof Error ? `${e.name}: ${e.message}` : String(e)
 
@@ -205,7 +210,7 @@ export class Visual implements IVisual {
 
       // the viewer only re-measures on window resize, which the sandbox does
       // not reliably fire — forward host resize updates ourselves
-      if (options.type & (UpdateType.Resize | UpdateType.ResizeEnd)) {
+      if (options.type & (UPDATE_RESIZE | UPDATE_RESIZE_END)) {
         this.liveViewer?.resize()
       }
 
