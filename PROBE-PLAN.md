@@ -38,12 +38,40 @@ Service round-trip: `npm run dev`, open the developer-mode report at
 app.powerbi.com, add the Developer Visual, bind Application ID + Model Info,
 read the panel (works even with nothing bound — data rows just stay empty).
 
-## Stage 1 — interpret + worker transport fix
+## Stage 0 RESULTS (2026-07-06, real Service, sandbox build 13.0.28507.472)
 
-Compare the panel from the real Service against the local runs. If module-blob
-workers are blocked but classic/nested pass (like the opaque sim), resurrect
-the blob/data-URL worker machinery from commit `322fecb` (pre-pure-JS switch —
-it had duckdb's workers spawning inside the PBI sandbox).
+**THE ORIGINAL MASKED BLOCKER IS SOLVED.** The Developer Visual host resolves
+the visual via the webpack library global `window["<guid>_DEBUG"].default` —
+it never consults `powerbi.visuals.plugins` (verified via registry Proxy: zero
+lookups). Our `output.library` was the plain guid, the host read `undefined`,
+and its own `sendError` crashed reporting it ("reading 'name'"). Fixed in
+webpack.config.base.ts by appending `_DEBUG` in dev builds. Three earlier
+candidate causes cleared along the way: module-scope `Function('return this')`
+(eval IS allowed in this sandbox), plugins-registry registration (fine),
+`window.powerbi` availability (present on all globals, all the same object).
+
+Wall-map from the live sandbox (probe panel):
+- ✅ wasm main-thread + in-worker, blob-classic / data-URL / NESTED workers,
+  fetch to the dev server, eval, crypto.randomUUID, indexedDB present
+- ❌ module (`type:'module'`) blob workers ("Refused to cross-origin redirects
+  of the top-level worker script"), OPFS main (SecurityError, no
+  allow-same-origin) AND in-worker (`navigator.storage` undefined), Web Locks,
+  localStorage, caches
+- iframe: app.powerbi.com cshtml document, opaque ("null") effective origin —
+  same-origin fetches of own document CORS-fail
+
+## Stage 1 — worker transport + storage fixes (in packfile-manager)
+
+Confirmed needs from the wall-map:
+1. TabClient `new Worker(new URL('./duckdbWorker.js', import.meta.url),
+   {type:'module'})` → classic blob worker with inlined code (resurrect the
+   `322fecb` blob/data-URL machinery — classic+nested workers verified green).
+2. OPFS is dead in the Service sandbox → the loader/duckdb must run fully
+   in-memory (`registerFileBuffer` instead of OPFS streaming).
+3. `navigator.locks` → no-op fallback when unavailable.
+Open unknown: CORS on the presigned S3 parquet URLs from the sandbox's null
+origin — bind Model Info in the probe report to run the artifacts +
+presigned-range-read rows.
 
 ## Stage 2 — duckdb boot
 

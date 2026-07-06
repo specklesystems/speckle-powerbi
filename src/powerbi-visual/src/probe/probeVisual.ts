@@ -612,30 +612,10 @@ try {
   console.log(LOG_PREFIX, 'self-registration failed', e)
 }
 
-// dump the sandbox host's own minified source around the crash site so we can
-// READ what executeMessage/sendError do instead of guessing — same-origin
-// fetch of our own document (the script is inlined in the cshtml)
-void (async () => {
-  try {
-    const resp = await fetch(location.href)
-    const src = await resp.text()
-    console.log(LOG_PREFIX, `own document fetched: ${src.length} chars`)
-    for (const token of ['sendError', 'executeMessage', "reading 'name'", '.visuals.plugins']) {
-      let from = 0
-      for (let hit = 1; hit <= 2; hit++) {
-        const i = src.indexOf(token, from)
-        if (i < 0) break
-        console.log(
-          LOG_PREFIX,
-          `source around "${token}" #${hit}:\n…${src.slice(Math.max(0, i - 400), i + 500)}…`
-        )
-        from = i + token.length
-      }
-    }
-  } catch (e) {
-    console.log(LOG_PREFIX, 'own-source dump failed', e)
-  }
-})()
+// (an own-source dump of the sandbox host lived here during rounds 3-4; it
+// dies on CORS from the null origin and the mystery is solved — the host
+// resolves the visual via the webpack library global window[<guid>].default,
+// so output.library must carry the _DEBUG suffix in dev builds)
 
 // module-scope uncaught-error tap: catches failures between module eval and
 // the constructor (where the in-panel traps take over)
