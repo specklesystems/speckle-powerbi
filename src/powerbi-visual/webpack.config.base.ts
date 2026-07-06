@@ -87,10 +87,9 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     },
     optimization: {
       concatenateModules: false,
-      // a Power BI visual must be ONE js file: the pbiviz manifest/packaging
-      // picks a single asset, and with multiple emitted chunks it grabs the
-      // wrong one (alphabetically-first chunk), so the sandbox evaluates a
-      // chunk instead of the visual -> "Visual does not have a plugin"
+      // a Power BI visual must be ONE js file: the pbiviz manifest embeds a
+      // single asset, so a stray emitted chunk would be picked instead of the
+      // visual ("Visual does not have a plugin")
       splitChunks: false,
       runtimeChunk: false,
       minimize: isProd // enable minimization for create *.pbiviz file less than 2 Mb, can be disabled for dev mode
@@ -109,23 +108,6 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
         }
       },
       rules: [
-        {
-          // no worker chunks / new URL() asset extraction from the viewer
-          // stack: `new Worker(new URL(...))` in packfile-manager must not
-          // split files out of the single-bundle build (the sandbox can't
-          // load sibling files anyway; blob-based worker creation is handled
-          // at runtime). Scoped here because url:false globally would break
-          // css-loader's asset handling (fonts turn into file:/// paths).
-          test: /speckle-server-internal[\\/]/,
-          // NOTE: Rule.parser options are FLAT (unlike module.parser.javascript)
-          // worker/url left ON so webpack rewrites the duckdb worker URL to a
-          // real emitted chunk (loadable same-origin on the dev server) instead
-          // of the raw file:/// source path. Sandbox single-file packaging is
-          // handled separately via blob inlining.
-          parser: {
-            dynamicImportMode: 'eager'
-          }
-        },
         {
           test: /\.vue$/,
           use: ['vue-loader']
@@ -183,23 +165,9 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           use: ['base64-inline-loader']
         },
         {
-          // duckdb's nested browser worker (~800KB) is imported `?url` and
-          // constructed via `new Worker(url)` INSIDE the packfile worker. A
-          // cross-origin script URL is CSP-blocked there and the worker can't
-          // run the shim; inline it as a data: URL so `new Worker(data:...)`
-          // works natively (CSP allows data:).
-          test: /duckdb-browser.*worker.*\.js$/,
+          // Vite-style `?url` imports — kept as a fallback for any remaining
+          // consumer; the pure-JS loader (hyparquet) needs no workers/wasm.
           resourceQuery: /url/,
-          type: 'asset/inline'
-        },
-        {
-          // Other `?url` imports (the 33-37MB duckdb wasm) — far too big to
-          // inline; emit as files with an absolute URL (publicPath). Fetched
-          // cross-origin with CORS from the worker. Prod hosts these on Speckle.
-          // Exclude the browser worker so the asset/inline rule above wins
-          // (otherwise this later rule's `type` overrides it).
-          resourceQuery: /url/,
-          exclude: /duckdb-browser.*worker.*\.js$/,
           type: 'asset/resource'
         }
       ]

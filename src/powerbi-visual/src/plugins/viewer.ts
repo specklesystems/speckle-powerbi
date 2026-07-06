@@ -14,7 +14,7 @@ import {
   UpdateFlags,
   ViewerEvent,
   SelectionEvent,
-  SpecklePackfileLoader2,
+  SpecklePureJsLoader,
   LoaderEvent
 } from '@speckle/viewer'
 import { FilteredSelectionExtension, FilteredSelectionEvent } from '@src/extensions/FilteredSelectionExtension'
@@ -288,7 +288,7 @@ export class ViewerHandler {
 
     for (const model of artifactModels) {
       const artifactsUrl = `${model.server}/api/v2/projects/${model.projectId}/models/${model.modelId}/versions/${model.versionId}/artifacts`
-      const loader = new SpecklePackfileLoader2(
+      const loader = new SpecklePureJsLoader(
         this.viewer.getWorldTree(),
         artifactsUrl,
         model.token
