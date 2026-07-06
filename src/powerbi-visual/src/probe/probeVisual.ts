@@ -551,6 +551,36 @@ try {
       pb.visuals.plugins = pb.visuals.plugins || {}
       const existing = Object.keys(pb.visuals.plugins)
       for (const name of PLUGIN_NAMES) pb.visuals.plugins[name] = plugin
+      if (!dup) {
+        // registration alone wasn't enough (Service still died in
+        // executeMessage before create) — wrap the registry in a logging
+        // Proxy so the console shows the EXACT name the host looks up, and
+        // hand any string lookup our plugin so create() proceeds regardless
+        const target = pb.visuals.plugins
+        pb.visuals.plugins = new Proxy(target, {
+          get(t, prop, receiver) {
+            const v = Reflect.get(t, prop, receiver)
+            if (typeof prop === 'string' && !(prop in Object.prototype)) {
+              console.log(
+                LOG_PREFIX,
+                `plugins registry GET "${prop}" -> ${v ? 'hit' : 'MISS (returning probe plugin)'}`
+              )
+              return v ?? plugin
+            }
+            return v
+          },
+          has(t, prop) {
+            const present = Reflect.has(t, prop)
+            if (typeof prop === 'string')
+              console.log(LOG_PREFIX, `plugins registry HAS "${prop}" -> ${present}`)
+            return present
+          }
+        })
+        console.log(
+          LOG_PREFIX,
+          `powerbi keys=[${Object.keys(pb).join(', ')}] version=${String(pb.version)}`
+        )
+      }
       console.log(
         LOG_PREFIX,
         `global ${label}${dup ? ' (dup)' : ''}: powerbi FOUND, ` +
