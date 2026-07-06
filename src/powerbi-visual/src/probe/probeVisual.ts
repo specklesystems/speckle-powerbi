@@ -504,3 +504,78 @@ export class Visual implements IVisual {
     this.log('data probes finished')
   }
 }
+
+/* ------------------------------------------------------------------------
+ * Module-scope self-registration + registry diagnostics.
+ *
+ * The generated visualPlugin.ts registers ONLY on `window.powerbi` and skips
+ * SILENTLY when it's undefined — inside the Service's isolate wrapper the
+ * `window` binding may be a clone that lacks `powerbi`, the host lookup then
+ * gets undefined and dies with the masked sendError "reading 'name'" crash.
+ * Here we inspect every reachable global, log where `powerbi` actually lives
+ * and which plugin names its registry already holds, and register ourselves
+ * on all of them.
+ * ---------------------------------------------------------------------- */
+try {
+  const PLUGIN_NAMES = ['specklePowerBiVisual_DEBUG', 'specklePowerBiVisual']
+  const plugin = {
+    name: PLUGIN_NAMES[0],
+    displayName: 'Speckle probe',
+    class: 'Visual',
+    apiVersion: '5.4.0',
+    custom: true,
+    create: (options: VisualConstructorOptions) => new Visual(options)
+  }
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const candidates: Array<[string, any]> = [
+    ['window', typeof window !== 'undefined' ? window : undefined],
+    ['self', typeof self !== 'undefined' ? self : undefined],
+    ['globalThis', typeof globalThis !== 'undefined' ? globalThis : undefined],
+    ['realGlobal', realGlobal]
+  ]
+  const seen: unknown[] = []
+  for (const [label, g] of candidates) {
+    try {
+      if (!g) {
+        console.log(LOG_PREFIX, `global ${label}: undefined`)
+        continue
+      }
+      const dup = seen.indexOf(g) >= 0
+      seen.push(g)
+      const pb = g.powerbi
+      if (!pb) {
+        console.log(LOG_PREFIX, `global ${label}${dup ? ' (dup)' : ''}: no powerbi object`)
+        continue
+      }
+      pb.visuals = pb.visuals || {}
+      pb.visuals.plugins = pb.visuals.plugins || {}
+      const existing = Object.keys(pb.visuals.plugins)
+      for (const name of PLUGIN_NAMES) pb.visuals.plugins[name] = plugin
+      console.log(
+        LOG_PREFIX,
+        `global ${label}${dup ? ' (dup)' : ''}: powerbi FOUND, ` +
+          `plugins before=[${existing.join(', ') || 'none'}], registered [${PLUGIN_NAMES.join(', ')}]`
+      )
+    } catch (e) {
+      console.log(LOG_PREFIX, `global ${label}: access threw`, e)
+    }
+  }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+} catch (e) {
+  console.log(LOG_PREFIX, 'self-registration failed', e)
+}
+
+// module-scope uncaught-error tap: catches failures between module eval and
+// the constructor (where the in-panel traps take over)
+try {
+  realGlobal.addEventListener('error', (e: ErrorEvent) => {
+    console.log(LOG_PREFIX, 'uncaught error:', e.message, '@', e.filename, e.lineno, e.error)
+  })
+  realGlobal.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+    console.log(LOG_PREFIX, 'unhandled rejection:', e.reason)
+  })
+} catch {
+  /* ignore */
+}
+
+console.log(LOG_PREFIX, 'module evaluation completed')
