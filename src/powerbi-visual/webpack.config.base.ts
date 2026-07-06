@@ -308,7 +308,10 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
         minifyJS: isProd,
         minify: isProd,
         modules: true,
-        visualSourceLocation: '../../src/visual',
+        // scratch/duckdb-probe branch: bundle the stage-0 probe visual by
+        // default; set PROBE=0 to build the real visual instead
+        visualSourceLocation:
+          process.env.PROBE === '0' ? '../../src/visual' : '../../src/probe/probeVisual',
         pluginLocation: pluginLocation,
         packageOutPath: path.join(__dirname, 'dist')
       }),

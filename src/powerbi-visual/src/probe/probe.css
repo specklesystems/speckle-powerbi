@@ -1,0 +1,4 @@
+/* stage-0 probe visual — minimal stylesheet so the build emits visual.css */
+.speckle-probe-root {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
