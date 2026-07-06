@@ -33,28 +33,44 @@ export class Visual implements IVisual {
 
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
-    this.host = options.host
-    this.formattingSettingsService = new FormattingSettingsService()
+    try {
+      this.host = options.host
+      this.formattingSettingsService = new FormattingSettingsService()
 
-    this.selectionHandler = new SelectionHandler(this.host)
-    this.tooltipHandler = new TooltipHandler(this.host.tooltipService as ITooltipService)
+      this.selectionHandler = new SelectionHandler(this.host)
+      this.tooltipHandler = new TooltipHandler(this.host.tooltipService as ITooltipService)
 
-    createApp(App)
-      .use(pinia)
-      .use(VueTippy, {
-        defaultProps: {
-          theme: 'custom'
+      createApp(App)
+        .use(pinia)
+        .use(VueTippy, {
+          defaultProps: {
+            theme: 'custom'
+          }
+        })
+        .provide(selectionHandlerKey, this.selectionHandler)
+        .provide(tooltipHandlerKey, this.tooltipHandler)
+        .mount(options.element)
+
+      // set `host` to visual store to be able use later in other components if needed
+      const visualStore = useVisualStore()
+      visualStore.setHost(this.host)
+
+      // trigger an update after construction so persisted-settings restore runs;
+      // deferred + guarded: calling into the host synchronously during
+      // initialization can throw in the sandboxed host
+      setTimeout(() => {
+        try {
+          this.host.refreshHostData()
+        } catch (e) {
+          console.error('Speckle visual: refreshHostData failed', e)
         }
-      })
-      // .use(store, storeKey)
-      .provide(selectionHandlerKey, this.selectionHandler)
-      .provide(tooltipHandlerKey, this.tooltipHandler)
-      .mount(options.element)
-
-    // set `host` to visual store to be able use later in other components if needed
-    const visualStore = useVisualStore()
-    visualStore.setHost(this.host)
-    this.host.refreshHostData() // to be able to trigger `update` function after constructor! by this way i was able to trigger viewer load objects from properties store
+      }, 0)
+    } catch (e) {
+      // the sandbox's own error reporter chokes on non-Error throwables —
+      // surface the real failure and rethrow something it can serialize
+      console.error('Speckle visual: constructor failed', e)
+      throw e instanceof Error ? e : new Error(String(e))
+    }
   }
 
   private async clear() {
@@ -62,6 +78,15 @@ export class Visual implements IVisual {
   }
 
   public async update(options: VisualUpdateOptions) {
+    try {
+      await this.updateInternal(options)
+    } catch (e) {
+      console.error('Speckle visual: update failed', e)
+      throw e instanceof Error ? e : new Error(String(e))
+    }
+  }
+
+  private async updateInternal(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
     if (visualStore.commonError) {
       visualStore.setCommonError(undefined)

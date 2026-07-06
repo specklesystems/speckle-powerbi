@@ -89,7 +89,10 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       concatenateModules: false,
       minimize: isProd // enable minimization for create *.pbiviz file less than 2 Mb, can be disabled for dev mode
     },
-    devtool: isProd ? false : 'inline-source-map',
+    // external map file — inline-source-map balloons visual.js to ~29MB, which
+    // the Service dev-visual host fails to transfer into the sandbox (masked
+    // as the "reading 'name'" sendError crash)
+    devtool: isProd ? false : 'source-map',
     mode: isProd ? 'production' : 'development',
     module: {
       rules: [
@@ -187,7 +190,11 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       mainFields: ['module', 'browser', 'main']
     },
     output: {
-      publicPath: '/assets',
+      // dev must be ABSOLUTE: inside the PBI sandbox the visual runs on a
+      // foreign origin (app.powerbi.com / sources:///), so relative asset URLs
+      // (wasm, fonts, chunks) resolve against the wrong base. The dev server
+      // sends access-control-allow-origin: * so cross-origin fetches work.
+      publicPath: isProd ? '/assets/' : 'https://localhost:8080/assets/',
       path: path.join(__dirname, '/.tmp', 'drop'),
       library: +powerbiApi.version.replace(/\./g, '') >= 320 ? pbivizFile.visual.guid : undefined,
       libraryTarget: +powerbiApi.version.replace(/\./g, '') >= 320 ? 'var' : undefined
@@ -274,12 +281,18 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           localizationFolders.map((localization) =>
             path.join(resourcesFolder, localization, 'resources.resjson')
           ),
-        apiVersion: powerbiApi.version,
+        // advertise pbiviz.json's apiVersion, NOT the installed package's —
+        // declaring an api version the sandbox host doesn't ship an adapter
+        // for kills the visual in the handshake before our code runs
+        apiVersion: pbivizFile.apiVersion,
         capabilitiesSchema: powerbiApi.schemas.capabilities,
         pbivizSchema: powerbiApi.schemas.pbiviz,
         stringResourcesSchema: powerbiApi.schemas.stringResources,
         dependenciesSchema: powerbiApi.schemas.dependencies,
-        devMode: false,
+        // dev builds must register as <guid>_DEBUG — the Developer Visual host
+        // looks the plugin up under that name; with devMode:false it finds
+        // undefined and dies with "Cannot read properties of undefined ('name')"
+        devMode: !isProd,
         generatePbiviz: isProd,
         generateResources: true,
         minifyJS: isProd,
