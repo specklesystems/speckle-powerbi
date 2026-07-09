@@ -308,9 +308,24 @@ export class ViewerHandler {
         undefined,
         true
       )
+      // The store/LoadingBar expect a FRACTION (0..1) and the store auto-clears
+      // at >= 1 — passing percent here used to kill the overlay at "1%" and
+      // blank the screen for the rest of the load. Keep the bar monotonic
+      // (the loader's download and decode phases each restart near 0), cap at
+      // 0.99, and switch to an indeterminate "Building scene" while the render
+      // tree builds (that phase emits Converted, not LoadProgress). The bar is
+      // cleared only by ViewerEvent.LoadComplete, when pixels are on screen.
+      let maxProgress = 0
+      let building = false
       loader.on(LoaderEvent.LoadProgress, (arg: { progress?: number }) => {
-        const pct = arg?.progress != null ? Math.round(arg.progress * 100) : null
-        store.setLoadingProgress('Loading model', pct)
+        if (arg?.progress == null || building) return
+        maxProgress = Math.max(maxProgress, Math.min(arg.progress, 0.99))
+        store.setLoadingProgress('Loading model', maxProgress)
+      })
+      loader.on(LoaderEvent.Converted, () => {
+        if (building) return
+        building = true
+        store.setLoadingProgress('Building scene', null)
       })
       loader.on(LoaderEvent.LoadWarning, (arg: { message?: string }) => {
         console.warn('Loader warning:', arg?.message)
