@@ -10,11 +10,12 @@
       <!-- Swooshing animation -->
       <div v-if="isIndeterminate" class="swoosher top-0 left-0 h-full bg-blue-500/50"></div>
 
-      <!-- Determinate progress bar -->
+      <!-- Determinate progress bar (2% floor keeps it visible at the start;
+           no offset beyond that — the fill must match the printed number) -->
       <div
         v-else
         class="top-0 left-0 h-full bg-blue-500 transition-all duration-300 ease-linear"
-        :style="{ width: `${progressPercent + 20}%` }"
+        :style="{ width: `${Math.max(progressPercent, 2)}%` }"
       ></div>
     </div>
 
