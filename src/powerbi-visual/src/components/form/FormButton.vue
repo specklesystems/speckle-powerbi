@@ -24,7 +24,7 @@
 import { isObjectLike } from 'lodash'
 import type { PropAnyComponent } from '../../helpers/common/components'
 import { computed, resolveDynamicComponent } from 'vue'
-import type { Nullable } from '@speckle/shared'
+type Nullable<T> = T | null
 import type { FormButtonStyle, FormButtonSize } from '../../helpers/form/button'
 
 const emit = defineEmits<{
