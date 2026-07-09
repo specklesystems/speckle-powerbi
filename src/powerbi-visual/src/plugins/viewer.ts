@@ -308,25 +308,29 @@ export class ViewerHandler {
         undefined,
         true
       )
-      // The store/LoadingBar expect a FRACTION (0..1) and the store auto-clears
-      // at >= 1 — passing percent here used to kill the overlay at "1%" and
-      // blank the screen for the rest of the load. Keep the bar monotonic
-      // (the loader's download and decode phases each restart near 0), cap at
-      // 0.99, and switch to an indeterminate "Building scene" while the render
-      // tree builds (that phase emits Converted, not LoadProgress). The bar is
-      // cleared only by ViewerEvent.LoadComplete, when pixels are on screen.
-      let maxProgress = 0
-      let building = false
-      loader.on(LoaderEvent.LoadProgress, (arg: { progress?: number }) => {
-        if (arg?.progress == null || building) return
-        maxProgress = Math.max(maxProgress, Math.min(arg.progress, 0.99))
-        store.setLoadingProgress('Loading model', maxProgress)
+      // Step-based loading UI: the loader names its pipeline stage on each
+      // LoadProgress event; we render "Step k/4 — label" with the indeterminate
+      // spinner instead of pretending the fractions mean anything (the phase
+      // weights are heuristic). The overlay is cleared only by
+      // ViewerEvent.LoadComplete, when pixels are actually on screen.
+      const LOAD_STEPS: Record<string, { step: number; label: string }> = {
+        download: { step: 1, label: 'Downloading data' },
+        prepare: { step: 2, label: 'Preparing data' },
+        decode: { step: 3, label: 'Decoding geometry' },
+        build: { step: 4, label: 'Building scene' }
+      }
+      let lastStage = ''
+      const setStep = (stage: string) => {
+        if (stage === lastStage) return
+        const s = LOAD_STEPS[stage]
+        if (!s) return
+        lastStage = stage
+        store.setLoadingProgress(`Step ${s.step}/4 — ${s.label}`, null)
+      }
+      loader.on(LoaderEvent.LoadProgress, (arg: { stage?: string }) => {
+        if (arg?.stage) setStep(arg.stage)
       })
-      loader.on(LoaderEvent.Converted, () => {
-        if (building) return
-        building = true
-        store.setLoadingProgress('Building scene', null)
-      })
+      loader.on(LoaderEvent.Converted, () => setStep('build'))
       loader.on(LoaderEvent.LoadWarning, (arg: { message?: string }) => {
         console.warn('Loader warning:', arg?.message)
       })
