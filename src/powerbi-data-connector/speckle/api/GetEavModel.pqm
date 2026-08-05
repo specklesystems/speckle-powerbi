@@ -8,8 +8,13 @@
 //   Objects     object_key | Application ID                      (dimension; feeds the 3D visual)
 //   Properties  object_key | path_key | Value Text | Value Number | Value Bool | Value   (fact)
 //   Paths       path_key | Property                              (dimension)
-//   FlatTall    Application ID | Property | Value                (one row per object-property)
-//   FlatWide    Application ID | one column per property path
+//   FlatTall    object_key | Application ID | Property | Value   (one row per object-property)
+//   FlatWide    object_key | Application ID | one column per property path
+//
+// Every table carries the dense-int object_key so model relationships join on
+// ints (fast in VertiPaq, and the name match helps Desktop's autodetect):
+//   Objects[object_key] 1-* FlatTall[object_key], Objects[object_key] 1-1
+//   FlatWide[object_key] — Application ID stays for display/direct binding.
 //
 // Type-level parameters are projected into the fact via object_type + type_eav
 // (instance values win on the same path) — type names arrive as ordinary rows.
@@ -178,12 +183,18 @@
                         "_props", JoinKind.LeftOuter
                     ),
                     "_props", {"path", "value"}, {"Property", "Value"}
+                ),
+                keyed = Table.AddColumn(
+                    joined, "object_key", each [object_index] + keyOffset, Int64.Type
                 )
             in
                 Table.TransformColumnTypes(
-                    Table.RenameColumns(
-                        Table.RemoveColumns(joined, {"object_index"}),
-                        {{"application_id", "Application ID"}}
+                    Table.SelectColumns(
+                        Table.RenameColumns(
+                            keyed,
+                            {{"application_id", "Application ID"}}
+                        ),
+                        {"object_key", "Application ID", "Property", "Value"}
                     ),
                     {{"Application ID", type text}, {"Property", type nullable text}}
                 ),
@@ -215,24 +226,36 @@
                     baseWithProps,
                     (r) =>
                         Record.Combine({
-                            [#"Application ID" = r[application_id]],
+                            [
+                                object_key = r[object_index] + keyOffset,
+                                #"Application ID" = r[application_id]
+                            ],
                             if r[__props] = null then [] else r[__props]
                         })
                 )
             in
                 if List.IsEmpty(distinctPaths) then
                     Table.TransformColumnTypes(
-                        Table.RenameColumns(
-                            Table.RemoveColumns(objects, {"object_index"}),
-                            {{"application_id", "Application ID"}}
+                        Table.SelectColumns(
+                            Table.RenameColumns(
+                                Table.AddColumn(
+                                    objects, "object_key",
+                                    each [object_index] + keyOffset, Int64.Type
+                                ),
+                                {{"application_id", "Application ID"}}
+                            ),
+                            {"object_key", "Application ID"}
                         ),
                         {{"Application ID", type text}}
                     )
                 else
-                    Table.FromRecords(
-                        fullRecords,
-                        {"Application ID"} & distinctPaths,
-                        MissingField.UseNull
+                    Table.TransformColumnTypes(
+                        Table.FromRecords(
+                            fullRecords,
+                            {"object_key", "Application ID"} & distinctPaths,
+                            MissingField.UseNull
+                        ),
+                        {{"object_key", Int64.Type}, {"Application ID", type text}}
                     )
     in
         [
