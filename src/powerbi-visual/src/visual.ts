@@ -31,6 +31,67 @@ const UpdateType = {
   ResizeEnd: 1 << 5
 } as const
 
+// fetchMoreData paging budgets (windowed dataReductionAlgorithm, 30k/segment):
+// with a real filter active, page until the full result is in so isolation is
+// exact (456k-object categories on whale models); without filters, stop at the
+// old 150k baseline — the unfiltered universe is never applied as a filter.
+const FETCH_BASELINE_ROWS = 150000
+const FETCH_FILTERED_MAX_ROWS = 1000000
+/** Above this row count, filtered updates take the ids-only fast path (no per-row
+ *  SelectionId builder / tooltips) — the builder alone froze the UI at 456k rows. */
+const LIGHT_ROW_THRESHOLD = 30000
+
+/** Leaf-row count of the matrix (fast — no value parsing), for paging decisions. */
+const countMatrixLeafRows = (matrix: powerbi.DataViewMatrix): number => {
+  let count = 0
+  const walk = (node: powerbi.DataViewMatrixNode): void => {
+    const children = node.children
+    if (!children || children.length === 0) {
+      count++
+      return
+    }
+    for (const child of children) walk(child)
+  }
+  const root = matrix.rows?.root
+  if (root?.children) for (const child of root.children) walk(child)
+  return count
+}
+
+/**
+ * Cheap identity of a data update: row universe + highlight state. Persist-property
+ * round-trips re-send IDENTICAL data every few seconds; without this memo each one
+ * re-paged the same 150k rows through five fetch segments, forever. Highlight count
+ * is included so a chart click on the same universe still registers as a change.
+ */
+const matrixSignature = (matrix: powerbi.DataViewMatrix, hasActiveFilters: boolean): string => {
+  let rows = 0
+  let highlighted = 0
+  let firstId = ''
+  let lastId = ''
+  const walk = (node: powerbi.DataViewMatrixNode): void => {
+    const children = node.children
+    if (!children || children.length === 0) {
+      rows++
+      if (rows === 1) firstId = String(node.value ?? '')
+      lastId = String(node.value ?? '')
+      const values = node.values
+      if (values) {
+        for (const key of Object.keys(values)) {
+          if (values[Number(key)]?.highlight != null) {
+            highlighted++
+            break
+          }
+        }
+      }
+      return
+    }
+    for (const child of children) walk(child)
+  }
+  const root = matrix.rows?.root
+  if (root?.children) for (const child of root.children) walk(child)
+  return `${hasActiveFilters}|${rows}|${highlighted}|${firstId}|${lastId}`
+}
+
 // noinspection JSUnusedGlobalSymbols
 export class Visual implements IVisual {
   private readonly host: powerbi.extensibility.visual.IVisualHost
@@ -39,6 +100,10 @@ export class Visual implements IVisual {
 
   private formattingSettings: SpeckleVisualSettingsModel
   private formattingSettingsService: FormattingSettingsService
+  /** True while fetchMoreData segments are accumulating (drives the row-count status). */
+  private pagingActive = false
+  /** Signature of the last fully-processed data update (see matrixSignature). */
+  private lastSettledSignature = ''
 
   // noinspection JSUnusedGlobalSymbols
   public constructor(options: VisualConstructorOptions) {
@@ -140,6 +205,58 @@ export class Visual implements IVisual {
       if (!(options.type & UpdateType.Data)) {
         return
       }
+
+      // Segmented-paging fast path: while more segments exist and the budget
+      // allows, accumulate WITHOUT reprocessing the matrix — re-parsing the whole
+      // accumulated view on each 30k segment made paging quadratic (a 456k-row
+      // filter re-walked millions of rows). One full process runs once paging
+      // settles (final segment, budget hit, or host refusal).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hasActiveFilters = (((options as any).jsonFilters as unknown[]) ?? []).length > 0
+
+      // Identical-update memo: persist-property round-trips re-send the same data
+      // every few seconds — don't re-page/re-process what we already settled.
+      const signature = matrixSignature(matrixView, hasActiveFilters)
+      if (signature === this.lastSettledSignature) {
+        return
+      }
+
+      // Page to the FULL universe (budgeted): chart-interaction filters never
+      // appear in jsonFilters, but the dictionary knows the model's true object
+      // count — if the paged universe ENDS below it, the data WAS filtered.
+      // The identical-update memo above makes this probe once-per-real-change.
+      const segment = options.dataViews[0]?.metadata?.segment
+      if (segment) {
+        const rowCount = countMatrixLeafRows(matrixView)
+        if (rowCount >= FETCH_FILTERED_MAX_ROWS) {
+          visualStore.pushDiagEvent(
+            `row universe exceeds the ${FETCH_FILTERED_MAX_ROWS}-row budget — treating as unfiltered`
+          )
+        } else if (this.host.fetchMoreData(true)) {
+          this.pagingActive = true
+          visualStore.setLoadingProgress(
+            `Loading data — ${Math.round(rowCount / 1000)}k rows`,
+            null
+          )
+          return
+        } else {
+          // the HOST refused more segments (its own memory ceiling — ~150k rows
+          // for fat rows: GUID strings + the repeated Model Info blob). Universe
+          // stays incomplete → treated as unfiltered/sampled downstream.
+          visualStore.pushDiagEvent(
+            `host refused more data at ${rowCount} rows (fetchMoreData memory ceiling) — universe incomplete`
+          )
+        }
+      }
+      if (this.pagingActive) {
+        this.pagingActive = false
+        visualStore.pushDiagEvent(`data paging settled — ${countMatrixLeafRows(matrixView)} rows`)
+        visualStore.clearLoadingProgress()
+      }
+      this.lastSettledSignature = signature
+      // universe is COMPLETE when no segment remains — the discriminator the
+      // store uses (alongside jsonFilters) to decide filtered vs sampled
+      const universeComplete = !segment
       {
           try {
             // read saved settings from file if any
@@ -253,12 +370,26 @@ export class Visual implements IVisual {
               }
             }
 
+            const lightweightRows =
+              hasActiveFilters && countMatrixLeafRows(matrixView) > LIGHT_ROW_THRESHOLD
+            if (lightweightRows) {
+              visualStore.pushDiagEvent(
+                'big filtered set — ids-only fast path (no per-row selection ids/tooltips)'
+              )
+            }
             const input = await processMatrixView(
               matrixView,
               this.host,
               validationResult.colorBy,
-              (obj, id) => this.selectionHandler.set(obj, id)
+              (obj, id) => this.selectionHandler.set(obj, id),
+              lightweightRows
             )
+            // jsonFilters = the filters PBI actually applied to this visual
+            // (slicers / filter pane / filter-mode interactions). Without any,
+            // objectIds is just the row-capped sample of the model and must not
+            // be applied as a viewer filter (hides most of a whale model).
+            input.hasActiveFilters = hasActiveFilters
+            input.universeComplete = universeComplete
             this.updateViewer(input)
           } catch (error) {
             console.error('Data update error', error ?? 'Unknown')

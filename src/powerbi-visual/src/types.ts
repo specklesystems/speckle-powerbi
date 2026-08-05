@@ -22,4 +22,18 @@ export interface SpeckleDataInput {
   selectedIds: string[]
   colorByIds: { objectIds: string[]; color: string }[] | null
   objectTooltipData: Map<string, IViewerTooltip>
+  /**
+   * True when Power BI reports actual filters applied to this visual via
+   * options.jsonFilters (slicers, filter pane). Chart-interaction (funnel)
+   * filters do NOT surface here — see universeComplete for those.
+   */
+  hasActiveFilters: boolean
+  /**
+   * True when the paged row universe is COMPLETE (no segment remained).
+   * Combined with the dictionary's total object count this detects funnel-mode
+   * chart filters: a complete universe smaller than the model IS a filter.
+   * False when paging hit the fetch budget (the ids are then a sample and must
+   * not be applied as a filter).
+   */
+  universeComplete: boolean
 }

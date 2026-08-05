@@ -29,6 +29,18 @@ export const useVisualStore = defineStore('visualStore', () => {
   // instantaneous rate (0 between response waves on slow links); totalMB is cumulative.
   const streamingStats = ref<{ mbPerSec: number; totalMB: number } | null>(null)
 
+  // On-visual diagnostics HUD (Desktop has no reachable console): a live stats
+  // line + the last significant events, toggled by clicking the status pill.
+  const diagVisible = ref<boolean>(false)
+  const diagStats = ref<string>('')
+  const diagEvents = ref<string[]>([])
+  const toggleDiag = () => (diagVisible.value = !diagVisible.value)
+  const setDiagStats = (line: string) => (diagStats.value = line)
+  const pushDiagEvent = (msg: string) => {
+    const stamp = new Date().toLocaleTimeString(undefined, { hour12: false })
+    diagEvents.value = [...diagEvents.value.slice(-39), `${stamp}  ${msg}`]
+  }
+
   const postFileSaveSkipNeeded = ref<boolean>(false)
   const postClickSkipNeeded = ref<boolean>(false)
 
@@ -56,6 +68,26 @@ export const useVisualStore = defineStore('visualStore', () => {
   })
   // comma-joined versionIds of the currently loaded models — the reload key
   const lastLoadedVersionKey = ref<string>()
+
+  // true object count of the loaded model(s), from the viewer's dictionaries —
+  // the reference the filter discriminator compares the row universe against
+  const totalObjectCount = ref<number>(0)
+  const setTotalObjectCount = (n: number) => (totalObjectCount.value = n)
+
+  // Filtered-data discriminator. jsonFilters covers slicers/filter pane; funnel
+  // chart interactions surface ONLY as a shrunken-but-complete row universe, so
+  // a complete universe smaller than the model also counts as filtered.
+  const shouldApplyRowUniverseAsFilter = (): boolean => {
+    const input = dataInput.value
+    if (!input || !fieldInputState.value.applicationIds) return false
+    if (!input.objectIds || input.objectIds.length === 0) return false
+    if (input.hasActiveFilters) return true
+    return (
+      input.universeComplete &&
+      totalObjectCount.value > 0 &&
+      input.objectIds.length < totalObjectCount.value
+    )
+  }
 
   const cameraPosition = ref<number[]>(undefined)
   const defaultViewModeInFile = ref<string>(undefined)
@@ -131,6 +163,16 @@ export const useVisualStore = defineStore('visualStore', () => {
       viewerEmit.value = emit
       viewerEmit.value('ping', '✅ Emitter successfully attached to the store.')
       isViewerInitialized.value = true // this is needed to be delay first load at the visual.ts file
+
+      // A fresh emitter means a fresh ViewerHandler/renderer with ZERO models.
+      // If we had already loaded a model (visual re-mounted: focus mode, layout
+      // re-render), the store's versionKey bookkeeping still says "loaded" and
+      // would never reload — the blank-canvas bug. Force the reload.
+      if (dataInput.value && lastLoadedVersionKey.value) {
+        pushDiagEvent('viewer re-initialized — forcing model reload')
+        viewerReloadNeeded.value = true
+        void setDataInput(dataInput.value)
+      }
     }
   }
 
@@ -190,6 +232,15 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     if (dataInput.value.selectedIds.length > 0) {
       isFilterActive.value = true
+      // Highlights arrive on the row-capped dataview: on whale models the
+      // highlighted subset is a SAMPLE of the real matching set (a filter-mode
+      // interaction pages to the full result instead) — make that visible.
+      if (!dataInput.value.hasActiveFilters && dataInput.value.objectIds.length >= 149000) {
+        pushDiagEvent(
+          `highlight on a row-capped sample (${dataInput.value.selectedIds.length} shown of the real matches) — ` +
+            `chart clicks are a sampled preview on huge models; use a SLICER for exact isolation`
+        )
+      }
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
 
       // When filtering, only apply colors to the selected/isolated objects
@@ -198,11 +249,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     } else {
       isFilterActive.value = false
       latestColorBy.value = dataInput.value.colorByIds
-      // Only apply filtering if object IDs are available, otherwise show all objects normally
-      if (fieldInputState.value.applicationIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+      // Apply the row universe as a filter only when the discriminator says the
+      // data is genuinely filtered (jsonFilters, or a complete universe smaller
+      // than the model) — a row-capped SAMPLE must never be applied.
+      if (shouldApplyRowUniverseAsFilter()) {
+        isFilterActive.value = true
         viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
       } else {
-        // No object IDs provided - show all objects without any filtering
+        // No active filters - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
       }
       // When not filtering, apply all colors including conditional formatting
@@ -475,13 +529,12 @@ export const useVisualStore = defineStore('visualStore', () => {
     (formattingSettings.value = newFormattingSettings)
 
   const resetFilters = () => {
-    // Only apply filtering if object IDs are available, otherwise show all objects normally
-    if (fieldInputState.value.applicationIds && dataInput.value && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
-      viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
-    } else {
-      // No object IDs provided - show all objects without any filtering
-      viewerEmit.value('unIsolateObjects')
-    }
+    // The Reset button means "clear" — emit the explicit clear (setFilter(null) +
+    // showAll) instead of re-filtering to the data view's id list, which on whale
+    // models is a truncated sample and would HIDE most of the scene. If PBI-side
+    // filters are still active, the next data update re-applies them via
+    // resetFilter with the reduced row universe.
+    viewerEmit.value('unIsolateObjects')
     // When resetting filters, apply all colors including conditional formatting
     if (latestColorBy.value !== null) {
       viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
@@ -511,11 +564,12 @@ export const useVisualStore = defineStore('visualStore', () => {
       } else {
         isFilterActive.value = false
         latestColorBy.value = dataInput.value.colorByIds
-        // Only apply filtering if object IDs are available, otherwise show all objects normally
-        if (fieldInputState.value.applicationIds && dataInput.value.objectIds && dataInput.value.objectIds.length > 0) {
+        // Same discriminator as setDataInput (see the whale-sample note there)
+        if (shouldApplyRowUniverseAsFilter()) {
+          isFilterActive.value = true
           viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
         } else {
-          // No object IDs provided - show all objects without any filtering
+          // No active filters - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
         }
 
@@ -604,6 +658,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     clearLoadingProgress,
     streamingStats,
     setStreamingStats,
+    totalObjectCount,
+    setTotalObjectCount,
+    diagVisible,
+    diagStats,
+    diagEvents,
+    toggleDiag,
+    setDiagStats,
+    pushDiagEvent,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete

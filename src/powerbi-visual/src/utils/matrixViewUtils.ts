@@ -154,7 +154,14 @@ export async function processMatrixView(
   matrixView: powerbi.DataViewMatrix,
   host: powerbi.extensibility.visual.IVisualHost,
   hasColorFilter: boolean,
-  onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void
+  onSelectionPair: (objId: string, selectionId: powerbi.extensibility.ISelectionId) => void,
+  /**
+   * Ids-only fast path for big FILTERED row sets: skips the per-row SelectionId
+   * builder and tooltip extraction (the main-thread freeze at 456k rows — the
+   * builder alone is ~0.1ms/row). Filter mode has no highlights to inspect, and
+   * click-select/tooltips over a huge isolation are a fair trade for a live UI.
+   */
+  lightweight = false
 ): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
   const objectIds = [],
@@ -199,7 +206,9 @@ export async function processMatrixView(
       objectIds: [],
       selectedIds: [],
       colorByIds: null,
-      objectTooltipData: new Map()
+      objectTooltipData: new Map(),
+      hasActiveFilters: false,
+      universeComplete: false
     }
   }
 
@@ -238,10 +247,23 @@ export async function processMatrixView(
     if (previousPalette) host.colorPalette['colorPalette'] = previousPalette
 
     localMatrixView.forEach((colorObjects) => {
-      colorObjects.children.forEach((obj) => {
-        const value = colorObjects.value as string
-        const color = host.colorPalette.getColor(value)
+      const value = colorObjects.value as string
+      const color = host.colorPalette.getColor(value)
 
+      if (lightweight) {
+        // ids only: every child belongs to this color group (no highlights in
+        // filter mode), no selection ids, no tooltips
+        const colorGroup = { color: color.value, objectIds: [] }
+        colorObjects.children.forEach((obj) => {
+          const id = obj.value as string
+          objectIds.push(id)
+          colorGroup.objectIds.push(id)
+        })
+        if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
+        return
+      }
+
+      colorObjects.children.forEach((obj) => {
         const colorGroup = {
           color: color.value,
           objectIds: []
@@ -262,6 +284,10 @@ export async function processMatrixView(
 
         if (colorGroup.objectIds.length > 0) colorByIds.push(colorGroup)
       })
+    })
+  } else if (lightweight) {
+    localMatrixView.forEach((obj) => {
+      objectIds.push(obj.value as string)
     })
   } else {
     localMatrixView.forEach((obj) => {
@@ -301,6 +327,9 @@ export async function processMatrixView(
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
-    objectTooltipData
+    objectTooltipData,
+    // overwritten by the caller from options.jsonFilters (not visible here)
+    hasActiveFilters: false,
+      universeComplete: false
   }
 }

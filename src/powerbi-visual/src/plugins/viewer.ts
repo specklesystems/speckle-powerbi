@@ -41,6 +41,10 @@ import { createNanoEvents, Emitter } from 'nanoevents'
 /** How much of the geometry the renderer keeps resident (viewer-3 out-of-core budget). */
 const RESIDENCY_FRACTION = 0.75
 
+/** Must match visual.ts FETCH_FILTERED_MAX_ROWS — an id list at this size means even
+ *  the fetchMoreData paging budget was exhausted (pathologically large filter result). */
+const DATAVIEW_ROW_CAP = 1000000
+
 export interface Hit {
   guid: string
   object?: Record<string, unknown>
@@ -132,6 +136,10 @@ export class ViewerHandler {
   private streamKeepAlive: ReturnType<typeof setInterval> | null = null
   private lastStreamActivity = 0
   private streamStatsDecay: ReturnType<typeof setTimeout> | null = null
+  /** The renderer's totalMB is a lifetime counter (never resets on unload) — the pill
+   *  shows per-load MB by subtracting the baseline captured at each loadModels. */
+  private lastStreamTotalMB = 0
+  private streamBaselineMB = 0
 
   constructor() {
     this.emitter = createNanoEvents()
@@ -200,8 +208,15 @@ export class ViewerHandler {
         if (!active) return
         this.lastStreamActivity = Date.now()
         const mbPerSec = stats.mbPerSec ?? 0
-        const totalMB = stats.totalMB ?? 0
+        this.lastStreamTotalMB = stats.totalMB ?? this.lastStreamTotalMB
+        const totalMB = Math.max(0, this.lastStreamTotalMB - this.streamBaselineMB)
         const progressStore = useVisualStore()
+        const extended = stats as { inFlight?: number; primPerSec?: number; avgMbPerSec?: number }
+        progressStore.setDiagStats(
+          `stream ${totalMB.toFixed(0)} MB (session ${this.lastStreamTotalMB.toFixed(0)}) · ` +
+            `${mbPerSec.toFixed(1)} MB/s (avg ${(extended.avgMbPerSec ?? 0).toFixed(1)}) · ` +
+            `in-flight ${extended.inFlight ?? 0} · ${Math.round(extended.primPerSec ?? 0)} prim/s`
+        )
         if (progressStore.loadingProgress) {
           const rate = mbPerSec >= 0.05 ? ` — ${mbPerSec.toFixed(1)} MB/s` : ''
           progressStore.setLoadingProgress(
@@ -236,6 +251,7 @@ export class ViewerHandler {
       )
     )
     console.log('🎥 Viewer 3 (WebGPU) is created!')
+    store.pushDiagEvent('viewer initialized (new renderer, no models yet)')
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
@@ -359,39 +375,63 @@ export class ViewerHandler {
    * the filter instead and shout the diagnosis.
    */
   private resolveFilterGroups(objectIds: string[], caller: string): ObjectGroup[] | null {
+    const startedAt = performance.now()
     const groups = this.toGroups(objectIds)
     const resolved = groups.reduce((n, g) => n + g.objectIndexes.length, 0)
+    const store = useVisualStore()
     if (objectIds.length > 0 && resolved === 0) {
       const dictSummary =
         [...this.dictionaries.entries()]
           .map(([id, d]) => `${id}:${d.toIndex.size}`)
           .join(', ') || 'NO DICTIONARIES LOADED'
-      console.error(
-        `[viewer3] ${caller}: 0 of ${objectIds.length} applicationIds resolved — ` +
-          `failing open (no filter). dictionaries=[${dictSummary}] ` +
-          `sample ids=${JSON.stringify(objectIds.slice(0, 3))}`
-      )
+      const msg =
+        `${caller}: 0 of ${objectIds.length} applicationIds resolved — ` +
+        `failing open (no filter). dictionaries=[${dictSummary}]`
+      console.error(`[viewer3] ${msg} sample ids=${JSON.stringify(objectIds.slice(0, 3))}`)
+      store.pushDiagEvent(msg)
       return null
     }
-    console.log(
-      `[viewer3] ${caller}: resolved ${resolved}/${objectIds.length} ids across ` +
-        `${groups.length} model(s)`
-    )
+    const msg =
+      `${caller}: resolved ${resolved}/${objectIds.length} ids across ` +
+      `${groups.length} model(s) in ${(performance.now() - startedAt).toFixed(0)}ms`
+    console.log(`[viewer3] ${msg}`)
+    store.pushDiagEvent(msg)
     return groups
+  }
+
+  /** Wrap a paint-heavy interactions call with a HUD timing line (main-thread cost
+   *  of the synchronous visibility repaint — the "freeze" when it is seconds). */
+  private timedPaint(label: string, run: () => void) {
+    const startedAt = performance.now()
+    run()
+    const ms = performance.now() - startedAt
+    if (ms > 100) useVisualStore().pushDiagEvent(`${label} painted in ${(ms / 1000).toFixed(1)}s`)
   }
 
   /** PBI cross-filter highlight: the view shows exactly these objects. `ghost` has no
    *  viewer-3 equivalent yet (filtered-out objects hide instead of ghosting). */
   public filterSelection = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
     if (!this.interactions || !objectIds) return
-    this.interactions.setFilter(this.resolveFilterGroups(objectIds, 'filterSelection'))
+    const groups = this.resolveFilterGroups(objectIds, 'filterSelection')
+    this.timedPaint('filterSelection', () => this.interactions.setFilter(groups))
     if (zoom) this.zoomObjects(objectIds)
   }
 
   public resetFilter = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
     if (!this.interactions || !objectIds) return
+    // Always apply what the data view sent — even when it hit the row cap
+    // (truncated big-category filters show a partial-but-visible result; a no-op
+    // reads as broken). A true "clear" is the unIsolateObjects event, which the
+    // Reset button emits explicitly.
+    if (objectIds.length >= DATAVIEW_ROW_CAP) {
+      console.warn(
+        `[viewer3] resetFilter: id list hit the ${DATAVIEW_ROW_CAP}-row fetch budget — ` +
+          'the applied filter is a truncated sample of the real result'
+      )
+    }
     // Back to "everything the data view contains" — same declarative channel.
-    this.interactions.setFilter(this.resolveFilterGroups(objectIds, 'resetFilter'))
+    const groups = this.resolveFilterGroups(objectIds, 'resetFilter')
+    this.timedPaint('resetFilter', () => this.interactions.setFilter(groups))
     if (zoom) this.zoomObjects(objectIds)
   }
 
@@ -420,7 +460,12 @@ export class ViewerHandler {
   }
 
   public unIsolateObjects = () => {
-    this.interactions?.showAll()
+    if (!this.interactions) return
+    // showAll() clears hides/isolation but deliberately NOT the filter channel
+    // (interactions contract) — clearing the filter needs an explicit setFilter(null).
+    this.interactions.setFilter(null)
+    this.interactions.showAll()
+    useVisualStore().pushDiagEvent('filter cleared — showing all objects')
   }
 
   // ── loading ────────────────────────────────────────────────────────────────
@@ -458,6 +503,8 @@ export class ViewerHandler {
     for (const rendererModelId of this.loadedModelIds) renderer.removeModel(rendererModelId)
     this.loadedModelIds = []
     this.dictionaries.clear()
+    // per-load streaming counter: the renderer's totalMB never resets — rebaseline
+    this.streamBaselineMB = this.lastStreamTotalMB
 
     // legacy-pipeline models can't be rendered by the artifact loader; the UI
     // explains this (see ViewerWrapper) — only artifact models are loaded
@@ -530,20 +577,32 @@ export class ViewerHandler {
       this.loadedModelIds.push(rendererModelId)
       this.startStreamKeepAlive()
 
+      store.pushDiagEvent(`model ${model.versionId} painting — geometry keeps streaming`)
+
       try {
         const dictionary = await dictionaryPromise
         this.dictionaries.set(rendererModelId, dictionary)
-        console.log(
-          `[viewer3] objects dictionary for ${rendererModelId}: ` +
-            `${dictionary.toIndex.size} applicationIds mapped`
-        )
+        const msg =
+          `objects dictionary for ${rendererModelId}: ` +
+          `${dictionary.toIndex.size} applicationIds mapped`
+        console.log(`[viewer3] ${msg}`)
+        store.pushDiagEvent(msg)
       } catch (err) {
         console.error(
           `objects dictionary failed for ${model.versionId} — selection/coloring degraded`,
           err
         )
+        store.pushDiagEvent(
+          `objects dictionary FAILED for ${model.versionId} — selection/coloring degraded`
+        )
       }
     }
+
+    // the model's true object count — the store's filter discriminator compares
+    // the paged row universe against it (complete universe < total = filtered)
+    let totalObjects = 0
+    for (const dict of this.dictionaries.values()) totalObjects += dict.toIndex.size
+    store.setTotalObjectCount(totalObjects)
 
     // re-measure + full render now that layout settled — in the PBI sandbox the
     // init-time measure can be stale and window resize never fires
@@ -623,6 +682,7 @@ export class ViewerHandler {
   }
 
   public dispose() {
+    useVisualStore().pushDiagEvent('viewer disposed (renderer torn down)')
     this.stopStreamKeepAlive()
     if (this.streamStatsDecay) clearTimeout(this.streamStatsDecay)
     useVisualStore().setStreamingStats(null)

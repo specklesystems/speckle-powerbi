@@ -26,8 +26,8 @@
       "matrix": {
         "rows": {
           "dataReductionAlgorithm": {
-            "top": {
-              "count": 150000
+            "window": {
+              "count": 30000
             }
           },
           "select": [

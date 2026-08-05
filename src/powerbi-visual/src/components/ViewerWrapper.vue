@@ -107,13 +107,30 @@
          pre-paint — the center shows only a spinner) hands over to the post-paint
          out-of-core streaming ticker. Rate is instantaneous and legitimately 0
          between response waves on slow links — cumulative MB always, rate only
-         when it means something -->
+         when it means something. Click toggles the diagnostics HUD (Desktop has
+         no reachable console) -->
     <div
-      v-if="loadingStatusText"
-      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow cursor-default"
+      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow cursor-pointer select-none"
+      title="Click for diagnostics"
+      @click.stop="visualStore.toggleDiag()"
     >
-      <span class="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-      <span>{{ loadingStatusText }}</span>
+      <span
+        class="inline-block w-2 h-2 rounded-full"
+        :class="loadingStatusText ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'"
+      ></span>
+      <span>{{ loadingStatusText ?? 'Speckle diagnostics' }}</span>
+    </div>
+
+    <!-- diagnostics HUD: live renderer stats + last significant events -->
+    <div
+      v-if="visualStore.diagVisible"
+      class="absolute bottom-9 left-2 z-30 w-[26rem] max-w-[85vw] max-h-56 overflow-y-auto bg-white bg-opacity-95 text-gray-800 rounded shadow-lg p-2 font-mono text-[10px] leading-snug cursor-default"
+    >
+      <div class="font-semibold border-b border-gray-200 pb-1 mb-1">
+        {{ visualStore.diagStats || 'no stream stats yet' }}
+      </div>
+      <div v-if="visualStore.diagEvents.length === 0" class="text-gray-400">no events yet</div>
+      <div v-for="(line, i) in visualStore.diagEvents" :key="i">{{ line }}</div>
     </div>
 
     <div v-if="sectionBoxVisible" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex gap-2">
