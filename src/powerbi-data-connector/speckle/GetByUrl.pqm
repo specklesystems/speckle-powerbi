@@ -131,7 +131,7 @@
 
         // maps the legacy JSON-path table onto the 4.0 shapes:
         // "Application ID" := applicationId ?? speckle id; properties expanded to
-        // columns (Wide) and unpivoted to Property/Value rows (Tall)
+        // columns, served on demand through ExpandProperties
         LegacyShapes = (t as table) as record =>
             let
                 withAppId = Table.AddColumn(
@@ -153,7 +153,6 @@
                     {{"__appId", "Application ID"}},
                     MissingField.Ignore
                 ),
-                tall = Table.UnpivotOtherColumns(wide, {"Application ID"}, "Property", "Value"),
                 objectsOnly = Table.AddColumn(
                     Table.Distinct(Table.SelectColumns(wide, {"Application ID"})),
                     "object_key",
@@ -165,8 +164,31 @@
                     Objects = Table.SelectColumns(objectsOnly, {"object_key", "Application ID"}),
                     Properties = EmptyProperties,
                     Paths = EmptyPaths,
-                    FlatTall = tall,
-                    FlatWide = wide
+                    ObjectTypes = #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}),
+                    TypeProperties = Table.SelectColumns(
+                        Table.AddColumn(EmptyProperties, "type_key", each null, Int64.Type),
+                        {"type_key", "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
+                    ),
+                    // legacy models have no path dictionary — expand straight off the
+                    // JSON-expanded wide shape, missing paths arriving as nulls
+                    ExpandProperties = (pathsText as text) as table =>
+                        let
+                            wanted = List.Distinct(
+                                List.Select(
+                                    List.Transform(Text.Split(pathsText, ","), each Text.Trim(_)),
+                                    each _ <> ""
+                                )
+                            ),
+                            selected = Table.SelectColumns(
+                                wide,
+                                {"Application ID"} & wanted,
+                                MissingField.UseNull
+                            )
+                        in
+                            Table.ReorderColumns(
+                                Table.AddColumn(selected, "object_key", each null, Int64.Type),
+                                {"object_key", "Application ID"} & wanted
+                            )
                 ],
 
         // loads one model and returns its star-schema shapes + per-model metadata
@@ -261,15 +283,57 @@
                 objectsT = WithModelInfo(CombinePart((mm) => mm[Objects], true), combinedBlobs),
                 propertiesT = CombinePart((mm) => mm[Properties], false),
                 pathsT = CombinePart((mm) => mm[Paths], false),
-                flatTallT = WithModelInfo(CombinePart((mm) => mm[FlatTall], true), combinedBlobs),
-                flatWideT = WithModelInfo(CombinePart((mm) => mm[FlatWide], true), combinedBlobs)
+                objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
+                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
+
+                // "Expand Properties" — the on-demand replacement for the old eager
+                // Flat (Wide): the user invokes it with comma-separated property
+                // paths (browse them in Property Paths) and only those columns are
+                // evaluated. Lean output: object_key + the requested columns (no
+                // Model Info blob, no Application ID — the 1:1 object_key
+                // relationship to Objects carries identity). Federation: each model
+                // expands independently, results union with namespaced object_keys;
+                // paths absent in a model = null.
+                expandPropertiesRaw = (propertyPaths as text) as table =>
+                    Table.Combine(
+                        List.Transform(
+                            modelsData,
+                            (m) =>
+                                let
+                                    t = m[Model][ExpandProperties](propertyPaths)
+                                in
+                                    if addSourceModel then
+                                        Table.AddColumn(t, "Source Model", (row) => m[SourceLabel], type text)
+                                    else
+                                        t
+                        )
+                    ),
+                expandPropertiesFn = Value.ReplaceType(
+                    expandPropertiesRaw,
+                    type function (
+                        propertyPaths as (
+                            type text meta [
+                                Documentation.FieldCaption = "Property paths (comma-separated)",
+                                Documentation.FieldDescription = "Dotted property paths as listed in the Property Paths table",
+                                Documentation.SampleValues = {"category, properties.Dimensions.Area"}
+                            ]
+                        )
+                    ) as table meta [
+                        Documentation.Name = "Expand Properties",
+                        Documentation.LongDescription =
+                            "Returns object_key plus one column per requested property path (instance value wins over type value). "
+                            & "Browse available paths in the Property Paths table. Only the requested paths are evaluated, so this "
+                            & "stays fast on large models — relate the result to Objects 1:1 on object_key to slice the 3D visual."
+                    ]
+                )
             in
                 NavigationTable({
                     [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
                     [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
                     [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                    [name = "Flat (Tall)", key = "flat-tall", data = flatTallT, itemKind = "Table", isLeaf = true],
-                    [name = "Flat (Wide)", key = "flat-wide", data = flatWideT, itemKind = "Table", isLeaf = true]
+                    [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true],
+                    [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true],
+                    [name = "Expand Properties", key = "expand-properties", data = expandPropertiesFn, itemKind = "Function", isLeaf = true]
                 }),
 
         results = Observe(

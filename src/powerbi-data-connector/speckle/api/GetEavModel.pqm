@@ -5,16 +5,21 @@
 //
 // Returns a record of tables (record fields are lazy — flat shapes only
 // evaluate when their navigation entry is opened):
-//   Objects     object_key | Application ID                      (dimension; feeds the 3D visual)
-//   Properties  object_key | path_key | Value Text | Value Number | Value Bool | Value   (fact)
-//   Paths       path_key | Property                              (dimension)
-//   FlatTall    object_key | Application ID | Property | Value   (one row per object-property)
-//   FlatWide    object_key | Application ID | one column per property path
+//   Objects           object_key | Application ID                (dimension; feeds the 3D visual)
+//   Properties        object_key | path_key | Value Text | Value Number | Value Bool | Value
+//                     (INSTANCE property fact — type params deliberately NOT projected in)
+//   Paths             path_key | Property                        (dimension)
+//   ObjectTypes       object_key | type_key                      (bridge; empty when bundle has no types)
+//   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
+//   ExpandProperties  (pathsText) => object_key | one column per REQUESTED path
+//                     — "Expand Properties" in the navigator: on-demand pivot,
+//                     instance-wins over type params; relate 1:1 to Objects
 //
-// Every table carries the dense-int object_key so model relationships join on
-// ints (fast in VertiPaq, and the name match helps Desktop's autodetect):
-//   Objects[object_key] 1-* FlatTall[object_key], Objects[object_key] 1-1
-//   FlatWide[object_key] — Application ID stays for display/direct binding.
+// Every table carries dense-int keys so model relationships join on ints
+// (fast in VertiPaq, and the name match helps Desktop's autodetect):
+//   Objects 1-* Properties *-1 Paths;  Objects 1-* ObjectTypes *-1 TypeProperties(type_key)
+//   with both-direction cross-filter for slicing; expanded tables join Objects
+//   1-1 on object_key — Application ID stays for display/direct binding.
 //
 // Type-level parameters are projected into the fact via object_type + type_eav
 // (instance values win on the same path) — type names arrive as ordinary rows.
@@ -59,43 +64,17 @@
         hasTypes = objectType <> null and typeEav <> null,
 
         // ---- fact pipeline ---------------------------------------------------
+        // MEMORY + SCALE: never Table.Buffer the fact-sized tables (mashup
+        // containers have a hard ~430MB working-set cap, no spilling), and NEVER
+        // materialize the type-parameter projection per object — the bundle stores
+        // type params deduped (type_eav is thousands of rows) precisely because
+        // objects × type-params explodes (a whale model hit 274M rows). Properties
+        // now carries INSTANCE rows only; type params ship as their own star arm
+        // (Object Types bridge + Type Properties fact) and VertiPaq relationships
+        // resolve the projection at query time for free.
         propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
-        instanceProps = Table.Buffer(Table.SelectColumns(eav, propCols)),
-
-        // type-level params projected per object; instance values win:
-        // anti-join drops any (object, path) already present on the instance
-        typeProps = if hasTypes then
-            Table.RemoveColumns(
-                Table.NestedJoin(
-                    Table.SelectColumns(
-                        Table.ExpandTableColumn(
-                            Table.NestedJoin(
-                                objectType, {"type_index"},
-                                typeEav, {"type_index"},
-                                "_te", JoinKind.Inner
-                            ),
-                            "_te",
-                            {"path_index", "value_string", "value_double", "value_boolean"},
-                            {"path_index", "value_string", "value_double", "value_boolean"}
-                        ),
-                        propCols
-                    ),
-                    {"object_index", "path_index"},
-                    instanceProps, {"object_index", "path_index"},
-                    "_dup", JoinKind.LeftAnti
-                ),
-                {"_dup"}
-            )
-        else
-            #table(propCols, {}),
-
-        // (object, path) unique; buffer so the join pipeline evaluates once
-        fact = Table.Buffer(
-            Table.Distinct(
-                Table.Combine({instanceProps, typeProps}),
-                {"object_index", "path_index"}
-            )
-        ),
+        instanceProps = Table.SelectColumns(eav, propCols),
+        fact = instanceProps,
 
         // ---- star tables -----------------------------------------------------
         objectsTable = Table.TransformColumnTypes(
@@ -118,10 +97,11 @@
             {{"Property", type text}}
         ),
 
-        PropertiesOut =
+        // shared value shaping for the two property facts (instance + type grain)
+        ShapeValueFact = (t as table, keyName as text, indexName as text) as table =>
             let
                 keyed = Table.AddColumn(
-                    Table.AddColumn(fact, "object_key", each [object_index] + keyOffset, Int64.Type),
+                    Table.AddColumn(t, keyName, each Record.Field(_, indexName) + keyOffset, Int64.Type),
                     "path_key", each [path_index] + keyOffset, Int64.Type
                 ),
                 withDisplay = Table.AddColumn(
@@ -144,7 +124,7 @@
                 Table.TransformColumnTypes(
                     Table.SelectColumns(
                         renamed,
-                        {"object_key", "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
+                        {keyName, "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
                     ),
                     {
                         {"Value Text", type nullable text},
@@ -153,68 +133,148 @@
                     }
                 ),
 
-        // ---- flat convenience shapes (lazy: evaluated only when opened) ------
-        // tall rows: object_index | path | value (coalesced)
-        slim = Table.SelectColumns(
-            Table.AddColumn(
-                Table.ExpandTableColumn(
+        PropertiesOut = ShapeValueFact(fact, "object_key", "object_index"),
+
+        // ---- the type arm: deduped, tiny, resolved by relationships ----------
+        // Object Types bridge (one row per object with a type) + Type Properties
+        // fact (one row per type-param). Slice: Type Properties -> Object Types ->
+        // Objects with both-direction cross-filtering. NOTE: an instance override
+        // of a type param coexists with the type row (instance-wins is a query-
+        // time concern, not baked in — Expand Properties DOES bake instance-wins).
+        ObjectTypesOut = if hasTypes then
+            Table.TransformColumnTypes(
+                Table.SelectColumns(
+                    Table.AddColumn(
+                        Table.AddColumn(
+                            objectType, "object_key", each [object_index] + keyOffset, Int64.Type
+                        ),
+                        "type_key", each [type_index] + keyOffset, Int64.Type
+                    ),
+                    {"object_key", "type_key"}
+                ),
+                {}
+            )
+        else
+            #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}),
+
+        TypePropertiesOut = if hasTypes then
+            ShapeValueFact(
+                Table.SelectColumns(
+                    typeEav,
+                    {"type_index", "path_index", "value_string", "value_double", "value_boolean"}
+                ),
+                "type_key",
+                "type_index"
+            )
+        else
+            #table(
+                type table [
+                    type_key = Int64.Type,
+                    path_key = Int64.Type,
+                    #"Value Text" = nullable text,
+                    #"Value Number" = nullable number,
+                    #"Value Bool" = nullable logical,
+                    Value = any
+                ],
+                {}
+            ),
+
+        // ---- on-demand property expansion (replaces the eager flat tables) ----
+        // Invoked from the navigation table's "Expand Properties" function entry:
+        // pivots ONLY the requested dotted paths onto the object grain, so cost is
+        // proportional to what the user asked for, not the path dictionary. Browse
+        // available path strings in the Property Paths table. Output = object_key +
+        // one column per path (relate 1:1 to Objects — no Application ID / Model
+        // Info baggage). Same Group→Record.FromList→FromRecords shape as the old
+        // wide pivot (Table.Pivot takes minutes at scale).
+        ExpandPropertiesOut = (pathsText as text) as table =>
+            let
+                wanted = List.Distinct(
+                    List.Select(
+                        List.Transform(Text.Split(pathsText, ","), each Text.Trim(_)),
+                        each _ <> ""
+                    )
+                ),
+                // the small wanted-paths key table — filtering the whale fact via an
+                // engine-level INNER JOIN against it, never a per-row List.Contains
+                // lambda (a 100M-row M lambda scan is the "cumbersome" that was)
+                wantedKeys = Table.SelectColumns(
+                    Table.SelectRows(paths, each List.Contains(wanted, [path])),
+                    {"path_index"}
+                ),
+                JoinToWanted = (t as table) as table =>
+                    Table.RemoveColumns(
+                        Table.NestedJoin(
+                            t, {"path_index"},
+                            wantedKeys, {"path_index"},
+                            "_w", JoinKind.Inner
+                        ),
+                        {"_w"}
+                    ),
+                // Instance rows for the requested paths...
+                instSub = JoinToWanted(fact),
+                // ...merged with the per-object type-param projection, instance-wins.
+                // The objects × type-params fan-out that would explode globally (274M
+                // rows on a whale) is harmless here: it is scoped to the handful of
+                // requested paths.
+                typeSub = if hasTypes then
+                    Table.RemoveColumns(
+                        Table.NestedJoin(
+                            Table.SelectColumns(
+                                Table.ExpandTableColumn(
+                                    Table.NestedJoin(
+                                        objectType, {"type_index"},
+                                        JoinToWanted(typeEav),
+                                        {"type_index"},
+                                        "_te", JoinKind.Inner
+                                    ),
+                                    "_te",
+                                    {"path_index", "value_string", "value_double", "value_boolean"},
+                                    {"path_index", "value_string", "value_double", "value_boolean"}
+                                ),
+                                propCols
+                            ),
+                            {"object_index", "path_index"},
+                            instSub, {"object_index", "path_index"},
+                            "_dup", JoinKind.LeftAnti
+                        ),
+                        {"_dup"}
+                    )
+                else
+                    #table(propCols, {}),
+                // Distinct on the small merged subset only (the global fact is never
+                // deduped — see the MEMORY note): Record.FromList hard-errors on
+                // duplicate field names.
+                subset = Table.Distinct(
+                    Table.Combine({instSub, typeSub}),
+                    {"object_index", "path_index"}
+                ),
+                withPath = Table.ExpandTableColumn(
                     Table.NestedJoin(
-                        fact, {"path_index"},
+                        subset, {"path_index"},
                         paths, {"path_index"},
                         "_p", JoinKind.Inner
                     ),
-                    "_p", {"path"}, {"path"}
+                    "_p", {"path"}, {"__path"}
                 ),
-                "value",
-                each
-                    if [value_string] <> null then [value_string]
-                    else if [value_double] <> null then [value_double]
-                    else [value_boolean]
-            ),
-            {"object_index", "path", "value"}
-        ),
-
-        FlatTallOut =
-            let
-                joined = Table.ExpandTableColumn(
-                    Table.NestedJoin(
-                        objects, {"object_index"},
-                        slim, {"object_index"},
-                        "_props", JoinKind.LeftOuter
-                    ),
-                    "_props", {"path", "value"}, {"Property", "Value"}
+                // typed-first coalesce: producers populate value_string even for
+                // numeric rows (display form), so string-first would make every
+                // column text — prefer the typed value so numeric paths expand as
+                // real numbers (each path is its own column, types don't mix)
+                withValue = Table.AddColumn(
+                    withPath,
+                    "__value",
+                    each
+                        if [value_double] <> null then [value_double]
+                        else if [value_boolean] <> null then [value_boolean]
+                        else [value_string]
                 ),
-                keyed = Table.AddColumn(
-                    joined, "object_key", each [object_index] + keyOffset, Int64.Type
-                )
-            in
-                Table.TransformColumnTypes(
-                    Table.SelectColumns(
-                        Table.RenameColumns(
-                            keyed,
-                            {{"application_id", "Application ID"}}
-                        ),
-                        {"object_key", "Application ID", "Property", "Value"}
-                    ),
-                    {{"Application ID", type text}, {"Property", type nullable text}}
-                ),
-
-        FlatWideOut =
-            let
-                buffered = Table.Buffer(slim),
-                distinctPaths = List.Sort(List.Distinct(Table.Column(buffered, "path"))),
-
-                // group to one record per object and materialize via
-                // Table.FromRecords with an explicit column list. Do NOT use
-                // Table.Pivot or Table.ExpandRecordColumn here — both take
-                // minutes at real model scale (thousands of objects x 1000+
-                // paths); this runs in seconds.
                 grouped = Table.Group(
-                    buffered,
+                    withValue,
                     {"object_index"},
-                    {{"__props", each Record.FromList([value], [path]), type record}}
+                    {{"__props", each Record.FromList([__value], [__path]), type record}}
                 ),
-                baseWithProps = Table.ExpandTableColumn(
+                base = Table.ExpandTableColumn(
                     Table.NestedJoin(
                         objects, {"object_index"},
                         grouped, {"object_index"},
@@ -222,46 +282,29 @@
                     ),
                     "_g", {"__props"}, {"__props"}
                 ),
-                fullRecords = Table.TransformRows(
-                    baseWithProps,
+                records = Table.TransformRows(
+                    base,
                     (r) =>
                         Record.Combine({
-                            [
-                                object_key = r[object_index] + keyOffset,
-                                #"Application ID" = r[application_id]
-                            ],
+                            [object_key = r[object_index] + keyOffset],
                             if r[__props] = null then [] else r[__props]
                         })
                 )
             in
-                if List.IsEmpty(distinctPaths) then
-                    Table.TransformColumnTypes(
-                        Table.SelectColumns(
-                            Table.RenameColumns(
-                                Table.AddColumn(
-                                    objects, "object_key",
-                                    each [object_index] + keyOffset, Int64.Type
-                                ),
-                                {{"application_id", "Application ID"}}
-                            ),
-                            {"object_key", "Application ID"}
-                        ),
-                        {{"Application ID", type text}}
-                    )
-                else
-                    Table.TransformColumnTypes(
-                        Table.FromRecords(
-                            fullRecords,
-                            {"object_key", "Application ID"} & distinctPaths,
-                            MissingField.UseNull
-                        ),
-                        {{"object_key", Int64.Type}, {"Application ID", type text}}
-                    )
+                Table.TransformColumnTypes(
+                    Table.FromRecords(
+                        records,
+                        {"object_key"} & wanted,
+                        MissingField.UseNull
+                    ),
+                    {{"object_key", Int64.Type}}
+                )
     in
         [
             Objects = ObjectsOut,
             Properties = PropertiesOut,
             Paths = PathsOut,
-            FlatTall = FlatTallOut,
-            FlatWide = FlatWideOut
+            ObjectTypes = ObjectTypesOut,
+            TypeProperties = TypePropertiesOut,
+            ExpandProperties = ExpandPropertiesOut
         ]
