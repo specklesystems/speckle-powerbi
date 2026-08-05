@@ -1,36 +1,45 @@
+/**
+ * ViewerHandler — the visual's one viewer-facing seam, rewritten onto viewer 3
+ * (@speckle/viewer-webgpu) and its remote geometry stream (ADR-0014).
+ *
+ * Load path: fetch the version's /artifacts payload → the server advertises its
+ * geometry-stream WebSocket endpoint → `loadRemoteBundleDat` allocates the scene's typed
+ * arrays from the `.viewer.idx` artifact (fetched in parallel with the WS handshake) and
+ * streams geometry waves as ranged reads over the socket. Nothing touches OPFS/duckdb —
+ * the exact host this path was built for (opaque-origin sandboxed iframes).
+ *
+ * Identity: Power BI rows speak applicationId; the renderer + interactions layer speak
+ * (modelId = versionId, dense objectIndex). The bridge between them is the per-version
+ * objects dictionary read from `{versionId}.eav.objects.parquet` (see objectsDictionary).
+ *
+ * The emitter surface (IViewerEvents) is unchanged so visualStore / ViewerWrapper /
+ * ViewerControls keep working untouched.
+ */
+import type { Renderer } from '@speckle/viewer-webgpu'
+import { createRendererBridge, type RendererBridge } from '@src/viewer3/bridge'
+import { createViewerInteractions } from '@src/viewer3/objects/index'
+import type { ObjectGroup, ObjectRef, ViewerInteractions } from '@src/viewer3/objects/types'
 import {
-  DefaultViewerParams,
-  FilteringState,
-  CameraController,
-  CanonicalView,
-  SectionTool,
-  SectionOutlines,
-  ViewModes,
-  ViewMode,
-  SpeckleView,
-  Viewer,
-  HybridCameraController,
-  FilteringExtension,
-  UpdateFlags,
-  ViewerEvent,
-  SelectionEvent,
-  SpecklePackfileLoader2,
-  LoaderEvent
-} from '@speckle/viewer'
-import { FilteredSelectionExtension, FilteredSelectionEvent } from '@src/extensions/FilteredSelectionExtension'
+  bootRenderer,
+  setCanonicalView,
+  zoomToObjects,
+  cameraStateOf,
+  type CanonicalView
+} from '@src/viewer3/boot'
+import { buildArtifactsUrl, fetchArtifactsPayload } from '@src/viewer3/artifacts'
+import { loadRemoteOnly } from '@src/viewer3/remoteGeometry'
+import {
+  loadObjectsDictionary,
+  type ObjectsDictionary
+} from '@src/viewer3/objectsDictionary'
+import type { LoadProgress } from '@src/viewer3/loadProgress'
 import { useVisualStore } from '@src/store/visualStore'
 import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
-import { resolveObjectNode } from '@src/utils/objectNode'
 import { Tracker } from '@src/utils/mixpanel'
 import { createNanoEvents, Emitter } from 'nanoevents'
-import { Box3, Vector3 } from 'three'
 
-export interface IViewer {
-  /**
-   * Events sent over from the host application.
-   */
-  on: <E extends keyof IViewerEvents>(event: E, callback: IViewerEvents[E]) => void
-}
+/** How much of the geometry the renderer keeps resident (viewer-3 out-of-core budget). */
+const RESIDENCY_FRACTION = 0.75
 
 export interface Hit {
   guid: string
@@ -38,6 +47,7 @@ export interface Hit {
   point: { x: number; y: number; z: number }
 }
 
+/** Kept for API compatibility with the v2 handler (ViewerControls passes these through). */
 export interface ViewModeOptions {
   edges?: boolean
   outlineThickness?: number
@@ -51,7 +61,7 @@ export interface IViewerEvents {
   setSelection: (objectIds: string[]) => void
   resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
-  setViewMode: (viewMode: ViewMode, options?: ViewModeOptions) => void
+  setViewMode: (viewMode: number, options?: ViewModeOptions) => void
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
@@ -75,15 +85,53 @@ export type ColorBy = {
   color: string
 }
 
+/** '#RRGGBB' / '#RGB' → packed 0xRRGGBBAA (opaque). */
+const hexToRgba = (hex: string): number => {
+  let h = hex.replace('#', '')
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('')
+  const rgb = parseInt(h.slice(0, 6), 16)
+  return ((rgb << 8) | 0xff) >>> 0
+}
+
 export class ViewerHandler {
   public emitter: Emitter
-  public viewer: Viewer
-  public cameraControls: CameraController
-  public filtering: FilteringExtension
-  public selection: FilteredSelectionExtension
-  public sectionTool: SectionTool
-  public sectionOutlines: SectionOutlines
-  private filteringState: FilteringState
+  public renderer: Renderer | null = null
+  public interactions: ViewerInteractions | null = null
+
+  /** Compat facade for ViewerWrapper's right-click path (v2 exposed the selection extension). */
+  public selection = {
+    getSelectedObjects: (): Array<{ id: string }> => {
+      if (!this.interactions) return []
+      return this.interactions
+        .getSnapshot()
+        .selection.map((ref) => {
+          const id = this.applicationIdOf(ref)
+          return id ? { id } : null
+        })
+        .filter((x): x is { id: string } => x !== null)
+    }
+  }
+
+  private bridge: RendererBridge
+  private canvas: HTMLCanvasElement | null = null
+  /** renderer model id (`bundle_${versionId}`) → applicationId dictionary. */
+  private dictionaries = new Map<string, ObjectsDictionary>()
+  private loadedModelIds: string[] = []
+  private projectionMode: 'perspective' | 'orthographic' = 'perspective'
+  /** Last pointerup on the canvas — pick results arrive async, this supplies
+   *  the modifier + screen position the PBI side needs. */
+  private lastPointerUp: PointerEvent | null = null
+  private unsubscribers: Array<() => void> = []
+  /** Streaming keep-alive: the renderer only issues geometry read-waves while frames
+   *  render, and its on-demand loop goes idle in an untouched report viewport — tick
+   *  requestRender while the stream is hot so whale models finish without interaction. */
+  private streamKeepAlive: ReturnType<typeof setInterval> | null = null
+  private lastStreamActivity = 0
+  private streamStatsDecay: ReturnType<typeof setTimeout> | null = null
 
   constructor() {
     this.emitter = createNanoEvents()
@@ -105,238 +153,396 @@ export class ViewerHandler {
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
     this.emitter.on('toggleSectionBox', this.toggleSectionBox)
     this.emitter.on('setSectionBoxVisible', this.setSectionBoxVisible)
+    this.bridge = createRendererBridge()
+    // Interactions exist from construction (they no-op until the renderer binds),
+    // so subscriptions registered before init still work.
+    this.interactions = createViewerInteractions({ renderer: this.bridge.handle })
   }
 
   async init(parent: HTMLElement) {
-    this.viewer = await createViewer(parent)
-    this.cameraControls = this.viewer.getExtension(CameraController)
-    this.filtering = this.viewer.getExtension(FilteringExtension)
-    this.selection = this.viewer.getExtension(FilteredSelectionExtension)
-    this.sectionTool = this.viewer.getExtension(SectionTool)
-    this.sectionOutlines = this.viewer.getExtension(SectionOutlines)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!(navigator as any).gpu) {
+      throw new Error(
+        'WebGPU is not available in this environment — viewer 3 cannot start. ' +
+          '(Power BI sandbox without navigator.gpu, or an unsupported browser.)'
+      )
+    }
+    // The renderer wants a canvas; the host hands us its container div.
+    const canvas = document.createElement('canvas')
+    canvas.style.cssText = 'display:block;width:100%;height:100%;touch-action:none'
+    parent.appendChild(canvas)
+    canvas.width = Math.max(1, canvas.clientWidth * devicePixelRatio)
+    canvas.height = Math.max(1, canvas.clientHeight * devicePixelRatio)
+    this.canvas = canvas
+
+    const renderer = await bootRenderer(canvas, this.bridge.emitter, {
+      restrictKeyInput: true
+    })
+    this.bridge.bind(renderer)
+    this.renderer = renderer
+    renderer.setTheme('light', true, false)
 
     const store = useVisualStore()
     if (store.isOrthoProjection) {
-      this.cameraControls.toggleCameras()
+      this.projectionMode = 'orthographic'
+      renderer.setProjection('orthographic')
     }
 
-    this.viewer.on(ViewerEvent.LoadComplete, () => {
-      store.clearLoadingProgress()
-    })
+    // Double-click on empty space = zoom extents (the renderer zooms to object on hits).
+    renderer.onDoubleClickMiss = () => this.zoomExtends()
 
-    // Set up event listener for filtered selection events
-    this.selection.on(FilteredSelectionEvent.FilteredObjectClicked, this.handleFilteredSelection)
+    // Streaming ticker (~1/s while frames render): pre-paint it enriches the blocking
+    // overlay with MB/s; post-paint it drives the small pill (5s decay, like frontend-3).
+    this.unsubscribers.push(
+      this.bridge.emitter.on('viewer:geomLoadStats', (payload) => {
+        const stats = payload as { mbPerSec?: number; inFlight?: number; totalMB?: number }
+        const active = (stats?.mbPerSec ?? 0) > 0.5 || (stats?.inFlight ?? 0) > 0
+        if (!active) return
+        this.lastStreamActivity = Date.now()
+        const mbPerSec = stats.mbPerSec ?? 0
+        const totalMB = stats.totalMB ?? 0
+        const progressStore = useVisualStore()
+        if (progressStore.loadingProgress) {
+          const rate = mbPerSec >= 0.05 ? ` — ${mbPerSec.toFixed(1)} MB/s` : ''
+          progressStore.setLoadingProgress(
+            `Streaming geometry (${totalMB.toFixed(0)} MB)${rate}`,
+            null
+          )
+        } else {
+          progressStore.setStreamingStats({ mbPerSec, totalMB })
+        }
+        if (this.streamStatsDecay) clearTimeout(this.streamStatsDecay)
+        this.streamStatsDecay = setTimeout(
+          () => useVisualStore().setStreamingStats(null),
+          5000
+        )
+      })
+    )
+
+    // Click → PBI cross-filter + tooltip. The interactions layer self-wires its own
+    // selection to this same pick event; we only translate it for the host.
+    canvas.addEventListener('pointerup', this.capturePointerUp, { capture: true })
+    this.unsubscribers.push(
+      this.bridge.emitter.on('viewer:placementsPicked', (payload) =>
+        this.handlePlacementsPicked(
+          payload as {
+            modelId: string
+            pickResult: {
+              placementIndex: number
+              hitPoint: { x: number; y: number; z: number }
+            } | null
+          }
+        )
+      )
+    )
+    console.log('🎥 Viewer 3 (WebGPU) is created!')
   }
 
   emit<E extends keyof IViewerEvents>(event: E, ...payload: Parameters<IViewerEvents[E]>): void {
     this.emitter.emit(event, ...payload)
   }
 
-  public zoomObjects = (objectIds: string[], animate = false) => {
-    /** Second argument here is for animating the camera movement. Default is false */
-    this.cameraControls.setCameraView(objectIds, animate)
+  // ── id translation ─────────────────────────────────────────────────────────
+
+  private applicationIdOf(ref: ObjectRef): string | null {
+    return this.dictionaries.get(ref.modelId)?.toApplicationId.get(ref.objectIndex) ?? null
   }
 
-  public zoomExtends = () => {
-    this.cameraControls.setCameraView(undefined, true)
-    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-  }
-
-  /** The viewer re-measures its container only on window resize, which the PBI
-   *  sandbox doesn't reliably fire — the host forwards its resize updates here. */
-  public resizeViewer = () => {
-    if (!this.viewer) return
-    this.viewer.resize()
-    this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-  }
-  public toggleProjection = () => this.cameraControls.toggleCameras()
-
-  public setView = (view: CanonicalView | SpeckleView) => {
-    this.cameraControls.setCameraView(view, false)
-    this.snapshotCameraPositionAndStore()
-  }
-
-  public toggleSectionBox = (enabled: boolean) => {
-    this.setSectionEnabled(enabled)
-    if (enabled) {
-      const sceneBox = this.viewer.getRenderer().sceneBox
-      this.sectionTool.setBox(sceneBox)
-      this.sectionTool.visible = true
-    }
-  }
-
-  public setSectionBoxVisible = (visible: boolean) => {
-    this.sectionTool.visible = visible
-  }
-
-  private setSectionEnabled(enabled: boolean): void {
-    this.sectionTool.enabled = enabled
-    this.sectionOutlines.enabled = enabled
-  }
-
-  public getSectionBoxData = (): string | null => {
-    if (!this.sectionTool.enabled) return null
-    const { center, halfSize } = this.sectionTool.getBox()
-    const min = new Vector3().copy(center).sub(halfSize)
-    const max = new Vector3().copy(center).add(halfSize)
-    return JSON.stringify({ min, max })
-  }
-
-  public applySectionBox = (boxData: string) => {
-    try {
-      const parsed = JSON.parse(boxData)
-
-      // Validate parsed data structure
-      if (!parsed?.min || !parsed?.max) {
-        throw new Error('Invalid section box data: missing min/max properties')
+  /** applicationIds → per-model dense-index groups, across every loaded model. */
+  private toGroups(objectIds: string[]): ObjectGroup[] {
+    const groups: ObjectGroup[] = []
+    for (const [modelId, dict] of this.dictionaries) {
+      const objectIndexes: number[] = []
+      for (const id of objectIds) {
+        const index = dict.toIndex.get(id)
+        if (index !== undefined) objectIndexes.push(index)
       }
-
-      const box = new Box3(
-        new Vector3(parsed.min.x, parsed.min.y, parsed.min.z),
-        new Vector3(parsed.max.x, parsed.max.y, parsed.max.z)
-      )
-
-      this.setSectionEnabled(true)
-      this.sectionTool.setBox(box)
-      this.sectionTool.visible = false
-      this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-      // Force section outlines recomputation after geometry is rendered
-      requestAnimationFrame(() => {
-        this.sectionOutlines.requestUpdate(true)
-        this.viewer.requestRender(UpdateFlags.RENDER_RESET)
-      })
-    } catch (error) {
-      console.error('Failed to apply section box, disabling feature:', error)
-      this.setSectionEnabled(false)
-      // Visual continues loading normally without section box
+      if (objectIndexes.length > 0) groups.push({ modelId, objectIndexes })
     }
+    return groups
   }
 
-  public setViewMode(viewMode: ViewMode, options?: ViewModeOptions) {
-    const viewModes = this.viewer.getExtension(ViewModes)
-    viewModes.setViewMode(viewMode, options)
-  }
-
-  public snapshotCameraPositionAndStore = () => {
-    console.log('🎬 Storing the camera position into file')
-    const cameraController = this.viewer.getExtension(CameraController)
-    const position = cameraController.getPosition()
-    const target = cameraController.getTarget()
-    const store = useVisualStore()
-    store.writeCameraPositionToFile(position, target)
-  }
-
-  public selectObjects = (objectIds: string[]) => {
-    console.log('🔗 Handling setSelection inside ViewerHandler:', objectIds)
-    if (objectIds) {
-      this.selection.selectObjects(objectIds)
-    }
-  }
-
-  public filterSelection = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
-    console.log('🔗 Handling filterSelection inside ViewerHandler')
-    if (objectIds) {
-      this.unIsolateObjects()
-      this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
-      if (zoom) {
-        this.zoomObjects(objectIds, true)
-      }
-    }
-  }
-
-  public resetFilter = (objectIds: string[], ghost: boolean, zoom: boolean = true) => {
-    console.log('🔗 Handling filterSelection inside ViewerHandler')
-    if (objectIds) {
-      this.isolateObjects(objectIds, ghost)
-      if (zoom) {
-        this.zoomObjects(objectIds, true)
-      }
-    }
-  }
-
-  public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
-    this.filteringState = this.filtering.setUserObjectColors(colorByIds ?? [])
-  }
-
-  public isolateObjects = (objectIds: string[], ghost: boolean) => {
-    this.unIsolateObjects()
-    this.filteringState = this.filtering.isolateObjects(objectIds, 'powerbi', true, ghost)
-  }
-
-  public toggleGhostHidden = (ghost: boolean) => {
-    this.filteringState = this.filtering.isolateObjects(
-      this.filteringState.isolatedObjects,
-      'powerbi',
-      true,
-      ghost
+  private toRefs(objectIds: string[]): ObjectRef[] {
+    return this.toGroups(objectIds).flatMap((g) =>
+      g.objectIndexes.map((objectIndex) => ({ modelId: g.modelId, objectIndex }))
     )
   }
 
-  public unIsolateObjects = () => {
-    if (this.filteringState && this.filteringState.isolatedObjects) {
-      this.filteringState = this.filtering.unIsolateObjects(
-        this.filteringState.isolatedObjects,
-        'powerbi',
-        true
-      )
+  // ── camera ─────────────────────────────────────────────────────────────────
+
+  public zoomObjects = (objectIds: string[]) => {
+    if (!this.renderer) return
+    zoomToObjects(this.renderer, this.toGroups(objectIds))
+  }
+
+  public zoomExtends = () => {
+    if (!this.renderer) return
+    zoomToObjects(this.renderer)
+  }
+
+  /** The renderer re-measures only on window resize, which the PBI sandbox doesn't
+   *  reliably fire — the host forwards its resize updates here. */
+  public resizeViewer = () => {
+    if (!this.renderer || !this.canvas) return
+    this.canvas.width = Math.max(1, this.canvas.clientWidth * devicePixelRatio)
+    this.canvas.height = Math.max(1, this.canvas.clientHeight * devicePixelRatio)
+    this.renderer.requestResize()
+    this.renderer.requestRender()
+  }
+
+  public toggleProjection = () => {
+    if (!this.renderer) return
+    this.projectionMode =
+      this.projectionMode === 'perspective' ? 'orthographic' : 'perspective'
+    this.renderer.setProjection(this.projectionMode)
+  }
+
+  public setView = (view: CanonicalView | { name?: string }) => {
+    if (!this.renderer) return
+    if (typeof view === 'string') {
+      setCanonicalView(this.renderer, view)
+      this.snapshotCameraPositionAndStore()
+    }
+    // SpeckleView objects (named scene views) don't exist on the artifact path.
+  }
+
+  public snapshotCameraPositionAndStore = () => {
+    if (!this.renderer) return
+    const state = cameraStateOf(this.renderer)
+    const [px, py, pz] = state.position
+    const [tx, ty, tz] = state.target
+    const store = useVisualStore()
+    store.writeCameraPositionToFile(
+      { x: px, y: py, z: pz } as never,
+      { x: tx, y: ty, z: tz } as never
+    )
+  }
+
+  // ── section box: not yet ported to viewer 3 (renderer.setClipPlanes exists; the
+  //    interactive gizmo lives in @speckle/viewer-tools' Clipping — follow-up). ────
+
+  public toggleSectionBox = (enabled: boolean) => {
+    if (enabled) console.warn('section box is not yet available on the viewer-3 path')
+  }
+
+  public setSectionBoxVisible = (_visible: boolean) => {
+    /* not yet available on the viewer-3 path */
+  }
+
+  public getSectionBoxData = (): string | null => null
+
+  public applySectionBox = (_boxData: string) => {
+    /* not yet available on the viewer-3 path */
+  }
+
+  public setViewMode = (viewMode: number, _options?: ViewModeOptions) => {
+    // v2 view modes (pen/arctic/edges) have no viewer-3 equivalent yet.
+    if (viewMode) console.warn('view modes are not yet available on the viewer-3 path')
+  }
+
+  // ── selection / visibility / colors (all applicationId-keyed) ──────────────
+
+  public selectObjects = (objectIds: string[] | null) => {
+    if (!this.interactions) return
+    if (objectIds && objectIds.length > 0) {
+      this.interactions.select(this.toRefs(objectIds))
+    } else {
+      this.interactions.clearSelection()
     }
   }
 
+  /**
+   * FAIL-OPEN guard for the filter channel: in the interactions layer an active filter
+   * matching NOTHING hides the whole scene. When the host hands us ids but none resolve
+   * through the dictionary (dictionary fetch failed, id-space mismatch, or the dictionary
+   * hasn't landed yet), applying the resolved-empty filter would blank the model — clear
+   * the filter instead and shout the diagnosis.
+   */
+  private resolveFilterGroups(objectIds: string[], caller: string): ObjectGroup[] | null {
+    const groups = this.toGroups(objectIds)
+    const resolved = groups.reduce((n, g) => n + g.objectIndexes.length, 0)
+    if (objectIds.length > 0 && resolved === 0) {
+      const dictSummary =
+        [...this.dictionaries.entries()]
+          .map(([id, d]) => `${id}:${d.toIndex.size}`)
+          .join(', ') || 'NO DICTIONARIES LOADED'
+      console.error(
+        `[viewer3] ${caller}: 0 of ${objectIds.length} applicationIds resolved — ` +
+          `failing open (no filter). dictionaries=[${dictSummary}] ` +
+          `sample ids=${JSON.stringify(objectIds.slice(0, 3))}`
+      )
+      return null
+    }
+    console.log(
+      `[viewer3] ${caller}: resolved ${resolved}/${objectIds.length} ids across ` +
+        `${groups.length} model(s)`
+    )
+    return groups
+  }
 
+  /** PBI cross-filter highlight: the view shows exactly these objects. `ghost` has no
+   *  viewer-3 equivalent yet (filtered-out objects hide instead of ghosting). */
+  public filterSelection = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
+    if (!this.interactions || !objectIds) return
+    this.interactions.setFilter(this.resolveFilterGroups(objectIds, 'filterSelection'))
+    if (zoom) this.zoomObjects(objectIds)
+  }
+
+  public resetFilter = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
+    if (!this.interactions || !objectIds) return
+    // Back to "everything the data view contains" — same declarative channel.
+    this.interactions.setFilter(this.resolveFilterGroups(objectIds, 'resetFilter'))
+    if (zoom) this.zoomObjects(objectIds)
+  }
+
+  public colorObjectsByGroup = (colorByIds: ColorBy[]) => {
+    if (!this.interactions) return
+    if (!colorByIds || colorByIds.length === 0) {
+      this.interactions.setColors(null)
+      return
+    }
+    this.interactions.setColors(
+      colorByIds.flatMap((group) => {
+        const color = hexToRgba(group.color)
+        return this.toGroups(group.objectIds).map((g) => ({ ...g, color }))
+      })
+    )
+  }
+
+  public isolateObjects = (objectIds: string[]) => {
+    if (!this.interactions) return
+    this.interactions.setIsolation(this.toGroups(objectIds))
+  }
+
+  public toggleGhostHidden = (_ghost: boolean) => {
+    // Ghosting is not available on the viewer-3 path yet; filtered objects hide.
+    console.warn('ghost mode is not yet available on the viewer-3 path')
+  }
+
+  public unIsolateObjects = () => {
+    this.interactions?.showAll()
+  }
+
+  // ── loading ────────────────────────────────────────────────────────────────
+
+  /** Keep the on-demand frame loop ticking while geometry is still streaming so the
+   *  socket keeps serving waves without user interaction. Stops after 10s of stream
+   *  quiet (or a 15-min cap for pathologically slow links). */
+  private startStreamKeepAlive() {
+    this.stopStreamKeepAlive()
+    const startedAt = Date.now()
+    this.lastStreamActivity = Date.now()
+    this.streamKeepAlive = setInterval(() => {
+      const quietMs = Date.now() - this.lastStreamActivity
+      const totalMs = Date.now() - startedAt
+      if (quietMs > 10_000 || totalMs > 900_000) {
+        this.stopStreamKeepAlive()
+        return
+      }
+      this.renderer?.requestRender()
+    }, 250) // wave cadence is per-frame: 4 ticks/s ≈ 4 read-waves/s on an idle viewport
+  }
+
+  private stopStreamKeepAlive() {
+    if (this.streamKeepAlive) {
+      clearInterval(this.streamKeepAlive)
+      this.streamKeepAlive = null
+    }
+  }
 
   public loadModels = async (models: DecodedModelInfo[]) => {
-    // disable section box before unloading to prevent stale geometry references.
-    // it will be re-applied from store after new objects are loaded (see applySectionBox below).
-    this.toggleSectionBox(false)
-    await this.viewer.unloadAll()
-
     const store = useVisualStore()
+    const renderer = this.renderer
+    if (!renderer) return
+
+    for (const rendererModelId of this.loadedModelIds) renderer.removeModel(rendererModelId)
+    this.loadedModelIds = []
+    this.dictionaries.clear()
 
     // legacy-pipeline models can't be rendered by the artifact loader; the UI
     // explains this (see ViewerWrapper) — only artifact models are loaded
     const artifactModels = models.filter((m) => m.pipeline === 'artifact')
 
-    for (const model of artifactModels) {
-      const artifactsUrl = `${model.server}/api/v2/projects/${model.projectId}/models/${model.modelId}/versions/${model.versionId}/artifacts`
-      // duckdb loader in forced in-memory mode — the PBI sandbox denies OPFS,
-      // and our webpack build inlines the engine worker (data: URL, opaque
-      // origin) so OPFS is unavailable even outside the Service
-      const loader = new SpecklePackfileLoader2(
-        this.viewer.getWorldTree(),
-        artifactsUrl,
-        model.token,
-        undefined,
-        true
-      )
-      // Step-based loading UI: the loader names its pipeline stage on each
-      // LoadProgress event; we render "Step k/4 — label" with the indeterminate
-      // spinner instead of pretending the fractions mean anything (the phase
-      // weights are heuristic). The overlay is cleared only by
-      // ViewerEvent.LoadComplete, when pixels are actually on screen.
-      const LOAD_STEPS: Record<string, { step: number; label: string }> = {
-        download: { step: 1, label: 'Downloading data' },
-        prepare: { step: 2, label: 'Preparing data' },
-        decode: { step: 3, label: 'Decoding geometry' },
-        build: { step: 4, label: 'Building scene' }
+    const onProgress = (p: LoadProgress): void => {
+      switch (p.phase) {
+        case 'index':
+          store.setLoadingProgress('Fetching index', null)
+          break
+        case 'preparing': {
+          const pct =
+            p.bytesTotal && p.bytesTotal > 0
+              ? ` (${Math.round((p.bytesLoaded / p.bytesTotal) * 100)}%)`
+              : ''
+          store.setLoadingProgress(`Preparing 3D stream${pct}`, null)
+          break
+        }
+        case 'painting':
+          // First paint: drop the blocking overlay — geometry keeps streaming in
+          // behind it (out-of-core: there is deliberately no "100% loaded").
+          store.clearLoadingProgress()
+          break
+        default:
+          break
       }
-      let lastStage = ''
-      const setStep = (stage: string) => {
-        if (stage === lastStage) return
-        const s = LOAD_STEPS[stage]
-        if (!s) return
-        lastStage = stage
-        store.setLoadingProgress(`Step ${s.step}/4 — ${s.label}`, null)
-      }
-      loader.on(LoaderEvent.LoadProgress, (arg: { stage?: string }) => {
-        if (arg?.stage) setStep(arg.stage)
-      })
-      loader.on(LoaderEvent.Converted, () => setStep('build'))
-      loader.on(LoaderEvent.LoadWarning, (arg: { message?: string }) => {
-        console.warn('Loader warning:', arg?.message)
-      })
+    }
 
-      await this.viewer.loadObject(loader, true)
-      this.viewer.getRenderer().shadowcatcher.shadowcatcherMesh.visible = false // works fine only right after load
+    for (const model of artifactModels) {
+      // Any failure in this chain used to strand the loading overlay silently
+      // (loadModels runs fire-and-forget off the emitter) — surface it instead.
+      let payload
+      try {
+        const artifactsUrl = buildArtifactsUrl(model.server, model)
+        payload = await fetchArtifactsPayload(artifactsUrl, model.token)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[viewer3] artifacts fetch failed for ${model.versionId}`, err)
+        store.setLoadingProgress(`Load failed: ${msg}`, null)
+        continue
+      }
+
+      // The applicationId dictionary rides alongside the paint — both only need the
+      // artifacts payload. Selection/coloring wake up when both land.
+      const dictionaryPromise = loadObjectsDictionary(payload.files)
+
+      store.setLoadingProgress('Streaming geometry', null)
+      try {
+        await loadRemoteOnly({
+          renderer,
+          serverUrl: model.server,
+          token: model.token,
+          versionId: model.versionId,
+          modelName: model.modelId,
+          payload,
+          residencyFraction: RESIDENCY_FRACTION,
+          onProgress
+        })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[viewer3] remote stream failed for ${model.versionId}`, err)
+        store.setLoadingProgress(`Stream failed: ${msg}`, null)
+        void dictionaryPromise.catch(() => undefined)
+        continue
+      }
+      // The renderer registers the model under `bundle_${versionId}` (its internal
+      // artifact id — the id picks report and getModelMaps expects). Key EVERYTHING
+      // by that id or every paint/pick silently no-ops.
+      const rendererModelId = `bundle_${model.versionId}`
+      this.loadedModelIds.push(rendererModelId)
+      this.startStreamKeepAlive()
+
+      try {
+        const dictionary = await dictionaryPromise
+        this.dictionaries.set(rendererModelId, dictionary)
+        console.log(
+          `[viewer3] objects dictionary for ${rendererModelId}: ` +
+            `${dictionary.toIndex.size} applicationIds mapped`
+        )
+      } catch (err) {
+        console.error(
+          `objects dictionary failed for ${model.versionId} — selection/coloring degraded`,
+          err
+        )
+      }
     }
 
     // re-measure + full render now that layout settled — in the PBI sandbox the
@@ -345,47 +551,30 @@ export class ViewerHandler {
 
     // scene views from the object graph don't exist on the artifact path
     store.setSpeckleViews([])
-    if (store.defaultViewModeInFile) {
-      const viewMode = Number(store.defaultViewModeInFile) as ViewMode
-      // Apply view mode with edges options from store (with safe defaults)
-      const edgesEnabled = store.edgesEnabled ?? true
-      const edgesWeight = store.edgesWeight ?? 1
-      const edgesColor = store.edgesColor ?? 'auto'
-      const options: ViewModeOptions = {
-        edges: edgesEnabled,
-        outlineThickness: edgesWeight,
-        outlineOpacity: viewMode === ViewMode.PEN ? 1 : 0.75,
-        outlineColor: edgesColor === 'auto' ? undefined : edgesColor
-      }
-      this.setViewMode(viewMode, options)
-    }
 
     Tracker.dataLoaded({
       sourceHostApp: store.receiveInfo.sourceApplication,
       workspace_id: store.receiveInfo.workspaceId,
       core_version: store.receiveInfo.version
     })
-    if (store.cameraPosition) {
-      const position = new Vector3(
-        store.cameraPosition[0],
-        store.cameraPosition[1],
-        store.cameraPosition[2]
-      )
-      const target = new Vector3(
-        store.cameraPosition[3],
-        store.cameraPosition[4],
-        store.cameraPosition[5]
-      )
-      this.cameraControls.setCameraView({ position, target }, true)
-    }
 
-    if (store.sectionBoxData) {
-      this.applySectionBox(store.sectionBoxData)
+    if (store.cameraPosition) {
+      const [px, py, pz, tx, ty, tz] = store.cameraPosition
+      const controls = renderer.getCameraRig()
+      type WorldPoint = Parameters<typeof controls.fromPositionAndTarget>[0]
+      controls.fromPositionAndTarget(
+        { x: px, y: py, z: pz } as WorldPoint,
+        { x: tx, y: ty, z: tz } as WorldPoint
+      )
+    } else {
+      this.zoomExtends()
     }
 
     // Emit objects loaded event to trigger update
     this.emit('objectsLoaded')
   }
+
+  // ── event plumbing ─────────────────────────────────────────────────────────
 
   private handlePing = (message: string) => {
     console.log(message)
@@ -398,58 +587,56 @@ export class ViewerHandler {
     store.handleObjectsLoadedComplete()
   }
 
-  private handleFilteredSelection = (selection: SelectionEvent | null) => {
-    let hit: Hit | null = null
-    let isMultiSelect = false
-    let mouseEvent: PointerEvent | undefined = undefined
+  private capturePointerUp = (ev: PointerEvent) => {
+    this.lastPointerUp = ev
+  }
 
-    if (selection && selection.hits.length > 0) {
-      // hits land on mesh nodes — resolve to the object node so guid is the
-      // applicationId shared with the data rows
-      const firstHit = selection.hits[0]
-      const objectNode = resolveObjectNode(firstHit.node)
-      const model = objectNode ? objectNode.model : firstHit.node.model
-      hit = {
-        guid: model.id,
-        object: model.raw,
-        point: {
-          x: firstHit.point.x,
-          y: firstHit.point.y,
-          z: firstHit.point.z
+  /** The renderer's pick result → the host's Hit (guid = applicationId). */
+  private handlePlacementsPicked = (payload: {
+    modelId: string
+    pickResult: {
+      placementIndex: number
+      hitPoint: { x: number; y: number; z: number }
+    } | null
+  }) => {
+    const ev = this.lastPointerUp ?? undefined
+    const isMultiSelect = !!ev && (ev.ctrlKey || ev.shiftKey || ev.metaKey)
+
+    let hit: Hit | null = null
+    const pick = payload.pickResult
+    if (pick && this.renderer) {
+      const maps = this.renderer.getModelMaps(payload.modelId)
+      const objectIndex = maps?.placementObjectIdx[pick.placementIndex]
+      const appId =
+        objectIndex !== undefined
+          ? this.applicationIdOf({ modelId: payload.modelId, objectIndex })
+          : null
+      if (appId) {
+        hit = {
+          guid: appId,
+          object: { id: appId, applicationId: appId },
+          point: { x: pick.hitPoint.x, y: pick.hitPoint.y, z: pick.hitPoint.z }
         }
       }
-      isMultiSelect = selection.multiple
-      mouseEvent = selection.event
     }
-
-    // Emit the objectClicked event for ViewerWrapper to handle
-    this.emit('objectClicked', hit, isMultiSelect, mouseEvent)
+    this.emit('objectClicked', hit, isMultiSelect, ev)
   }
-
-
 
   public dispose() {
-    this.viewer.getExtension(CameraController).dispose()
-    this.viewer.dispose()
-    this.viewer = null
+    this.stopStreamKeepAlive()
+    if (this.streamStatsDecay) clearTimeout(this.streamStatsDecay)
+    useVisualStore().setStreamingStats(null)
+    for (const unsubscribe of this.unsubscribers) unsubscribe()
+    this.unsubscribers = []
+    this.canvas?.removeEventListener('pointerup', this.capturePointerUp, {
+      capture: true
+    } as EventListenerOptions)
+    this.interactions?.dispose()
+    this.interactions = null
+    this.bridge.unbind()
+    this.renderer?.dispose()
+    this.renderer = null
+    this.canvas?.remove()
+    this.canvas = null
   }
-}
-
-const createViewer = async (parent: HTMLElement): Promise<Viewer> => {
-  const viewerSettings = DefaultViewerParams
-  viewerSettings.showStats = false
-  viewerSettings.verbose = false
-  const viewer = new Viewer(parent, viewerSettings)
-  await viewer.init()
-
-  viewer.createExtension(HybridCameraController) // camera controller
-  viewer.createExtension(FilteringExtension) // filtering - must be created before FilteredSelectionExtension
-  viewer.createExtension(FilteredSelectionExtension) // filtered selection helper - depends on FilteringExtension
-  viewer.createExtension(SectionTool) // section tool
-  viewer.createExtension(SectionOutlines) // section outlines
-  // viewer.createExtension(MeasurementsExtension) // measurements, possibly not needed for now?
-  viewer.createExtension(ViewModes) // view modes
-
-  console.log('🎥 Viewer is created!')
-  return viewer
 }

@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ArrowsPointingOutIcon, ScissorsIcon } from '@heroicons/vue/24/solid'
-import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
+import { CanonicalView, SpeckleView, ViewMode } from '@src/viewer3/compatTypes'
 import { computed, ref } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerControlsButtonGroup from './viewer/controls/ViewerControlsButtonGroup.vue'

@@ -103,6 +103,19 @@
       </FormButton>
     </div>
 
+    <!-- the ONE loading-status home: blocking-phase text (index/preparing/streaming
+         pre-paint — the center shows only a spinner) hands over to the post-paint
+         out-of-core streaming ticker. Rate is instantaneous and legitimately 0
+         between response waves on slow links — cumulative MB always, rate only
+         when it means something -->
+    <div
+      v-if="loadingStatusText"
+      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow cursor-default"
+    >
+      <span class="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+      <span>{{ loadingStatusText }}</span>
+    </div>
+
     <div v-if="sectionBoxVisible" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex gap-2">
       <FormButton size="sm" color="outline" @click="onSectionBoxReset">Reset</FormButton>
       <FormButton size="sm" @click="onSectionBoxDone">Done</FormButton>
@@ -149,7 +162,7 @@ import FormButton from '@src/components/form/FormButton.vue'
 import { computed, inject, onBeforeUnmount, onMounted, Ref, ref } from 'vue'
 import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
-import { SpeckleView } from '@speckle/viewer'
+import { SpeckleView } from '@src/viewer3/compatTypes'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { useVisualStore } from '@src/store/visualStore'
 import { ViewerHandler } from '@src/plugins/viewer'
@@ -175,6 +188,15 @@ const views: Ref<SpeckleView[]> = ref([])
 const isInteractive = computed(
   () => visualStore.fieldInputState.modelInfo && visualStore.fieldInputState.applicationIds
 )
+
+// Bottom-left status pill: blocking-phase text wins; streaming ticker takes over post-paint
+const loadingStatusText = computed(() => {
+  if (visualStore.loadingProgress) return visualStore.loadingProgress.summary
+  const stats = visualStore.streamingStats
+  if (!stats) return null
+  const rate = stats.mbPerSec >= 0.05 ? ` · ${stats.mbPerSec.toFixed(1)} MB/s` : ''
+  return `Streaming — ${stats.totalMB.toFixed(0)} MB${rate}`
+})
 
 const hasLegacyModels = computed(() => visualStore.dataInput?.hasLegacyModels ?? false)
 

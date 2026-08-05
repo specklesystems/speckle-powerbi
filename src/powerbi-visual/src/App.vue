@@ -1,10 +1,13 @@
 <template>
+  <!-- Blocking-phase indicator: a bare spinner — the phase TEXT lives in the
+       bottom-left status pill (ViewerWrapper), one home for all loading state -->
   <div
     v-if="visualStore.loadingProgress"
-    class="absolute top-1/2 left-1/2 w-1/2 -translate-x-1/2 z-50 text-center text-sm"
+    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
   >
-    <!-- Progress Bar -->
-    <LoadingBar :progress="visualStore.loadingProgress"></LoadingBar>
+    <div
+      class="w-8 h-8 rounded-full border-[3px] border-blue-500/25 border-t-blue-500 animate-spin"
+    ></div>
   </div>
 
   <div
@@ -23,7 +26,6 @@ import HomeView from './views/HomeView.vue'
 import ViewerView from './views/ViewerView.vue'
 import { onMounted } from 'vue'
 import { useVisualStore } from './store/visualStore'
-import LoadingBar from '@src/components/loading/LoadingBar.vue'
 
 const visualStore = useVisualStore()
 

@@ -51,7 +51,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { VideoCameraIcon } from '@heroicons/vue/24/outline'
-import type { CanonicalView, SpeckleView } from '@speckle/viewer'
+import type { CanonicalView, SpeckleView } from '@src/viewer3/compatTypes'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerMenu from '../menu/ViewerMenu.vue'
 import ViewerMenuItem from '../menu/ViewerMenuItem.vue'

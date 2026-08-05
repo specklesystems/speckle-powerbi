@@ -1,11 +1,10 @@
-import { CanonicalView, SpeckleView, ViewMode } from '@speckle/viewer'
+import { CanonicalView, SpeckleView, ViewMode, Vector3Like } from '@src/viewer3/compatTypes'
 import { Version } from '@src/composables/useUpdateConnector'
 import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
 import { defineStore } from 'pinia'
-import { Vector3 } from 'three'
 import { computed, ref, shallowRef } from 'vue'
 
 export type InputState = 'valid' | 'incomplete' | 'invalid'
@@ -25,6 +24,10 @@ export const useVisualStore = defineStore('visualStore', () => {
   const host = shallowRef<powerbi.extensibility.visual.IVisualHost>()
   const formattingSettings = ref<SpeckleVisualSettingsModel>()
   const loadingProgress = ref<LoadingProgress>(undefined)
+  // Post-paint out-of-core streaming ticker (viewer:geomLoadStats) — shown as a
+  // small pill, not the blocking overlay; null = streaming idle. mbPerSec is the
+  // instantaneous rate (0 between response waves on slow links); totalMB is cumulative.
+  const streamingStats = ref<{ mbPerSec: number; totalMB: number } | null>(null)
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
   const postClickSkipNeeded = ref<boolean>(false)
@@ -157,6 +160,10 @@ export const useVisualStore = defineStore('visualStore', () => {
 
   const clearLoadingProgress = () => {
     loadingProgress.value = undefined
+  }
+
+  const setStreamingStats = (stats: { mbPerSec: number; totalMB: number } | null) => {
+    streamingStats.value = stats
   }
 
   /**
@@ -348,7 +355,7 @@ export const useVisualStore = defineStore('visualStore', () => {
     })
   }
 
-  const writeCameraPositionToFile = (position: Vector3, target: Vector3) => {
+  const writeCameraPositionToFile = (position: Vector3Like, target: Vector3Like) => {
     // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
     postFileSaveSkipNeeded.value = true
     host.value.persistProperties({
@@ -595,6 +602,8 @@ export const useVisualStore = defineStore('visualStore', () => {
     setViewerReadyToLoad,
     setLoadingProgress,
     clearLoadingProgress,
+    streamingStats,
+    setStreamingStats,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete

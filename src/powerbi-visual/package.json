@@ -14,35 +14,24 @@
   },
   "dependencies": {
     "@heroicons/vue": "^2.0.12",
-    "@speckle/eav-queries": "file:../../../speckle-server-internal/packages/eav-queries",
-    "@speckle/objectloader2": "file:../../../speckle-server-internal/packages/objectloader2",
-    "@speckle/packfile-manager": "file:../../../speckle-server-internal/packages/packfile-manager",
-    "@speckle/shared": "file:../../../speckle-server-internal/packages/shared",
-    "@speckle/viewer": "file:../../../speckle-server-internal/packages/viewer",
+    "@speckle/viewer-tools": "2026.8.5",
+    "@speckle/viewer-webgpu": "2026.8.5",
     "@vueuse/core": "^13.2.0",
-    "core-js": "^3.30.2",
-    "lodash": "^4.17.21",
+    "hyparquet": "^1.16.0",
+    "hyparquet-compressors": "^1.1.1",
     "nanoevents": "^9.1.0",
     "pinia": "^2.3.0",
     "powerbi-visuals-utils-dataviewutils": "^6.1.0",
     "powerbi-visuals-utils-formattingmodel": "^6.0.4",
-    "regenerator-runtime": "^0.13.11",
     "vue-tippy": "^6.7.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.21.8",
-    "@babel/eslint-parser": "^7.21.8",
-    "@babel/preset-env": "^7.21.5",
     "@tailwindcss/forms": "^0.5.3",
-    "@types/lodash": "^4.14.194",
     "@types/node": "^20.1.7",
-    "@types/regenerator-runtime": "^0.13.1",
-    "@types/three": "^0.140.0",
     "@types/webpack": "^5.28.1",
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
     "autoprefixer": "^10.4.14",
-    "babel-loader": "^9.1.2",
     "base64-inline-loader": "^2.0.1",
     "css-loader": "^6.7.3",
     "eslint": "^8.40.0",
@@ -50,17 +39,13 @@
     "eslint-plugin-vue": "^9.13.0",
     "extra-watch-webpack-plugin": "^1.0.3",
     "html-webpack-plugin": "^5.6.3",
-    "json-loader": "^0.5.7",
     "mini-css-extract-plugin": "^2.7.5",
     "postcss": "^8.4.23",
-    "postcss-import": "^15.1.0",
     "postcss-loader": "^7.3.0",
     "postcss-nesting": "^14.0.0",
     "powerbi-visuals-api": "^5.11.0",
-    "powerbi-visuals-tools": "^5.6.0",
     "powerbi-visuals-webpack-plugin": "^4.1.0",
     "prettier": "^2.8.8",
-    "style-loader": "^3.3.2",
     "tailwindcss": "^3.3.2",
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
@@ -70,7 +55,6 @@
     "vue": "^3.5.13",
     "vue-loader": "^17.4.2",
     "webpack": "^5.97.1",
-    "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.15.2"
   },
@@ -78,11 +62,5 @@
   "engines": {
     "node": "^20.17.0"
   },
-  "packageManager": "npm@11.14.1",
-  "overrides": {
-    "@speckle/shared": "$@speckle/shared",
-    "@speckle/objectloader2": "$@speckle/objectloader2",
-    "@speckle/packfile-manager": "$@speckle/packfile-manager",
-    "@speckle/eav-queries": "$@speckle/eav-queries"
-  }
+  "packageManager": "npm@11.14.1"
 }

@@ -4,7 +4,6 @@ import path from 'path'
 // api configuration
 import powerbi from 'powerbi-visuals-api'
 import ExtraWatchWebpackPlugin from 'extra-watch-webpack-plugin'
-import { BundleAnalyzerPlugin as Visualizer } from 'webpack-bundle-analyzer'
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
 import { PowerBICustomVisualsWebpackPlugin } from 'powerbi-visuals-webpack-plugin'
 import webpack from 'webpack'
@@ -37,27 +36,6 @@ const capabilitiesFile = require(path.join(__dirname, capabilitiesPath))
 // string resources
 const resourcesFolder = path.join('.', 'stringResources')
 const localizationFolders = fs.existsSync(resourcesFolder) && fs.readdirSync(resourcesFolder)
-const statsLocation = '../../webpack.statistics.html'
-
-// babel options to support IE11
-const babelOptions = {
-  presets: [
-    [
-      '@babel/preset-env',
-      {
-        targets: {
-          ie: '11'
-        },
-        useBuiltIns: 'entry',
-        corejs: 3,
-        modules: false
-      }
-    ]
-  ],
-  plugins: [],
-  sourceType: 'unambiguous', // tell to babel that the project can contain different module types, not only es2015 modules
-  cacheDirectory: path.join('.tmp', 'babelCache') // path for cache files
-}
 
 export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
   const isProd = params.mode === 'prod'
@@ -117,18 +95,12 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             amd: false
           }
         },
+        // No babel anywhere: the viewer-3 visual requires WebGPU, i.e. modern
+        // Chromium — ts-loader's es2020 output runs as-is (the old babel/IE11/
+        // core-js layer was removed with the rewrite).
         {
           test: /(\.ts)x|\.ts$/,
           use: [
-            {
-              loader: 'babel-loader',
-              options: {
-                presets: [
-                  // '@babel/react',
-                  '@babel/env'
-                ]
-              }
-            },
             {
               loader: 'ts-loader',
               options: {
@@ -142,21 +114,6 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           include: /.tmp|powerbi-visuals-|src|precompile\\visualPlugin.ts/
         },
         {
-          test: /(\.js)x|\.js$/,
-          use: [
-            {
-              loader: 'babel-loader',
-              options: babelOptions
-            }
-          ],
-          exclude: [/node_modules/]
-        },
-        {
-          test: /\.json$/,
-          loader: 'json-loader',
-          type: 'javascript/auto'
-        },
-        {
           test: /\.(css|scss)?$/,
           use: [MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader']
         },
@@ -165,50 +122,28 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           use: ['base64-inline-loader']
         },
         {
-          // duckdb's nested browser worker (~800KB) is imported `?url` and
-          // constructed via `new Worker(url)` INSIDE the packfile worker. A
-          // cross-origin script URL is CSP-blocked there and the worker can't
-          // run the shim; inline it as a data: URL so `new Worker(data:...)`
-          // works natively (probe-verified: data: workers pass in the Service).
-          test: /duckdb-browser.*worker.*\.js$/,
+          // Any remaining `?url` imports — emit as files with an absolute URL
+          // (publicPath), fetched cross-origin with CORS. The 33-37MB duckdb
+          // wasm that motivated this rule is gone with the viewer-3 rewrite
+          // (the remote geometry stream needs no duckdb); kept for future assets.
           resourceQuery: /url/,
-          type: 'asset/inline'
-        },
-        {
-          // Other `?url` imports (the 33-37MB duckdb wasm) — far too big to
-          // inline; emit as files with an absolute URL (publicPath). Fetched
-          // cross-origin with CORS from the worker. Prod hosts these on Speckle.
-          // Exclude the browser worker so the asset/inline rule above wins
-          // (otherwise this later rule's `type` overrides it).
-          resourceQuery: /url/,
-          exclude: /duckdb-browser.*worker.*\.js$/,
           type: 'asset/resource'
         }
       ]
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.css'],
+      // the vendored ts-sdk sources use ESM-style `./x.js` specifiers for `.ts`
+      // files (tshy convention); teach webpack the same mapping tsc's
+      // moduleResolution:bundler applies
+      extensionAlias: {
+        '.js': ['.ts', '.js']
+      },
       alias: {
         src: path.resolve(__dirname, 'src/'),
-        assets: path.resolve(__dirname, 'assets/'),
-        // one three instance for the visual AND the locally-linked viewer
-        // packages (file: symlinks resolve deps in the monorepo, not here)
-        three: path.resolve(
-          __dirname,
-          '../../../speckle-server-internal/node_modules/three'
-        ),
-        // duckdb-wasm's exports field blocks the worker subpaths that
-        // packfile-manager imports with `?url`; alias straight to the files.
-        // Must point at the monorepo copy — it carries the yarn patch whose
-        // JS glue matches the vendored wasm binaries.
-        '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js': path.resolve(
-          __dirname,
-          '../../../speckle-server-internal/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js'
-        ),
-        '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js': path.resolve(
-          __dirname,
-          '../../../speckle-server-internal/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js'
-        )
+        assets: path.resolve(__dirname, 'assets/')
+        // (the viewer-3 rewrite removed the `three` + duckdb-wasm aliases: the
+        // WebGPU renderer bundles threejs-math and spawns no duckdb workers)
       },
       plugins: [new TsconfigPathsPlugin()],
       mainFields: ['module', 'browser', 'main']
@@ -299,11 +234,6 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
       new MiniCssExtractPlugin({
         filename: 'visual.css',
         chunkFilename: '[id].css'
-      }),
-      new Visualizer({
-        reportFilename: statsLocation,
-        openAnalyzer: false,
-        analyzerMode: `static`
       }),
       // visual plugin regenerates with the visual source, but it does not require relaunching dev server
       new webpack.WatchIgnorePlugin({

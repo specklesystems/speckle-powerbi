@@ -19,7 +19,6 @@
  * Everything is caught and rendered in-panel; nothing intentionally throws
  * into the host, so the sandbox's crash-prone sendError reporter never runs.
  */
-import '../duckdbWorkerShim' // MUST be first: patches global Worker before any duckdb code
 import './probe.css'
 import powerbi from 'powerbi-visuals-api'
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions
@@ -221,7 +220,8 @@ export class Visual implements IVisual {
       // the viewer only re-measures on window resize, which the sandbox does
       // not reliably fire — forward host resize updates ourselves
       if (options.type & (UPDATE_RESIZE | UPDATE_RESIZE_END)) {
-        this.liveViewer?.resize()
+        // v2 viewer had .resize(); the viewer-3 renderer has .requestResize()
+        this.liveViewer?.resize?.() ?? this.liveViewer?.requestResize?.()
       }
 
       // cross-visual selection: PBI re-sends the matrix with per-row
@@ -545,15 +545,25 @@ export class Visual implements IVisual {
       return `HTTP ${resp.status}`
     })
 
-    // ── stage 1: the duckdb engine itself, through the worker shim ──────────
-    // dynamic import so a bundling/eval problem in the duckdb subtree can't
-    // kill the probe module — it fails as a red row instead
-    await this.probe('duckdb-boot', async () => {
-      const pm = await import('@speckle/packfile-manager')
-      const tab = pm.getTabClient()
-      const q = await withTimeout(tab.query('SELECT 42 AS answer'), 'duckdb-boot', 60000)
-      const row = q.get(0)
-      return `worker+wasm up, SELECT 42 -> ${String(row?.answer)}`
+    // ── stage 1: the viewer-3 gates — WebGPU is THE make-or-break capability ─
+    await this.probe('webgpu-adapter', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const gpu = (navigator as any).gpu
+      if (!gpu) return 'FAIL navigator.gpu undefined'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adapter = (await withTimeout(gpu.requestAdapter(), 'webgpu', 15000)) as any
+      if (!adapter) return 'FAIL requestAdapter() returned null'
+      const info = adapter.info ?? {}
+      const device = await withTimeout(adapter.requestDevice(), 'webgpu-device', 15000)
+      if (!device) return 'FAIL requestDevice() returned null'
+      const canvas = document.createElement('canvas')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = canvas.getContext('webgpu') as any
+      if (!ctx) return 'FAIL canvas.getContext("webgpu") returned null'
+      ctx.configure({ device, format: gpu.getPreferredCanvasFormat() })
+      return `adapter=${String(info.vendor ?? '?')}/${String(
+        info.architecture ?? '?'
+      )} device+canvas-context ok (secureContext=${String(window.isSecureContext)})`
     })
 
     this.log('capability probes finished')
@@ -653,103 +663,156 @@ export class Visual implements IVisual {
         return `HTTP ${resp.status}, ${buf.byteLength} bytes, magic="${head}"`
       })
 
-      // ── stage 2: the loader's whole data layer, in-memory (no OPFS) ────────
-      // download the bundle, register every parquet as a duckdb file buffer,
-      // attach the eav/envelope views, count objects, and read a page of raw
-      // SGEO geometry blobs — SpecklePackfileLoader2 minus the WorldTree.
-      await this.probe('duckdb-bundle', async () => {
-        const pm = await import('@speckle/packfile-manager')
-        const tab = pm.getTabClient()
+      // ── stage 2: the geometry-stream WebSocket (ADR-0014) from the null-origin
+      // iframe — advertisement, upgrade, AUTH+HELLO handshake, META echo ───────
+      await this.probe('geometry-stream-ws', async () => {
+        const artifactsUrl = `${server}/api/v2/projects/${projectId}/models/${modelId}/versions/${versionId}/artifacts`
+        const resp = await withTimeout(
+          fetch(artifactsUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined
+          }),
+          'artifacts'
+        )
+        const body = (await resp.json()) as { geometryStream?: { path: string } }
+        if (!body.geometryStream)
+          return 'FAIL server did not advertise geometryStream (no .viewer.dat or feature off)'
+        const origin = new URL(server)
+        origin.protocol = origin.protocol === 'http:' ? 'ws:' : 'wss:'
+        const wsUrl = new URL(body.geometryStream.path, origin).toString()
+
+        return await withTimeout(
+          new Promise<string>((resolve) => {
+            const t0 = performance.now()
+            const ws = new WebSocket(wsUrl)
+            ws.binaryType = 'arraybuffer'
+            const done = (msg: string) => {
+              try {
+                ws.close()
+              } catch {
+                /* ignore */
+              }
+              resolve(msg)
+            }
+            ws.onopen = () => {
+              // AUTH must precede HELLO (browsers can't set WS headers): protocol.ts
+              if (token) {
+                const tok = new TextEncoder().encode(token)
+                const auth = new ArrayBuffer(1 + 4 + tok.byteLength + 4)
+                const dv = new DataView(auth)
+                dv.setUint8(0, 3) // ClientOp.Auth
+                dv.setUint32(1, tok.byteLength, true)
+                new Uint8Array(auth, 5).set(tok)
+                dv.setUint32(5 + tok.byteLength, 0, true) // no share password
+                ws.send(auth)
+              }
+              const hello = new ArrayBuffer(5)
+              const dv = new DataView(hello)
+              dv.setUint8(0, 1) // ClientOp.Hello
+              dv.setUint32(1, 2, true) // protocol v2
+              ws.send(hello)
+            }
+            ws.onmessage = (ev) => {
+              const dv = new DataView(ev.data as ArrayBuffer)
+              const op = dv.getUint8(0)
+              if (op === 1) {
+                // META: [u8][u32 version][f64 fileSize]
+                const version = dv.getUint32(1, true)
+                const fileSize = dv.getFloat64(5, true)
+                done(
+                  `META in ${(performance.now() - t0).toFixed(0)}ms — protocol v${version}, ` +
+                    `.dat=${(fileSize / 1024 / 1024).toFixed(1)}MB`
+                )
+              } else if (op === 4) {
+                // PREPARING — cold pod copying the artifact; keep waiting
+              } else if (op === 3) {
+                done(`FAIL server ERROR frame (op=3)`)
+              }
+            }
+            ws.onerror = () => done('FAIL WS error event (handshake rejected? Origin null?)')
+            ws.onclose = (ev) => done(`FAIL WS closed early code=${ev.code}`)
+          }),
+          'geometry-stream-ws',
+          120000
+        )
+      }, 125000)
+
+      // ── stage 3: the applicationId dictionary via hyparquet (no duckdb) ─────
+      await this.probe('objects-dictionary', async () => {
+        const dict = files.find((f) => f.name.endsWith('.eav.objects.parquet'))
+        if (!dict) return 'FAIL no .eav.objects.parquet in artifacts'
+        const [{ parquetReadObjects }, { compressors }] = await Promise.all([
+          import('hyparquet'),
+          import('hyparquet-compressors')
+        ])
         const t0 = performance.now()
-
-        let bytes = 0
-        for (const f of files) {
-          const resp = await withTimeout(fetch(f.url), `download ${f.name}`, 120000)
-          if (!resp.ok) return `FAIL download ${f.name}: HTTP ${resp.status}`
-          const buf = new Uint8Array(await resp.arrayBuffer())
-          bytes += buf.byteLength
-          await tab.registerFileBuffer(f.name, buf)
-        }
-
-        const geometryFiles = files.filter((f) =>
-          /\.geometries(?:\.\d+)?\.parquet$/.test(f.name)
-        )
-        const views = files
-          .map((f) => ({
-            name: f.name,
-            view: f.name.match(/\.(?:eav|envelope)\.(.+)\.parquet$/)?.[1] ?? null
-          }))
-          .filter((v): v is { name: string; view: string } => v.view !== null)
-
-        const schema = `probe_${versionId}`
-        await tab.attachParquetBundleFromBuffers(
-          schema,
-          views.map((v) => ({ view: v.view, name: v.name }))
-        )
-
-        const q = await tab.query(`SELECT count(*) AS n FROM "${schema}"."objects"`)
-        const objectCount = Number(q.get(0)?.n ?? -1)
-
-        let geomInfo = 'no geometry shard'
-        if (geometryFiles.length > 0) {
-          const blobs = await tab.readGeometryBlobs(
-            geometryFiles.map((g) => g.name),
-            0,
-            50,
-            true
-          )
-          const first = blobs[0]
-          const magic = first
-            ? Array.from(first.content.slice(0, 4))
-                .map((b) => String.fromCharCode(b))
-                .join('')
-            : 'n/a'
-          geomInfo = `${blobs.length} geometry blobs read (first: type=${first?.type}, magic="${magic}")`
-        }
-
+        const resp = await withTimeout(fetch(dict.url), 'dictionary', 60000)
+        if (!resp.ok) return `FAIL HTTP ${resp.status}`
+        const buf = await resp.arrayBuffer()
+        const rows = (await parquetReadObjects({
+          file: buf,
+          columns: ['object_index', 'application_id'],
+          compressors
+        })) as Array<{ object_index: number | bigint; application_id: string }>
         const secs = ((performance.now() - t0) / 1000).toFixed(1)
-        return (
-          `${files.length} parquets (${(bytes / 1024 / 1024).toFixed(1)}MB) in-memory, ` +
-          `${views.length} views attached, objects=${objectCount}, ${geomInfo} — ${secs}s`
-        )
-      }, 180000)
+        return `${rows.length} objects mapped (${(buf.byteLength / 1024).toFixed(0)}KB) in ${secs}s`
+      }, 90000)
 
-      // ── stage 3: the REAL loader + viewer, full-screen behind the overlay ──
-      await this.probe('viewer-render', async () => {
-        const viewerMod = await import('@speckle/viewer')
+      // ── stage 4: the REAL viewer-3 renderer streaming over the socket ───────
+      await this.probe('viewer3-render', async () => {
+        const [webgpuMod, toolsMod] = await Promise.all([
+          import('@speckle/viewer-webgpu'),
+          import('@speckle/viewer-tools')
+        ])
         this.viewerHost.innerHTML = ''
+        const canvas = document.createElement('canvas')
+        canvas.style.cssText = 'display:block;width:100%;height:100%;touch-action:none'
+        this.viewerHost.appendChild(canvas)
+        canvas.width = Math.max(1, canvas.clientWidth * devicePixelRatio)
+        canvas.height = Math.max(1, canvas.clientHeight * devicePixelRatio)
 
-        const params = viewerMod.DefaultViewerParams
-        params.showStats = false
-        params.verbose = false
-        const viewer = new viewerMod.Viewer(this.viewerHost, params)
-        await viewer.init()
-        this.cameraCtl = viewer.createExtension(viewerMod.CameraController)
-        this.filtering = viewer.createExtension(viewerMod.FilteringExtension)
+        const renderer = await webgpuMod.createRenderer(canvas)
+        toolsMod.installCameraControls(renderer)
+        renderer.setTheme('light', true, false)
 
         const artifactsUrl = `${server}/api/v2/projects/${projectId}/models/${modelId}/versions/${versionId}/artifacts`
-        const t0 = performance.now()
-        // 5th arg forces the in-memory (no-OPFS) path
-        const loader = new viewerMod.SpecklePackfileLoader2(
-          viewer.getWorldTree(),
-          artifactsUrl,
-          token,
-          undefined,
-          true
+        const resp = await withTimeout(
+          fetch(artifactsUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined
+          }),
+          'artifacts'
         )
-        await viewer.loadObject(loader, true)
-        this.liveViewer = viewer
-        // the viewer sizes itself ONCE at init from container.offsetWidth and
-        // only re-measures on window resize (which the sandbox may never fire)
-        // — force a measure + full re-render now that layout is settled
-        viewer.resize()
-        viewer.requestRender(viewerMod.UpdateFlags.RENDER_RESET)
+        const body = (await resp.json()) as {
+          files: { name: string; url: string }[]
+          geometryStream?: { path: string }
+        }
+        if (!body.geometryStream) return 'FAIL no geometryStream advertised'
+        const origin = new URL(server)
+        origin.protocol = origin.protocol === 'http:' ? 'ws:' : 'wss:'
+        const wsUrl = new URL(body.geometryStream.path, origin).toString()
+        const idx = body.files.find((f) => f.name.endsWith('.viewer.idx'))
+
+        const t0 = performance.now()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = renderer as any
+        if (typeof r.loadRemoteBundleDat !== 'function')
+          return 'FAIL renderer build has no loadRemoteBundleDat'
+        await withTimeout(
+          r.loadRemoteBundleDat(
+            wsUrl,
+            versionId,
+            { residencyFraction: 0.75 },
+            { modelName: modelId, idx: idx?.url, auth: token ? { token } : undefined }
+          ),
+          'viewer3-load',
+          280000
+        )
+        this.liveViewer = renderer
+        renderer.requestResize()
+        renderer.requestRender()
         const secs = ((performance.now() - t0) / 1000).toFixed(1)
-        const canvas = this.viewerHost.querySelector('canvas')
         return (
-          `RENDERED — worldTree nodes=${viewer.getWorldTree().nodeCount} in ${secs}s | ` +
-          `host=${this.viewerHost.offsetWidth}x${this.viewerHost.offsetHeight} ` +
-          `canvas=${canvas?.width ?? '?'}x${canvas?.height ?? '?'}`
+          `STREAMING — painted in ${secs}s | host=${this.viewerHost.offsetWidth}x` +
+          `${this.viewerHost.offsetHeight} canvas=${canvas.width}x${canvas.height}`
         )
       }, 300000)
     }

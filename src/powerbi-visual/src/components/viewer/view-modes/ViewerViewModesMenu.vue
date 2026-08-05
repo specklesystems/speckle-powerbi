@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ViewMode } from '@speckle/viewer'
+import { ViewMode } from '@src/viewer3/compatTypes'
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
 import FormSwitch from '../../form/FormSwitch.vue'
