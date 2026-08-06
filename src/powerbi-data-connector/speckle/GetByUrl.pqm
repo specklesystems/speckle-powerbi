@@ -228,7 +228,9 @@
                     token = weakToken,
                     workspaceId = workspaceInfo[workspaceId],
                     workspaceName = workspaceInfo[workspaceName],
-                    workspaceLogo = workspaceInfo[workspaceLogo],
+                    // workspaceLogo deliberately NOT in the blob: logos are base64
+                    // data-URIs (tens of KB) and the blob repeats on EVERY data row —
+                    // the visual fetches the logo itself via GraphQL using workspaceId
                     canHideBranding = workspaceInfo[canHideBranding],
                     sourceApplication = modelInfo[sourceApplication],
                     version = ConnectorVersion,

@@ -187,8 +187,15 @@ export class Visual implements IVisual {
     visualStore.setFormattingSettings(this.formattingSettings)
 
     try {
-      const matrixView = options.dataViews[0].matrix
+      // slim dataview: the matrix is no longer guaranteed to be dataViews[0] —
+      // Model Info travels in its own single-value dataview (one copy instead
+      // of one per row; the per-row blob repetition was the dominant term in
+      // the host's ~150k-row fetchMoreData memory ceiling)
+      const matrixDataView = options.dataViews.find((dv) => dv.matrix !== undefined)
+      const matrixView = matrixDataView?.matrix
       if (!matrixView) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
+      const singleDataView = options.dataViews.find((dv) => dv.single !== undefined)
+      const modelInfoBlob = (singleDataView?.single?.value as string) ?? null
 
       // we first need to check which inputs user provided to decide our strategy
       const validationResult = validateMatrixView(options)
@@ -225,7 +232,7 @@ export class Visual implements IVisual {
       // appear in jsonFilters, but the dictionary knows the model's true object
       // count — if the paged universe ENDS below it, the data WAS filtered.
       // The identical-update memo above makes this probe once-per-real-change.
-      const segment = options.dataViews[0]?.metadata?.segment
+      const segment = matrixDataView?.metadata?.segment
       if (segment) {
         const rowCount = countMatrixLeafRows(matrixView)
         if (rowCount >= FETCH_FILTERED_MAX_ROWS) {
@@ -262,22 +269,22 @@ export class Visual implements IVisual {
             // read saved settings from file if any
             console.log('🔍 Checking for other saved settings:')
 
-            if (!visualStore.isViewerObjectsLoaded && options.dataViews[0].metadata.objects) {
-              const defaultViewMode = options.dataViews[0].metadata.objects.viewMode?.defaultViewMode
+            if (!visualStore.isViewerObjectsLoaded && matrixDataView.metadata.objects) {
+              const defaultViewMode = matrixDataView.metadata.objects.viewMode?.defaultViewMode
               if (defaultViewMode) {
                 console.log(`Default View Mode: ${defaultViewMode as string}`)
 
                 visualStore.setDefaultViewModeInFile(defaultViewMode as string)
               }
 
-              const brandingHidden = options.dataViews[0].metadata.objects.workspace?.brandingHidden
+              const brandingHidden = matrixDataView.metadata.objects.workspace?.brandingHidden
               if (brandingHidden !== undefined) {
                 console.log(`Branding Hidden: ${brandingHidden as boolean}`)
 
                 visualStore.setBrandingHidden(brandingHidden as boolean)
               }
 
-              const navbarHidden = options.dataViews[0].metadata.objects.viewMode?.navbarHidden
+              const navbarHidden = matrixDataView.metadata.objects.viewMode?.navbarHidden
               if (navbarHidden !== undefined) {
                 console.log(`Navbar Hidden: ${navbarHidden as boolean}`)
 
@@ -285,7 +292,7 @@ export class Visual implements IVisual {
               }
 
               // Load edges settings
-              const viewModeSettings = options.dataViews[0].metadata.objects.viewMode
+              const viewModeSettings = matrixDataView.metadata.objects.viewMode
               if (viewModeSettings) {
                 if ('edgesEnabled' in viewModeSettings) {
                   console.log(`Edges Enabled: ${viewModeSettings.edgesEnabled as boolean}`)
@@ -302,7 +309,7 @@ export class Visual implements IVisual {
                 }
               }
 
-              const cameraPositionData = options.dataViews[0].metadata.objects.cameraPosition
+              const cameraPositionData = matrixDataView.metadata.objects.cameraPosition
               if (cameraPositionData?.positionX) {
                 console.log('Stored camera position is found')
                 visualStore.setCameraPositionInFile([
@@ -315,52 +322,52 @@ export class Visual implements IVisual {
                 ])
               }
 
-              const sectionBoxData = options.dataViews[0].metadata.objects.sectionBox?.boxData
+              const sectionBoxData = matrixDataView.metadata.objects.sectionBox?.boxData
               if (sectionBoxData) {
                 console.log('Stored section box is found')
                 visualStore.setSectionBoxData(sectionBoxData as string)
               }
 
-              const camera = options.dataViews[0].metadata.objects.camera
+              const camera = matrixDataView.metadata.objects.camera
 
               if (camera && 'isOrtho' in camera) {
                 console.log(
                   `Projection is ortho?: ${
-                    options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                    matrixDataView.metadata.objects.camera?.isOrtho as boolean
                   }`
                 )
 
                 visualStore.setIsOrthoProjection(
-                  options.dataViews[0].metadata.objects.camera?.isOrtho as boolean
+                  matrixDataView.metadata.objects.camera?.isOrtho as boolean
                 )
               }
 
               if (camera && 'isGhost' in camera) {
                 console.log(
-                  `Is ghost?: ${options.dataViews[0].metadata.objects.camera?.isGhost as boolean}`
+                  `Is ghost?: ${matrixDataView.metadata.objects.camera?.isGhost as boolean}`
                 )
 
                 visualStore.setIsGhost(
-                  options.dataViews[0].metadata.objects.camera?.isGhost as boolean
+                  matrixDataView.metadata.objects.camera?.isGhost as boolean
                 )
               }
 
               if (camera && 'zoomOnFilter' in camera) {
                 console.log(
                   `Zoom on filter?: ${
-                    options.dataViews[0].metadata.objects.camera?.zoomOnFilter as boolean
+                    matrixDataView.metadata.objects.camera?.zoomOnFilter as boolean
                   }`
                 )
 
                 visualStore.setIsZoomOnFilterActive(
-                  options.dataViews[0].metadata.objects.camera?.zoomOnFilter as boolean
+                  matrixDataView.metadata.objects.camera?.zoomOnFilter as boolean
                 )
               }
 
               // get receive info from file for persistence
               try {
                 const receiveInfoFromFile = JSON.parse(
-                  options.dataViews[0].metadata.objects.storedData?.receiveInfo as string
+                  matrixDataView.metadata.objects.storedData?.receiveInfo as string
                 ) as ReceiveInfo
                 // Don't call setReceiveInfo here as it would trigger another save
                 visualStore.receiveInfo = receiveInfoFromFile
@@ -382,7 +389,8 @@ export class Visual implements IVisual {
               this.host,
               validationResult.colorBy,
               (obj, id) => this.selectionHandler.set(obj, id),
-              lightweightRows
+              lightweightRows,
+              modelInfoBlob
             )
             // jsonFilters = the filters PBI actually applied to this visual
             // (slicers / filter pane / filter-mode interactions). Without any,

@@ -26,12 +26,16 @@ export class AsyncPause {
 }
 
 export function validateMatrixView(options: VisualUpdateOptions): FieldInputState {
-  const matrixVew = options.dataViews[0].matrix
+  const matrixVew = options.dataViews.find((dv) => dv.matrix !== undefined)?.matrix
 
   let hasModelInfo = false,
     hasApplicationIds = false,
     hasColorFilter = false,
     hasTooltipData = false
+
+  // Model Info arrives in its own single-value dataview (slim dataview); the
+  // in-matrix measure check stays as the legacy fallback
+  hasModelInfo = options.dataViews.some((dv) => dv.single !== undefined)
 
   matrixVew.valueSources.forEach((level) => {
     if (!hasModelInfo) hasModelInfo = level.roles['modelInfo'] != undefined
@@ -81,6 +85,10 @@ function processObjectValues(
         shouldSelect = true
         shouldColor = true
       }
+      // skip the Model Info measure by ROLE (legacy in-matrix binding); the slim
+      // dataview has no such value cell, so a blind slice(1) would eat the first
+      // real tooltip field
+      if (colInfo?.roles?.['modelInfo']) return
       const propData: IViewerTooltipData = {
         displayName: colInfo.displayName.replace('First ', ''),
         value: value.value === null ? '<not set>' : value.value.toString()
@@ -88,7 +96,7 @@ function processObjectValues(
       objectData.push(propData)
     })
   return {
-    data: objectData.length > 0 ? objectData.slice(1) : [],
+    data: objectData,
     shouldColor,
     shouldSelect
   }
@@ -106,7 +114,8 @@ function processObjectNode(
   selectionId: powerbi.visuals.ISelectionId
   color?: string
 } {
-  const objId = objectIdChild.value as string
+  // object_key mode delivers numbers — identity keys are strings everywhere downstream
+  const objId = String(objectIdChild.value)
   // Create selection IDs for each object
   const nodeSelection = host
     .createSelectionIdBuilder()
@@ -161,7 +170,10 @@ export async function processMatrixView(
    * builder alone is ~0.1ms/row). Filter mode has no highlights to inspect, and
    * click-select/tooltips over a huge isolation are a fair trade for a live UI.
    */
-  lightweight = false
+  lightweight = false,
+  /** Model Info from the slim single-value dataview — ONE copy for the whole
+   *  update. Null = legacy report with the blob still bound into the matrix. */
+  modelInfoBlob: string | null = null
 ): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
   const objectIds = [],
@@ -176,16 +188,20 @@ export async function processMatrixView(
     throw new Error('Matrix view has no data rows')
   }
 
-  // the "Model Info" measure cell carries the base64 blob (same value on every row)
   let encodedBlob: string
-  try {
-    if (hasColorFilter) {
-      encodedBlob = localMatrixView[0].children[0].values[0].value as unknown as string
-    } else {
-      encodedBlob = localMatrixView[0].values[0].value as unknown as string
+  if (modelInfoBlob) {
+    encodedBlob = modelInfoBlob
+  } else {
+    // legacy: the "Model Info" measure cell carries the blob on every row
+    try {
+      if (hasColorFilter) {
+        encodedBlob = localMatrixView[0].children[0].values[0].value as unknown as string
+      } else {
+        encodedBlob = localMatrixView[0].values[0].value as unknown as string
+      }
+    } catch (error) {
+      throw new Error(`Failed to extract Model Info from matrix: ${error.message}`)
     }
-  } catch (error) {
-    throw new Error(`Failed to extract Model Info from matrix: ${error.message}`)
   }
 
   // decode ONCE per update
@@ -255,7 +271,7 @@ export async function processMatrixView(
         // filter mode), no selection ids, no tooltips
         const colorGroup = { color: color.value, objectIds: [] }
         colorObjects.children.forEach((obj) => {
-          const id = obj.value as string
+          const id = String(obj.value)
           objectIds.push(id)
           colorGroup.objectIds.push(id)
         })
@@ -287,7 +303,7 @@ export async function processMatrixView(
     })
   } else if (lightweight) {
     localMatrixView.forEach((obj) => {
-      objectIds.push(obj.value as string)
+      objectIds.push(String(obj.value))
     })
   } else {
     localMatrixView.forEach((obj) => {

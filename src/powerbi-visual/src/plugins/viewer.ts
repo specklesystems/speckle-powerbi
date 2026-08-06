@@ -45,6 +45,9 @@ const RESIDENCY_FRACTION = 0.75
  *  the fetchMoreData paging budget was exhausted (pathologically large filter result). */
 const DATAVIEW_ROW_CAP = 1000000
 
+/** The connector's federation namespace: object_key = ordinal * 2^32 + object_index. */
+const KEY_SPACE = 4294967296
+
 export interface Hit {
   guid: string
   object?: Record<string, unknown>
@@ -125,6 +128,16 @@ export class ViewerHandler {
   /** renderer model id (`bundle_${versionId}`) → applicationId dictionary. */
   private dictionaries = new Map<string, ObjectsDictionary>()
   private loadedModelIds: string[] = []
+  /**
+   * Identity mode of the bound id column. 'objectKey': the well carries the
+   * connector's dense int (ordinal*2^32 + object_index) — resolution is pure
+   * arithmetic, no dictionary download at all. 'applicationId': GUID strings,
+   * resolved through the eav.objects.parquet dictionary (legacy binding).
+   */
+  private idMode: 'unknown' | 'objectKey' | 'applicationId' = 'unknown'
+  /** federation ordinal ↔ renderer model id, for object_key arithmetic. */
+  private ordinalToModelId = new Map<number, string>()
+  private modelIdToOrdinal = new Map<string, number>()
   private projectionMode: 'perspective' | 'orthographic' = 'perspective'
   /** Last pointerup on the canvas — pick results arrive async, this supplies
    *  the modifier + screen position the PBI side needs. */
@@ -260,12 +273,48 @@ export class ViewerHandler {
 
   // ── id translation ─────────────────────────────────────────────────────────
 
+  /** Lock the id mode on first sight of a bound id (numeric = object_key). */
+  private detectIdMode(sample: string | undefined) {
+    if (this.idMode !== 'unknown' || sample === undefined) return
+    this.idMode = /^\d+$/.test(sample) ? 'objectKey' : 'applicationId'
+    useVisualStore().pushDiagEvent(
+      this.idMode === 'objectKey'
+        ? 'id mode: object_key — arithmetic resolution, no dictionary needed'
+        : 'id mode: Application ID — dictionary resolution'
+    )
+  }
+
   private applicationIdOf(ref: ObjectRef): string | null {
+    if (this.idMode === 'objectKey') {
+      const ordinal = this.modelIdToOrdinal.get(ref.modelId)
+      if (ordinal === undefined) return null
+      return String(ordinal * KEY_SPACE + ref.objectIndex)
+    }
     return this.dictionaries.get(ref.modelId)?.toApplicationId.get(ref.objectIndex) ?? null
   }
 
-  /** applicationIds → per-model dense-index groups, across every loaded model. */
+  /** bound ids → per-model dense-index groups, across every loaded model. */
   private toGroups(objectIds: string[]): ObjectGroup[] {
+    this.detectIdMode(objectIds[0])
+    if (this.idMode === 'objectKey') {
+      const byModel = new Map<string, number[]>()
+      for (const raw of objectIds) {
+        const key = Number(raw)
+        if (!Number.isFinite(key)) continue
+        const modelId = this.ordinalToModelId.get(Math.floor(key / KEY_SPACE))
+        if (!modelId) continue
+        let indexes = byModel.get(modelId)
+        if (!indexes) {
+          indexes = []
+          byModel.set(modelId, indexes)
+        }
+        indexes.push(key % KEY_SPACE)
+      }
+      return [...byModel.entries()].map(([modelId, objectIndexes]) => ({
+        modelId,
+        objectIndexes
+      }))
+    }
     const groups: ObjectGroup[] = []
     for (const [modelId, dict] of this.dictionaries) {
       const objectIndexes: number[] = []
@@ -380,13 +429,17 @@ export class ViewerHandler {
     const resolved = groups.reduce((n, g) => n + g.objectIndexes.length, 0)
     const store = useVisualStore()
     if (objectIds.length > 0 && resolved === 0) {
-      const dictSummary =
-        [...this.dictionaries.entries()]
-          .map(([id, d]) => `${id}:${d.toIndex.size}`)
-          .join(', ') || 'NO DICTIONARIES LOADED'
+      const context =
+        this.idMode === 'objectKey'
+          ? `ordinals=[${[...this.ordinalToModelId.keys()].join(',')}]`
+          : `dictionaries=[${
+              [...this.dictionaries.entries()]
+                .map(([id, d]) => `${id}:${d.toIndex.size}`)
+                .join(', ') || 'NONE LOADED'
+            }]`
       const msg =
-        `${caller}: 0 of ${objectIds.length} applicationIds resolved — ` +
-        `failing open (no filter). dictionaries=[${dictSummary}]`
+        `${caller}: 0 of ${objectIds.length} ids resolved (${this.idMode} mode) — ` +
+        `failing open (no filter). ${context}`
       console.error(`[viewer3] ${msg} sample ids=${JSON.stringify(objectIds.slice(0, 3))}`)
       store.pushDiagEvent(msg)
       return null
@@ -503,8 +556,31 @@ export class ViewerHandler {
     for (const rendererModelId of this.loadedModelIds) renderer.removeModel(rendererModelId)
     this.loadedModelIds = []
     this.dictionaries.clear()
+    this.ordinalToModelId.clear()
+    this.modelIdToOrdinal.clear()
+    this.idMode = 'unknown'
     // per-load streaming counter: the renderer's totalMB never resets — rebaseline
     this.streamBaselineMB = this.lastStreamTotalMB
+
+    // federation ordinal = position in the FULL models list (the connector's
+    // keyOffset uses the same index) — needed for object_key arithmetic
+    models.forEach((m, ordinal) => {
+      if (m.pipeline !== 'artifact') return
+      const rendererModelId = `bundle_${m.versionId}`
+      this.ordinalToModelId.set(ordinal, rendererModelId)
+      this.modelIdToOrdinal.set(rendererModelId, ordinal)
+    })
+
+    // Peek at the bound ids: numeric object_key binding needs NO dictionary —
+    // skip the eav.objects.parquet download (tens of MB + ~300MB of Map heap on
+    // whale models) entirely.
+    const sampleBoundId = store.dataInput?.objectIds?.[0]
+    const objectKeyBinding =
+      sampleBoundId !== undefined && /^\d+$/.test(String(sampleBoundId))
+    if (objectKeyBinding) {
+      this.idMode = 'objectKey'
+      store.pushDiagEvent('object_key binding detected — skipping dictionary download')
+    }
 
     // legacy-pipeline models can't be rendered by the artifact loader; the UI
     // explains this (see ViewerWrapper) — only artifact models are loaded
@@ -548,8 +624,8 @@ export class ViewerHandler {
       }
 
       // The applicationId dictionary rides alongside the paint — both only need the
-      // artifacts payload. Selection/coloring wake up when both land.
-      const dictionaryPromise = loadObjectsDictionary(payload.files)
+      // artifacts payload. Not needed at all under an object_key binding.
+      const dictionaryPromise = objectKeyBinding ? null : loadObjectsDictionary(payload.files)
 
       store.setLoadingProgress('Streaming geometry', null)
       try {
@@ -579,29 +655,37 @@ export class ViewerHandler {
 
       store.pushDiagEvent(`model ${model.versionId} painting — geometry keeps streaming`)
 
-      try {
-        const dictionary = await dictionaryPromise
-        this.dictionaries.set(rendererModelId, dictionary)
-        const msg =
-          `objects dictionary for ${rendererModelId}: ` +
-          `${dictionary.toIndex.size} applicationIds mapped`
-        console.log(`[viewer3] ${msg}`)
-        store.pushDiagEvent(msg)
-      } catch (err) {
-        console.error(
-          `objects dictionary failed for ${model.versionId} — selection/coloring degraded`,
-          err
-        )
-        store.pushDiagEvent(
-          `objects dictionary FAILED for ${model.versionId} — selection/coloring degraded`
-        )
+      if (dictionaryPromise) {
+        try {
+          const dictionary = await dictionaryPromise
+          this.dictionaries.set(rendererModelId, dictionary)
+          const msg =
+            `objects dictionary for ${rendererModelId}: ` +
+            `${dictionary.toIndex.size} applicationIds mapped`
+          console.log(`[viewer3] ${msg}`)
+          store.pushDiagEvent(msg)
+        } catch (err) {
+          console.error(
+            `objects dictionary failed for ${model.versionId} — selection/coloring degraded`,
+            err
+          )
+          store.pushDiagEvent(
+            `objects dictionary FAILED for ${model.versionId} — selection/coloring degraded`
+          )
+        }
       }
     }
 
     // the model's true object count — the store's filter discriminator compares
-    // the paged row universe against it (complete universe < total = filtered)
+    // the paged row universe against it (complete universe < total = filtered).
+    // Sourced from the renderer's own .dat-derived maps (works in BOTH id modes,
+    // no dictionary required); dictionary sizes are the fallback.
     let totalObjects = 0
-    for (const dict of this.dictionaries.values()) totalObjects += dict.toIndex.size
+    for (const rendererModelId of this.loadedModelIds) {
+      const maps = renderer.getModelMaps(rendererModelId)
+      if (maps) totalObjects += maps.objectCsr.objectCount
+      else totalObjects += this.dictionaries.get(rendererModelId)?.toIndex.size ?? 0
+    }
     store.setTotalObjectCount(totalObjects)
 
     // re-measure + full render now that layout settled — in the PBI sandbox the

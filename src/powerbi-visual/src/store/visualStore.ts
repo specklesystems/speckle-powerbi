@@ -127,6 +127,37 @@ export const useVisualStore = defineStore('visualStore', () => {
 
     // Save receiveInfo to file for credentials persistence (contains token and metadata)
     writeReceiveInfoToFile()
+
+    // The workspace logo is deliberately NOT in the Model Info blob (base64
+    // data-URIs repeated per data row) — fetch it lazily via GraphQL instead.
+    // Best-effort: the weak token may lack workspace scope; the avatar falls
+    // back to the name initial.
+    if (newReceiveInfo.workspaceId && !newReceiveInfo.workspaceLogo) {
+      void (async () => {
+        try {
+          const resp = await fetch(`${newReceiveInfo.serverUrl}/graphql`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newReceiveInfo.token}`
+            },
+            body: JSON.stringify({
+              query: 'query WorkspaceLogo($id: String!) { workspace(id: $id) { logo } }',
+              variables: { id: newReceiveInfo.workspaceId }
+            })
+          })
+          const body = (await resp.json()) as {
+            data?: { workspace?: { logo?: string | null } }
+          }
+          const logo = body?.data?.workspace?.logo
+          if (logo && receiveInfo.value?.workspaceId === newReceiveInfo.workspaceId) {
+            receiveInfo.value = { ...receiveInfo.value, workspaceLogo: logo }
+          }
+        } catch {
+          /* no logo — avatar shows the workspace initial */
+        }
+      })()
+    }
   }
 
   const setLatestAvailableVersion = (version: Version | null) => {
