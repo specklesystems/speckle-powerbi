@@ -22,6 +22,10 @@ listing the failed facts.
 - `AddInstanceProperties.query.pq` — the shared instance-property enrichment
   helper against in-memory star-schema navigation tables, including validation,
   null, naming, typing, and federated-key behavior.
+- `AddTypeProperties.query.pq` — the shared type-property enrichment helper
+  against in-memory star-schema navigation tables, including shared-type
+  projection, instance data staying unread, Object Types duplicate validation,
+  orphan-row handling, and federated-key behavior.
 
 ## Live suite (manual, needs a server + credential)
 

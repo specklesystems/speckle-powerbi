@@ -1,0 +1,174 @@
+// Adds selected type EAV values to the Objects navigation table. This
+// deliberately has no dependency on the instance Properties table: values come
+// from Object Types -> Type Properties only, so a declared type value stays
+// visible here even when the object carries an instance override.
+(source as table, propertyPaths as list) as table =>
+    let
+        requiredKeys = {"objects", "object-types", "type-properties", "paths"},
+        hasNavigationColumns = Table.HasColumns(source, {"Key", "Data"}),
+        availableKeys = if hasNavigationColumns then
+            List.Select(Table.Column(source, "Key"), each Value.Is(_, type text))
+        else
+            {},
+        missingKeys = if hasNavigationColumns then
+            List.Select(
+                requiredKeys,
+                each not List.Contains(availableKeys, _, Comparer.Ordinal)
+            )
+        else
+            requiredKeys,
+        validatedSource = if not hasNavigationColumns or not List.IsEmpty(missingKeys) then
+            error Error.Record(
+                "Speckle.AddTypeProperties.InvalidNavigationSource",
+                "The source is missing required Speckle navigation entries: "
+                    & Text.Combine(missingKeys, ", ")
+                    & ". Expected: Speckle.AddTypeProperties(Speckle.GetTables(url), propertyPaths).",
+                [MissingKeys = missingKeys, RequiredKeys = requiredKeys]
+            )
+        else
+            source,
+        objects = validatedSource{[Key = "objects"]}[Data],
+        objectTypes = validatedSource{[Key = "object-types"]}[Data],
+        typeProperties = validatedSource{[Key = "type-properties"]}[Data],
+        paths = validatedSource{[Key = "paths"]}[Data],
+        invalidPathIndexes = List.Select(
+            List.Positions(propertyPaths),
+            (i) =>
+                let
+                    value = propertyPaths{i}
+                in
+                    if Value.Is(value, type text) then Text.Trim(value) = "" else true
+        ),
+        validatedPaths = if List.IsEmpty(invalidPathIndexes) then
+            propertyPaths
+        else
+            error Error.Record(
+                "Speckle.AddTypeProperties.InvalidPropertyPaths",
+                "propertyPaths contains invalid items at positions "
+                    & Text.Combine(List.Transform(invalidPathIndexes, each Text.From(_ + 1)), ", ")
+                    & ". Each item must be non-empty text.",
+                [Positions = List.Transform(invalidPathIndexes, each _ + 1)]
+            ),
+        wanted = List.Distinct(
+            List.Transform(validatedPaths, each Text.Trim(_)),
+            Comparer.Ordinal
+        ),
+        existingNames = Table.ColumnNames(objects),
+        pathParts = List.Transform(wanted, each Text.Split(_, ".")),
+        Candidate = (parts as list, depth as number) as text =>
+            Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
+        ResolveNames = (depths as list) as list =>
+            let
+                candidates = List.Transform(
+                    List.Positions(wanted),
+                    (i) => Candidate(pathParts{i}, depths{i})
+                ),
+                conflicts = List.Transform(
+                    List.Positions(candidates),
+                    (i) =>
+                        List.Contains(existingNames, candidates{i}, Comparer.Ordinal)
+                        or List.Count(
+                            List.PositionOf(candidates, candidates{i}, Occurrence.All, Comparer.Ordinal)
+                        ) > 1
+                ),
+                cannotGrow = List.Transform(
+                    List.Positions(conflicts),
+                    (i) => conflicts{i} and depths{i} >= List.Count(pathParts{i})
+                ),
+                nextDepths = List.Transform(
+                    List.Positions(depths),
+                    (i) => if conflicts{i} then depths{i} + 1 else depths{i}
+                )
+            in
+                if List.AnyTrue(cannotGrow) then
+                    error Error.Record(
+                        "Speckle.AddTypeProperties.NameCollision",
+                        "Requested property columns cannot be made unique against the Objects columns.",
+                        [PropertyPaths = wanted, ExistingColumns = existingNames]
+                    )
+                else if List.AnyTrue(conflicts) then
+                    @ResolveNames(nextDepths)
+                else
+                    candidates,
+        outputNames = ResolveNames(List.Transform(wanted, each 1)),
+        // Object Types rows for objects that are not in Objects are ignored
+        // (federated slices can carry bridge rows for objects filtered away);
+        // among the remaining rows one row per object is an invariant this
+        // helper enforces, because a duplicated bridge silently multiplies the
+        // projected type values.
+        bridgeRows = Table.RemoveColumns(
+            Table.NestedJoin(
+                Table.SelectColumns(objectTypes, {"object_key", "type_key"}),
+                {"object_key"},
+                Table.SelectColumns(objects, {"object_key"}), {"object_key"},
+                "__obj", JoinKind.Inner
+            ),
+            {"__obj"}
+        ),
+        duplicateObjectKeys = Table.Column(
+            Table.SelectRows(
+                Table.Group(bridgeRows, {"object_key"}, {{"__count", Table.RowCount, Int64.Type}}),
+                each [__count] > 1
+            ),
+            "object_key"
+        ),
+        validatedBridge = if List.IsEmpty(duplicateObjectKeys) then
+            bridgeRows
+        else
+            error Error.Record(
+                "Speckle.AddTypeProperties.InvalidObjectTypes",
+                "Object Types must contain at most one row per object. Repeated object_key values: "
+                    & Text.Combine(List.Transform(duplicateObjectKeys, each Text.From(_)), ", ")
+                    & ".",
+                [ObjectKeys = duplicateObjectKeys]
+            ),
+        // Paths is the small dimension. Filter it before the fact join so the
+        // Type Properties scan carries only requested path keys and the raw Value.
+        wantedPaths = Table.SelectColumns(
+            Table.SelectRows(
+                paths,
+                each List.Contains(wanted, [Property], Comparer.Ordinal)
+            ),
+            {"path_key", "Property"}
+        ),
+        typeValues = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                Table.SelectColumns(typeProperties, {"type_key", "path_key", "Value"}),
+                {"path_key"},
+                wantedPaths, {"path_key"},
+                "__path", JoinKind.Inner
+            ),
+            "__path", {"Property"}, {"__path"}
+        ),
+        // one bridge row per object times the deduped type fact — the shared
+        // type values project onto every object of that type
+        selected = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                validatedBridge, {"type_key"},
+                typeValues, {"type_key"},
+                "__type", JoinKind.Inner
+            ),
+            "__type", {"Value", "__path"}, {"Value", "__path"}
+        ),
+        grouped = Table.Group(
+            selected,
+            {"object_key"},
+            // (type_key, path_key) is a bundle invariant and the bridge is one
+            // row per object, so (object_key, path_key) is unique here.
+            // Record.FromList is intentionally allowed to fail if malformed
+            // input violates it.
+            {{"__props", each Record.FromList([Value], [__path]), type record}}
+        ),
+        withProperties = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                objects, {"object_key"},
+                grouped, {"object_key"},
+                "__group", JoinKind.LeftOuter
+            ),
+            "__group", {"__props"}, {"__props"}
+        )
+    in
+        if List.IsEmpty(wanted) then
+            objects
+        else
+            Table.ExpandRecordColumn(withProperties, "__props", wanted, outputNames)

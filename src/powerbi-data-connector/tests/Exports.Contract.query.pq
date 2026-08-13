@@ -43,6 +43,9 @@ let
         Fact("AddInstanceProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddInstanceProperties)),
         Fact("AddInstanceProperties required arity", 2, RequiredCount(Speckle.AddInstanceProperties)),
         Fact("AddInstanceProperties returns table", true, ReturnsTable(Speckle.AddInstanceProperties)),
+        Fact("AddTypeProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddTypeProperties)),
+        Fact("AddTypeProperties required arity", 2, RequiredCount(Speckle.AddTypeProperties)),
+        Fact("AddTypeProperties returns table", true, ReturnsTable(Speckle.AddTypeProperties)),
 
         // 3.x single-parameter interfaces preserved
         Fact("GetStructuredData parameters", {"url"}, ParamNames(Speckle.GetStructuredData)),

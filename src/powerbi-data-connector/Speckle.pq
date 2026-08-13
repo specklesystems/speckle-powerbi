@@ -384,6 +384,22 @@ shared Speckle.AddInstanceProperties = Value.ReplaceType(
     ]
 );
 
+shared Speckle.AddTypeProperties = Value.ReplaceType(
+    Speckle.LoadFunction("AddTypeProperties.pqm"),
+    type function (
+        source as table,
+        propertyPaths as list
+    ) as table meta [
+        Documentation.Name = "Speckle - Add Type Properties",
+        Documentation.DisplayName = "Speckle - Add Type Properties",
+        Documentation.LongDescription =
+            "Returns the Objects table from Speckle.GetTables with the requested type-property values appended "
+            & "(resolved through Object Types and Type Properties). Pass exact dotted paths from the Property Paths "
+            & "table. Only declared type values are used — instance properties are never read, so an instance "
+            & "override does not hide the type value."
+    ]
+);
+
 // here we register the GetTables function to power bi ui — the single Get Data
 // entry; the legacy Speckle.GetByUrl stays unpublished but exported
 GetTables.Publish = [
