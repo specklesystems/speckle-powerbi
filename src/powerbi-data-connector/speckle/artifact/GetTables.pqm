@@ -1,3 +1,6 @@
+// ARTIFACT PATH — the 4.0 star-schema pipeline behind Speckle.GetTables
+// (ENG-9165). Reads artifact bundles only: versions without a bundle are NOT
+// adapted from their JSON representation; they error towards Speckle.GetByUrl.
 // propertyPaths = null -> the star-schema navigation table (the normal
 // Get Data path). propertyPaths given -> skips the navigator and returns the
 // on-demand property expansion directly (backs Speckle.ExpandProperties).
@@ -35,8 +38,6 @@
         ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
         GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
         NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
-        GetStructuredData = Extension.LoadFunction("GetStructuredData.pqm"),
-        ExpandRecord = Extension.LoadFunction("Utils.ExpandRecord.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
         MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
@@ -117,81 +118,34 @@
                 ]
             ],
 
-        // empty star-schema shapes contributed by legacy (pre-4.0) models — their
-        // properties come pre-flattened; the fact/paths entries are artifact-only
-        EmptyProperties = #table(
-            type table [
-                object_key = Int64.Type,
-                path_key = Int64.Type,
-                #"Value Text" = nullable text,
-                #"Value Number" = nullable number,
-                #"Value Bool" = nullable logical,
-                Value = any
-            ],
-            {}
-        ),
-        EmptyPaths = #table(type table [path_key = Int64.Type, Property = text], {}),
-
-        // maps the legacy JSON-path table onto the 4.0 shapes:
-        // "Application ID" := applicationId ?? speckle id; properties expanded to
-        // columns, served on demand through ExpandProperties
-        LegacyShapes = (t as table) as record =>
-            let
-                withAppId = Table.AddColumn(
-                    t,
-                    "__appId",
-                    each if [Application ID] <> null then [Application ID] else [Object IDs],
-                    type text
-                ),
-                expanded = if Table.HasColumns(withAppId, {"properties"}) then
-                    try ExpandRecord(withAppId, "properties") otherwise withAppId
-                else
-                    withAppId,
-                wide = Table.RenameColumns(
-                    Table.RemoveColumns(
-                        expanded,
-                        {"Application ID", "Object IDs", "Version Object ID", "Model Info", "data", "properties"},
-                        MissingField.Ignore
-                    ),
-                    {{"__appId", "Application ID"}},
-                    MissingField.Ignore
-                ),
-                objectsOnly = Table.AddColumn(
-                    Table.Distinct(Table.SelectColumns(wide, {"Application ID"})),
-                    "object_key",
-                    each null,
-                    Int64.Type
-                )
-            in
-                [
-                    Objects = Table.SelectColumns(objectsOnly, {"object_key", "Application ID"}),
-                    Properties = EmptyProperties,
-                    Paths = EmptyPaths,
-                    ObjectTypes = #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}),
-                    TypeProperties = Table.SelectColumns(
-                        Table.AddColumn(EmptyProperties, "type_key", each null, Int64.Type),
-                        {"type_key", "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
-                    ),
-                    // legacy models have no path dictionary — expand straight off the
-                    // JSON-expanded wide shape, missing paths arriving as nulls
-                    ExpandProperties = (pathsText as text) as table =>
-                        let
-                            wanted = List.Distinct(
-                                List.Select(
-                                    List.Transform(Text.Split(pathsText, ","), each Text.Trim(_)),
-                                    each _ <> ""
-                                )
-                            ),
-                            selected = Table.SelectColumns(
-                                wide,
-                                {"Application ID"} & wanted,
-                                MissingField.UseNull
-                            )
-                        in
-                            Table.ReorderColumns(
-                                Table.AddColumn(selected, "object_key", each null, Int64.Type),
-                                {"object_key", "Application ID"} & wanted
-                            )
+        // representation guard: this path reads artifact bundles only — a version
+        // without one is never adapted from its JSON representation. The
+        // rootObjectId probe (version.referencedObject) only tells "JSON-only"
+        // apart from "no data at all" for the error message.
+        ArtifactUnavailableError = (modelInfo as record, projectId as text, baseUrl as text) as any =>
+            if modelInfo[rootObjectId] <> null then
+                error [
+                    Reason = "ArtifactBundleUnavailable",
+                    Message.Format = "Model '#{0}' (version #{1}) has no 4.0 artifact bundle: it was published with a pre-4.0 connector. Load it with Speckle.GetByUrl(url) and the legacy Speckle visual, or republish the model with a 4.0 connector to get star-schema tables.",
+                    Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
+                    Detail = [
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId],
+                        ProjectId = projectId,
+                        Server = baseUrl
+                    ]
+                ]
+            else
+                error [
+                    Reason = "DataUnavailable",
+                    Message.Format = "Model '#{0}' (version #{1}) has no loadable data: the server reports neither a 4.0 artifact bundle nor a JSON representation for this version.",
+                    Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
+                    Detail = [
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId],
+                        ProjectId = projectId,
+                        Server = baseUrl
+                    ]
                 ],
 
         // loads one model and returns its star-schema shapes + per-model metadata
@@ -209,21 +163,20 @@
                 modelInfo = GetModel(singleModelUrl),
                 resolvedVersionId = if versionId <> null then versionId else modelInfo[versionId],
 
-                // null -> the version predates 4.0 artifact bundles (legacy fallback)
+                // null -> no artifact bundle for this version (JSON-only or empty)
                 files = FetchArtifacts(baseUrl, projectId, modelInfo[modelId], resolvedVersionId, weakToken),
-                isArtifact = files <> null,
 
-                model = if isArtifact then
+                model = if files <> null then
                     GetEavModel(deps, files, ordinal * KeySpace)
                 else
-                    LegacyShapes(GetStructuredData(singleModelUrl, weakToken)),
+                    ArtifactUnavailableError(modelInfo, projectId, baseUrl),
 
                 // best-effort receipt tracking (forced via Observe below)
                 markReceivedResult = try MarkReceived(powerfulToken, resolvedVersionId, projectId, baseUrl) otherwise false,
 
-                userInfoBase = [
+                userInfoData = [
                     schemaVersion = 2,
-                    pipeline = if isArtifact then "artifact" else "legacy",
+                    pipeline = "artifact",
                     server = baseUrl,
                     projectId = projectId,
                     modelId = modelInfo[modelId],
@@ -239,11 +192,6 @@
                     version = ConnectorVersion,
                     email = userEmail
                 ],
-                // the legacy visual path still needs the root object hash
-                userInfoData = if isArtifact then
-                    userInfoBase
-                else
-                    Record.AddField(userInfoBase, "rootObjectId", modelInfo[rootObjectId]),
 
                 encodedUserInfo = Observe(markReceivedResult, EncodeUserInfo(userInfoData))
             in

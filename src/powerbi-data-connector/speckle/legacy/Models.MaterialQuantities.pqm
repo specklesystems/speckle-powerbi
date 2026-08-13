@@ -1,0 +1,22 @@
+// function for transforming a table to extract and expand Material Quantities data
+(inputTable as table, optional addPrefix as logical) as table =>
+let
+    // Default addPrefix to false if not provided
+    UsePrefix = if addPrefix = null then false else addPrefix,
+    
+    // Add mq column using existing MaterialQuantities function with list output
+    AddedMQ = Table.AddColumn(inputTable, "mq", each Speckle.Objects.MaterialQuantities([data], true)),
+    
+    // Expand the mq list column
+    ExpandMQ = Table.ExpandListColumn(AddedMQ, "mq"),
+    
+    // Add MQProperties column using Properties function with error handling
+    AddedMQProperties = Table.AddColumn(ExpandMQ, "MQ", each try Speckle.Objects.Properties([mq]) otherwise null),
+    
+    // Expand the MQProperties record using Utils.ExpandRecord
+    ExpandMQProperties = Speckle.Utils.ExpandRecord(AddedMQProperties, "MQ", null, UsePrefix),
+    
+    // Remove the temporary mq and MQProperties columns
+    FinalTable = Table.RemoveColumns(ExpandMQProperties, {"mq", "MQ"}, MissingField.Ignore)
+in
+    FinalTable

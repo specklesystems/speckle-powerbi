@@ -125,18 +125,37 @@ shared Speckle.GetModel = Value.ReplaceType(
     type function (url as Uri.Type) as record
 );
 
-// LEGACY PATH export (pre-4.0 versions) — token optional for direct use
+// LEGACY PATH exports — 3.x public interfaces preserved (ENG-9165). The impl
+// files accept an optional pre-exchanged token for internal reuse; the exports
+// keep the 3.x single-parameter arity existing reports were built against.
+GetStructuredData.Impl = Speckle.LoadFunction("GetStructuredData.pqm");
+
 [DataSource.Kind = "Speckle"]
 shared Speckle.GetStructuredData = Value.ReplaceType(
-    Speckle.LoadFunction("GetStructuredData.pqm"),
-    type function (url as Uri.Type, optional token as text) as table
+    (url as text) as table => GetStructuredData.Impl(url),
+    type function (url as Uri.Type) as table meta [
+        Documentation.LongDescription = "3.x compatibility: returns the flat objects table built from the version's JSON representation. Versions published as 4.0 artifact-only have no JSON representation — load those with Speckle.GetTables instead."
+    ]
 );
 
-// LEGACY PATH export (pre-4.0 versions) — token optional for direct use
+SendToServer.Impl = Speckle.LoadFunction("SendToServer.pqm");
+
+// 3.x exported this as `as table` although the runtime value is the raw object
+// list — kept verbatim so existing queries observe the identical contract
 [DataSource.Kind = "Speckle"]
 shared Speckle.SendToServer = Value.ReplaceType(
-    Speckle.LoadFunction("SendToServer.pqm"),
-    type function (url as Uri.Type, optional token as text) as list
+    (url as text) => SendToServer.Impl(url),
+    type function (url as Uri.Type) as table meta [
+        Documentation.LongDescription = "3.x compatibility: downloads the version's raw JSON object tree. Versions published as 4.0 artifact-only have no JSON representation — load those with Speckle.GetTables instead."
+    ]
+);
+
+// 3.x compatibility: reports the connector version parsed from Speckle.pq
+shared Speckle.GetVersion = Value.ReplaceType(
+    Speckle.LoadFunction("GetVersion.pqm"),
+    type function () as text meta [
+        Documentation.LongDescription = "Returns the Speckle connector version string."
+    ]
 );
 
 [DataSource.Kind = "Speckle"]
@@ -161,13 +180,85 @@ shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
     ) as table
 );
 
-// single load of the GetByUrl pipeline — Speckle.GetByUrl exposes the
-// navigation table, Speckle.ExpandProperties the on-demand property pivot
+// 3.x compatibility data-shaping helpers (ENG-9165). They expect the flat
+// table/record shapes returned by Speckle.GetByUrl and do NOT operate on the
+// Speckle.GetTables star-schema tables.
+LegacyHelperScope = "3.x compatibility helper: expects the flat shapes returned by Speckle.GetByUrl. It does not operate on Speckle.GetTables star-schema tables.";
+
+shared Speckle.Objects.Collections = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.Collections.pqm"),
+    type function (inputData as table) as table meta [
+        Documentation.LongDescription = "Extracts the collection structure from a Speckle objects table. " & LegacyHelperScope
+    ]
+);
+
+shared Speckle.Objects.CompositeStructure = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.CompositeStructure.pqm"),
+    type function (objectRecord as record, optional outputAsList as nullable logical) as any meta [
+        Documentation.LongDescription = "Extracts the composite structure of a Speckle object record. " & LegacyHelperScope
+    ]
+);
+
+shared Speckle.Objects.MaterialQuantities = Value.ReplaceType(
+    Speckle.LoadFunction("Objects.MaterialQuantities.pqm"),
+    type function (objectRecord as record, optional outputAsList as logical) as any meta [
+        Documentation.LongDescription = "Extracts material quantities from a Speckle object record. " & LegacyHelperScope
+    ]
+);
+
+shared Speckle.Models.Federate = Value.ReplaceType(
+    Speckle.LoadFunction("Models.Federate.pqm"),
+    type function (tables as list, optional excludeData as logical) as table meta [
+        Documentation.LongDescription = "Combines multiple Speckle model tables into one federated table. " & LegacyHelperScope
+    ]
+);
+
+shared Speckle.Models.MaterialQuantities = Value.ReplaceType(
+    Speckle.LoadFunction("Models.MaterialQuantities.pqm"),
+    type function (inputTable as table, optional addPrefix as logical) as table meta [
+        Documentation.LongDescription = "Extracts material quantities from a Speckle model table. " & LegacyHelperScope
+    ]
+);
+
+[DataSource.Kind = "Speckle"]
+shared Speckle.Project.Issues = Value.ReplaceType(
+    Speckle.LoadFunction("Project.Issues.pqm"),
+    type function (url as Uri.Type, optional getReplies as logical) as table meta [
+        Documentation.LongDescription = "Returns the discussion threads of a Speckle project (3.x compatibility). Independent of both the Speckle.GetByUrl and Speckle.GetTables data paths."
+    ]
+);
+
+shared Speckle.Revit.Parameters.ToNameValueRecord = Value.ReplaceType(
+    (r as record, optional exclude as list) as record =>
+        let
+            defaultExclude = {"id", "speckle_type", "applicationId", "totalChildrenCount"},
+            fullExclusion = if exclude = null then defaultExclude else List.Union(defaultExclude, exclude),
+            clean = Record.RemoveFields(r, fullExclusion, MissingField.Ignore),
+            recTable = Record.ToTable(clean),
+            cleanTable = Table.RemoveColumns(recTable, "Name"),
+            expanded = Table.ExpandRecordColumn(
+                cleanTable, "Value", {"name", "value", "applicationInternalName"}, {"Name", "Value", "UID"}
+            ),
+            joined = Table.AddColumn(expanded, "Combo", each [Name] & " [" & [UID] & "]"),
+            renamed = Table.RenameColumns(joined, {{"Name", "x"}, {"Combo", "Name"}}),
+            result = Record.FromTable(renamed)
+        in
+            result,
+    type function (r as record, optional exclude as list) as record meta [
+        Documentation.LongDescription = "Flattens a Revit parameters record into name/value pairs. " & LegacyHelperScope
+    ]
+);
+
+// LEGACY entry point (ENG-9165): Speckle.GetByUrl keeps its full 3.x contract —
+// signature, flat objects table, nested data/properties records, real object
+// hashes and Model Info blob — reading the version's JSON representation only.
+// Deliberately NOT published: it must keep evaluating inside existing reports,
+// but new reports should find only Speckle.GetTables in the Get Data search.
 GetByUrl.Impl = Speckle.LoadFunction("GetByUrl.pqm");
 
-[DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetByUrl = Value.ReplaceType(
-    (url as text) as table => GetByUrl.Impl(url),
+    GetByUrl.Impl,
     type function (
         url as (
             Uri.Type meta [
@@ -175,18 +266,20 @@ shared Speckle.GetByUrl = Value.ReplaceType(
                 Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
                 Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
             ]
+        ),
+        optional ExpandProperties as (
+            type logical meta [
+                Documentation.FieldCaption = "Expand Properties (may slow query)",
+                Documentation.FieldDescription = "Expand the properties column into individual columns for easier analysis. When checked, each property from the 'properties' record column will have its own column. This can slow down the query if you have a lot of properties.",
+                Documentation.AllowedValues = {true, false}
+            ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Data by URL",
         Documentation.DisplayName = "Speckle - Get Data by URL",
-        Documentation.LongDescription = "Returns the model data as a set of tables (star schema):#(lf)
-            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 3D visual#(lf)
-            - Properties (object_key, path_key, typed values) — one row per INSTANCE property#(lf)
-            - Property Paths (path_key, Property)#(lf)
-            - Object Types (object_key, type_key) + Type Properties (type_key, path_key, typed values) — deduped type params#(lf)
-            Use Speckle.ExpandProperties(url, propertyPaths) to pivot only the property paths you name onto the object grain (instance-wins).#(lf)
-            Recommended relationships: Objects 1-* Properties *-1 Property Paths on object_key/path_key;#(lf)
-            Objects 1-* Object Types *-1 Type Properties on object_key/type_key (cross-filter Both for slicing).#(lf)
+        Documentation.LongDescription = "Returns structured data from a Speckle model URL.#(lf)
+            Reads the version's JSON representation (the 3.x contract used by existing reports and the legacy 3D visual).#(lf)
+            Versions published as 4.0 artifact-only have no JSON representation — load those with Speckle.GetTables.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
@@ -199,7 +292,47 @@ shared Speckle.GetByUrl = Value.ReplaceType(
     ]
 );
 
-// on-demand property expansion over the same pipeline as Speckle.GetByUrl —
+// ARTIFACT entry point (ENG-9165): the 4.0 star schema, reading artifact
+// bundles only — Speckle.GetTables exposes the navigation table,
+// Speckle.ExpandProperties the on-demand property pivot over the same pipeline
+GetTables.Impl = Speckle.LoadFunction("GetTables.pqm");
+
+[DataSource.Kind = "Speckle", Publish="GetTables.Publish"]
+shared Speckle.GetTables = Value.ReplaceType(
+    (url as text) as table => GetTables.Impl(url),
+    type function (
+        url as (
+            Uri.Type meta [
+                Documentation.FieldCaption = "Speckle Model URL",
+                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
+            ]
+        )
+    ) as table meta [
+        Documentation.Name = "Speckle - Get Tables",
+        Documentation.DisplayName = "Speckle - Get Tables",
+        Documentation.LongDescription = "Returns the model data as a set of tables (star schema) from the version's 4.0 artifact bundle:#(lf)
+            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
+            - Properties (object_key, path_key, typed values) — one row per INSTANCE property#(lf)
+            - Property Paths (path_key, Property)#(lf)
+            - Object Types (object_key, type_key) + Type Properties (type_key, path_key, typed values) — deduped type params#(lf)
+            Use Speckle.ExpandProperties(url, propertyPaths) to pivot only the property paths you name onto the object grain (instance-wins).#(lf)
+            Recommended relationships: Objects 1-* Properties *-1 Property Paths on object_key/path_key;#(lf)
+            Objects 1-* Object Types *-1 Type Properties on object_key/type_key (cross-filter Both for slicing).#(lf)
+            Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
+            Supports the following URL formats:#(lf)
+            - Model URL: Gets the latest version of the specified model#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
+            - Version URL: Gets a specific version from the project#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID@VERSION_ID')#(lf)
+            - Federated Model URL: Gets multiple models from the project#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2')#(lf)
+            - Project-Wide Model Load URL: Resolves the project's flat model collection during refresh#(lf)
+              (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/all')"
+    ]
+);
+
+// on-demand property expansion over the same pipeline as Speckle.GetTables —
 // deliberately unpublished (no Get Data / navigator entry): invoke it from a
 // blank query in the Power Query editor once the model tables are loaded.
 // propertyPaths is optional ONLY because the data source path for a kind is
@@ -211,7 +344,7 @@ shared Speckle.ExpandProperties = Value.ReplaceType(
         if propertyPaths = null then
             error "Speckle.ExpandProperties requires property paths — pass a comma-separated list as listed in the Property Paths table"
         else
-            GetByUrl.Impl(url, propertyPaths),
+            GetTables.Impl(url, propertyPaths),
     type function (
         url as (
             Uri.Type meta [
@@ -237,16 +370,17 @@ shared Speckle.ExpandProperties = Value.ReplaceType(
     ]
 );
 
-// here we register the GetByUrl function to power bi ui
-GetByUrl.Publish = [
+// here we register the GetTables function to power bi ui — the single Get Data
+// entry; the legacy Speckle.GetByUrl stays unpublished but exported
+GetTables.Publish = [
     Category = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
-    SourceImage = GetByUrl.Icons,
-    SourceTypeImage = GetByUrl.Icons
+    SourceImage = Speckle.Icons,
+    SourceTypeImage = Speckle.Icons
 ];
 
-GetByUrl.Icons = [
+Speckle.Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
