@@ -1,4 +1,7 @@
-(url as text) as table =>
+// propertyPaths = null -> the star-schema navigation table (the normal
+// Get Data path). propertyPaths given -> skips the navigator and returns the
+// on-demand property expansion directly (backs Speckle.ExpandProperties).
+(url as text, optional propertyPaths as text) as table =>
     let
         // single source of truth for the connector version (keep Speckle.pq [Version]
         // and Speckle.proj <Version> aligned with this)
@@ -259,10 +262,11 @@
         WithModelInfo = (t as table, modelInfoBlob as text) as table =>
             Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
 
-        // combines per-model tables and assembles the navigation table.
+        // combines per-model tables and assembles the result: the navigation
+        // table, or — when propertyPaths was passed — the expanded table itself.
         // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
         // on object_key / path_key.
-        BuildNavigation = (modelsData as list, addSourceModel as logical) as table =>
+        BuildResult = (modelsData as list, addSourceModel as logical) as table =>
             let
                 // delimiter chosen to avoid conflicts with base64 characters
                 combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
@@ -288,55 +292,40 @@
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
 
-                // "Expand Properties" — the on-demand replacement for the old eager
-                // Flat (Wide): the user invokes it with comma-separated property
-                // paths (browse them in Property Paths) and only those columns are
-                // evaluated. Lean output: object_key + the requested columns (no
-                // Model Info blob, no Application ID — the 1:1 object_key
-                // relationship to Objects carries identity). Federation: each model
-                // expands independently, results union with namespaced object_keys;
-                // paths absent in a model = null.
-                expandPropertiesRaw = (propertyPaths as text) as table =>
+                // On-demand property expansion — the replacement for the old eager
+                // Flat (Wide), surfaced as Speckle.ExpandProperties (deliberately
+                // NOT a navigator entry): comma-separated property paths in (browse
+                // them in Property Paths), and only those columns are evaluated.
+                // Lean output: object_key + the requested columns (no Model Info
+                // blob, no Application ID — the 1:1 object_key relationship to
+                // Objects carries identity). Federation: each model expands
+                // independently, results union with namespaced object_keys; paths
+                // absent in a model = null.
+                ExpandAcrossModels = (pathsText as text) as table =>
                     Table.Combine(
                         List.Transform(
                             modelsData,
                             (m) =>
                                 let
-                                    t = m[Model][ExpandProperties](propertyPaths)
+                                    t = m[Model][ExpandProperties](pathsText)
                                 in
                                     if addSourceModel then
                                         Table.AddColumn(t, "Source Model", (row) => m[SourceLabel], type text)
                                     else
                                         t
                         )
-                    ),
-                expandPropertiesFn = Value.ReplaceType(
-                    expandPropertiesRaw,
-                    type function (
-                        propertyPaths as (
-                            type text meta [
-                                Documentation.FieldCaption = "Property paths (comma-separated)",
-                                Documentation.FieldDescription = "Dotted property paths as listed in the Property Paths table",
-                                Documentation.SampleValues = {"category, properties.Dimensions.Area"}
-                            ]
-                        )
-                    ) as table meta [
-                        Documentation.Name = "Expand Properties",
-                        Documentation.LongDescription =
-                            "Returns object_key plus one column per requested property path (instance value wins over type value). "
-                            & "Browse available paths in the Property Paths table. Only the requested paths are evaluated, so this "
-                            & "stays fast on large models — relate the result to Objects 1:1 on object_key to slice the 3D visual."
-                    ]
-                )
+                    )
             in
-                NavigationTable({
-                    [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
-                    [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
-                    [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                    [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true],
-                    [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true],
-                    [name = "Expand Properties", key = "expand-properties", data = expandPropertiesFn, itemKind = "Function", isLeaf = true]
-                }),
+                if propertyPaths <> null then
+                    ExpandAcrossModels(propertyPaths)
+                else
+                    NavigationTable({
+                        [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
+                        [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
+                        [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
+                        [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true],
+                        [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true]
+                    }),
 
         results = Observe(
             permissionGuard,
@@ -354,9 +343,9 @@
                         )
                     )
                 in
-                    BuildNavigation(modelsData, true)
+                    BuildResult(modelsData, true)
             else
-                BuildNavigation(
+                BuildResult(
                     {
                         ProcessSingleModel(
                             effectiveParsedUrl[baseUrl],

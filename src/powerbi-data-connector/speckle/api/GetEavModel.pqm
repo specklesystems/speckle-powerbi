@@ -12,8 +12,9 @@
 //   ObjectTypes       object_key | type_key                      (bridge; empty when bundle has no types)
 //   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
 //   ExpandProperties  (pathsText) => object_key | one column per REQUESTED path
-//                     — "Expand Properties" in the navigator: on-demand pivot,
-//                     instance-wins over type params; relate 1:1 to Objects
+//                     — backs the shared Speckle.ExpandProperties function:
+//                     on-demand pivot, instance-wins over type params; relate
+//                     1:1 to Objects
 //
 // Every table carries dense-int keys so model relationships join on ints
 // (fast in VertiPaq, and the name match helps Desktop's autodetect):
@@ -180,7 +181,7 @@
             ),
 
         // ---- on-demand property expansion (replaces the eager flat tables) ----
-        // Invoked from the navigation table's "Expand Properties" function entry:
+        // Invoked via the shared Speckle.ExpandProperties function:
         // pivots ONLY the requested dotted paths onto the object grain, so cost is
         // proportional to what the user asked for, not the path dictionary. Browse
         // available path strings in the Property Paths table. Output = object_key +

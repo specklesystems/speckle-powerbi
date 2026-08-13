@@ -161,9 +161,13 @@ shared Speckle.Utils.ExpandRecord = Value.ReplaceType(
     ) as table
 );
 
+// single load of the GetByUrl pipeline — Speckle.GetByUrl exposes the
+// navigation table, Speckle.ExpandProperties the on-demand property pivot
+GetByUrl.Impl = Speckle.LoadFunction("GetByUrl.pqm");
+
 [DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
 shared Speckle.GetByUrl = Value.ReplaceType(
-    Speckle.LoadFunction("GetByUrl.pqm"),
+    (url as text) as table => GetByUrl.Impl(url),
     type function (
         url as (
             Uri.Type meta [
@@ -180,7 +184,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
             - Properties (object_key, path_key, typed values) — one row per INSTANCE property#(lf)
             - Property Paths (path_key, Property)#(lf)
             - Object Types (object_key, type_key) + Type Properties (type_key, path_key, typed values) — deduped type params#(lf)
-            - Expand Properties — function: pivot only the property paths you name onto the object grain (instance-wins)#(lf)
+            Use Speckle.ExpandProperties(url, propertyPaths) to pivot only the property paths you name onto the object grain (instance-wins).#(lf)
             Recommended relationships: Objects 1-* Properties *-1 Property Paths on object_key/path_key;#(lf)
             Objects 1-* Object Types *-1 Type Properties on object_key/type_key (cross-filter Both for slicing).#(lf)
             Supports the following URL formats:#(lf)
@@ -192,6 +196,44 @@ shared Speckle.GetByUrl = Value.ReplaceType(
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2')#(lf)
             - Project-Wide Model Load URL: Resolves the project's flat model collection during refresh#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/all')"
+    ]
+);
+
+// on-demand property expansion over the same pipeline as Speckle.GetByUrl —
+// deliberately unpublished (no Get Data / navigator entry): invoke it from a
+// blank query in the Power Query editor once the model tables are loaded.
+// propertyPaths is optional ONLY because the data source path for a kind is
+// inferred from required parameters — a second required param here would make
+// the 'Speckle' kind ambiguous and the whole extension fails to load
+[DataSource.Kind = "Speckle"]
+shared Speckle.ExpandProperties = Value.ReplaceType(
+    (url as text, optional propertyPaths as text) as table =>
+        if propertyPaths = null then
+            error "Speckle.ExpandProperties requires property paths — pass a comma-separated list as listed in the Property Paths table"
+        else
+            GetByUrl.Impl(url, propertyPaths),
+    type function (
+        url as (
+            Uri.Type meta [
+                Documentation.FieldCaption = "Speckle Model URL",
+                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
+                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
+            ]
+        ),
+        optional propertyPaths as (
+            type text meta [
+                Documentation.FieldCaption = "Property paths (comma-separated)",
+                Documentation.FieldDescription = "Dotted property paths as listed in the Property Paths table",
+                Documentation.SampleValues = {"category, properties.Dimensions.Area"}
+            ]
+        )
+    ) as table meta [
+        Documentation.Name = "Speckle - Expand Properties",
+        Documentation.DisplayName = "Speckle - Expand Properties",
+        Documentation.LongDescription =
+            "Returns object_key plus one column per requested property path (instance value wins over type value). "
+            & "Browse available paths in the Property Paths table. Only the requested paths are evaluated, so this "
+            & "stays fast on large models — relate the result to Objects 1:1 on object_key to slice the 3D visual."
     ]
 );
 
