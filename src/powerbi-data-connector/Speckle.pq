@@ -252,9 +252,11 @@ shared Speckle.Revit.Parameters.ToNameValueRecord = Value.ReplaceType(
 // LEGACY entry point (ENG-9165): Speckle.GetByUrl keeps its full 3.x contract —
 // signature, flat objects table, nested data/properties records, real object
 // hashes and Model Info blob — reading the version's JSON representation only.
+// Deliberately NOT published: it must keep evaluating inside existing reports,
+// but new reports should find only Speckle.GetTables in the Get Data search.
 GetByUrl.Impl = Speckle.LoadFunction("GetByUrl.pqm");
 
-[DataSource.Kind = "Speckle", Publish="GetByUrl.Publish"]
+[DataSource.Kind = "Speckle"]
 shared Speckle.GetByUrl = Value.ReplaceType(
     GetByUrl.Impl,
     type function (
@@ -307,8 +309,8 @@ shared Speckle.GetTables = Value.ReplaceType(
             ]
         )
     ) as table meta [
-        Documentation.Name = "Speckle - Get Tables (4.0)",
-        Documentation.DisplayName = "Speckle - Get Tables (4.0)",
+        Documentation.Name = "Speckle - Get Tables",
+        Documentation.DisplayName = "Speckle - Get Tables",
         Documentation.LongDescription = "Returns the model data as a set of tables (star schema) from the version's 4.0 artifact bundle:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Properties (object_key, path_key, typed values) — one row per INSTANCE property#(lf)
@@ -368,24 +370,17 @@ shared Speckle.ExpandProperties = Value.ReplaceType(
     ]
 );
 
-// here we register the GetByUrl and GetTables functions to power bi ui
-GetByUrl.Publish = [
+// here we register the GetTables function to power bi ui — the single Get Data
+// entry; the legacy Speckle.GetByUrl stays unpublished but exported
+GetTables.Publish = [
     Category = "Other",
     ButtonText = {"Connect to Speckle"},
     LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
-    SourceImage = GetByUrl.Icons,
-    SourceTypeImage = GetByUrl.Icons
+    SourceImage = Speckle.Icons,
+    SourceTypeImage = Speckle.Icons
 ];
 
-GetTables.Publish = [
-    Category = "Other",
-    ButtonText = {"Connect to Speckle (4.0 Tables)"},
-    LearnMoreUrl = "https://speckle.guide/user/powerbi/introduction.html",
-    SourceImage = GetByUrl.Icons,
-    SourceTypeImage = GetByUrl.Icons
-];
-
-GetByUrl.Icons = [
+Speckle.Icons = [
     Icon16 = { Extension.Contents("SpeckleLogo16.png"), Extension.Contents("SpeckleLogo20.png"), Extension.Contents("SpeckleLogo24.png"), Extension.Contents("SpeckleLogo32.png") },
     Icon32 = { Extension.Contents("SpeckleLogo32.png"), Extension.Contents("SpeckleLogo40.png"), Extension.Contents("SpeckleLogo48.png"), Extension.Contents("SpeckleLogo64.png") }
 ];
