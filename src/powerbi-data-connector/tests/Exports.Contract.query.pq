@@ -40,6 +40,9 @@ let
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
         Fact("ExpandProperties parameters", {"url", "propertyPaths"}, ParamNames(Speckle.ExpandProperties)),
         Fact("ExpandProperties required arity", 1, RequiredCount(Speckle.ExpandProperties)),
+        Fact("AddInstanceProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddInstanceProperties)),
+        Fact("AddInstanceProperties required arity", 2, RequiredCount(Speckle.AddInstanceProperties)),
+        Fact("AddInstanceProperties returns table", true, ReturnsTable(Speckle.AddInstanceProperties)),
 
         // 3.x single-parameter interfaces preserved
         Fact("GetStructuredData parameters", {"url"}, ParamNames(Speckle.GetStructuredData)),
