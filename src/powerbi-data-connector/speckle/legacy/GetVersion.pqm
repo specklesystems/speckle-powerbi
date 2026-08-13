@@ -1,0 +1,46 @@
+() as text =>
+    let
+        // read the Speckle.pq file
+        specklePqContent = try 
+            Text.FromBinary(Extension.Contents("Speckle.pq"))
+        otherwise 
+            error "Could not read Speckle.pq file",
+        
+        lines = Text.Split(specklePqContent, "#(lf)"),
+        
+        versionLine = List.First(
+            List.Select(
+                lines, 
+                each Text.Contains(_, "[Version = ")
+            ),
+            null
+        ),
+        
+        version = if versionLine <> null then
+            let
+                // find the start and end positions of the version string
+                startPos = Text.PositionOf(versionLine, """") + 1,
+                tempText = Text.Middle(versionLine, startPos),
+                endPos = Text.PositionOf(tempText, """"),
+                versionText = Text.Middle(tempText, 0, endPos)
+            in
+                versionText
+        else
+            // fallback version if parsing fails
+            "3.0.0",
+        
+        // validate version format
+        isValidVersion = 
+            let 
+                parts = Text.Split(version, "."),
+                isValid = List.Count(parts) = 3 and 
+                         List.AllTrue(List.Transform(parts, each try Number.From(_) >= 0 otherwise false))
+            in 
+                isValid,
+        
+        result = if isValidVersion then 
+            version 
+        else 
+            error "Invalid version format found: " & version
+    in
+        result

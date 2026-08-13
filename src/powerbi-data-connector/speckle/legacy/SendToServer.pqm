@@ -1,4 +1,4 @@
-// LEGACY PATH (pre-4.0 versions without an artifact bundle) — no new code here.
+// LEGACY PATH — reads the version's JSON representation only (ENG-9165).
 // Downloads the raw object tree from {server}/objects/{projectId}/{rootObjectId}.
 // The caller passes the already-exchanged weak token; when omitted (direct use of
 // the shared export), the current credential's access token is used.
@@ -41,6 +41,23 @@
                         Message = "No token supplied and no credential available for the object download."
                     ],
 
+        // versions without a JSON representation (4.0 artifact-only) have no
+        // root object to download — fail clearly instead of building a bad URL
+        rootObjectId = if modelInfo[rootObjectId] <> null then
+            modelInfo[rootObjectId]
+        else
+            error [
+                Reason = "JsonRepresentationUnavailable",
+                Message.Format = "Model '#{0}' (version #{1}) has no JSON representation to download. Load it with Speckle.GetTables(url) and use the Speckle 4.0 visual instead.",
+                Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
+                Detail = [
+                    ModelId = modelInfo[modelId],
+                    VersionId = modelInfo[versionId],
+                    ProjectId = parsedUrl[projectId],
+                    Server = parsedUrl[baseUrl]
+                ]
+            ],
+
         // downloads data directly from server
         DirectDownload = (downloadToken as text) =>
             let
@@ -49,7 +66,7 @@
                     "/objects/",
                     parsedUrl[projectId],
                     "/",
-                    modelInfo[rootObjectId]
+                    rootObjectId
                 }),
 
                 Response = Web.Contents(
@@ -76,7 +93,7 @@
                             StatusCode = StatusCode,
                             ObjectUrl = objectUrl,
                             ProjectId = parsedUrl[projectId],
-                            RootObjectId = modelInfo[rootObjectId]
+                            RootObjectId = rootObjectId
                         ]
                     ]
             in

@@ -1,4 +1,4 @@
-// LEGACY PATH (pre-4.0 versions without an artifact bundle) — no new code here.
+// LEGACY PATH — reads the version's JSON representation only (ENG-9165).
 // function for getting structured object data
 (url as text, optional token as text) as table =>
     let
