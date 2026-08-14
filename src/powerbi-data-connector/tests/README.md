@@ -30,7 +30,9 @@ listing the failed facts.
 ## Live suite (manual, needs a server + credential)
 
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
-  matrix (JSON/artifact × GetByUrl/GetTables). It lives outside `tests\`
+  matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
+  contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
+  `Objects` and `Property Paths` rows are visible. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run
   without credentials. Fill in the placeholder URLs, set a credential with
   `PQTest.exe set-credential`, then run with

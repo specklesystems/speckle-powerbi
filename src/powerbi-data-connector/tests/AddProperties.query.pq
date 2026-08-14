@@ -69,14 +69,17 @@ let
             {16, "object_key"}
         }
     ),
+    // mirrors the real Speckle.GetTables shape, including the Navigator-only
+    // Hidden column; other synthetic sources below omit it to prove the
+    // helper does not require it
     Source = #table(
-        type table [Name = text, Key = text, Data = table, ItemKind = text, ItemName = text, IsLeaf = logical],
+        type table [Name = text, Key = text, Data = table, ItemKind = text, ItemName = text, IsLeaf = logical, Hidden = logical],
         {
-            {"Objects", "objects", Objects, "Table", "Table", true},
-            {"Properties", "properties", Properties, "Table", "Table", true},
-            {"Object Types", "object-types", ObjectTypes, "Table", "Table", true},
-            {"Type Properties", "type-properties", TypeProperties, "Table", "Table", true},
-            {"Property Paths", "paths", Paths, "Table", "Table", true}
+            {"Objects", "objects", Objects, "Table", "Table", true, false},
+            {"Properties", "properties", Properties, "Table", "Table", true, true},
+            {"Object Types", "object-types", ObjectTypes, "Table", "Table", true, true},
+            {"Type Properties", "type-properties", TypeProperties, "Table", "Table", true, true},
+            {"Property Paths", "paths", Paths, "Table", "Table", true, false}
         }
     ),
     Result = Speckle.AddProperties(

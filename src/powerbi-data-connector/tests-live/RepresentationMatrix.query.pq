@@ -46,6 +46,11 @@ let
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
     StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties"},
+    // only Objects and Property Paths surface in the Navigator; the other
+    // three rows are hidden implementation details for the property helpers
+    StarHidden = {false, true, false, true, true},
+    HiddenColumnName = (nav as table) as any =>
+        Record.FieldOrDefault(Value.Metadata(Value.Type(nav)), "NavigationTable.HiddenColumn", null),
 
     legacyBoth = Speckle.GetByUrl(UrlJsonAndArtifact),
     legacyJsonOnly = Speckle.GetByUrl(UrlJsonOnly),
@@ -60,6 +65,10 @@ let
             Table.RowCount(Speckle.GetByUrl(UrlJsonAndArtifact, true)) > 0),
         Fact("GetTables(both) returns the star-schema navigation table", StarTables,
             Table.Column(starBoth, "Name")),
+        Fact("GetTables(both) declares the Navigator hidden column", "Hidden",
+            HiddenColumnName(starBoth)),
+        Fact("GetTables(both) hides all but Objects and Property Paths", StarHidden,
+            Table.Column(starBoth, "Hidden")),
 
         // JSON only
         Fact("GetByUrl(json-only) returns the 3.x flat columns", true,
@@ -71,7 +80,9 @@ let
         Fact("GetByUrl(artifact-only) errors towards GetTables", "JsonRepresentationUnavailable",
             ErrorReason(() => Table.RowCount(Speckle.GetByUrl(UrlArtifactOnly)))),
         Fact("GetTables(artifact-only) returns the star-schema navigation table", StarTables,
-            Table.Column(starArtifactOnly, "Name"))
+            Table.Column(starArtifactOnly, "Name")),
+        Fact("GetTables(artifact-only) hides all but Objects and Property Paths", StarHidden,
+            Table.Column(starArtifactOnly, "Hidden"))
     }
 in
     Summarize(facts)

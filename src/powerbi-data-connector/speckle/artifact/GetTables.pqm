@@ -267,12 +267,15 @@
                 if propertyPaths <> null then
                     ExpandAcrossModels(propertyPaths)
                 else
+                    // The Navigator lists only Objects and Property Paths. The
+                    // three hidden rows stay in the table — Speckle.AddProperties
+                    // and Speckle.AddAllProperties index all five keys.
                     NavigationTable({
                         [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
-                        [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
+                        [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true, hidden = true],
                         [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                        [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true],
-                        [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true]
+                        [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true, hidden = true],
+                        [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true, hidden = true]
                     }),
 
         results = Observe(

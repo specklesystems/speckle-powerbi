@@ -57,6 +57,19 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
+### Load model tables
+
+Connecting with `Speckle.GetTables` lists two tables in the Navigator:
+
+- **Objects** — one row per object; feeds the Speckle 3D visual.
+- **Property Paths** — the catalog of dotted property paths available on the
+  model.
+
+Property values are not loaded as separate tables. Append the ones you need to
+Objects with the helpers below — the underlying source keeps three hidden
+internal tables (Properties, Object Types, Type Properties) that the helpers
+read, and advanced M code can still address them by key.
+
 ### Add every object property
 
 For property-light CAD models, create a blank query in Power Query and pass the

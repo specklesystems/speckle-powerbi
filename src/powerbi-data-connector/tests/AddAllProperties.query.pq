@@ -21,6 +21,9 @@ let
                     "#(lf)"
                 ),
 
+    // mirrors the real Speckle.GetTables shape, including the Navigator-only
+    // Hidden column; EmptySource below omits it to prove the helper does not
+    // require it
     Navigation = (
         objects as table,
         properties as any,
@@ -29,13 +32,13 @@ let
         paths as table
     ) as table =>
         #table(
-            type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical],
+            type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical, Hidden = logical],
             {
-                {"Objects", "objects", objects, "Table", "Table", true},
-                {"Properties", "properties", properties, "Table", "Table", true},
-                {"Object Types", "object-types", objectTypes, "Table", "Table", true},
-                {"Type Properties", "type-properties", typeProperties, "Table", "Table", true},
-                {"Property Paths", "paths", paths, "Table", "Table", true}
+                {"Objects", "objects", objects, "Table", "Table", true, false},
+                {"Properties", "properties", properties, "Table", "Table", true, true},
+                {"Object Types", "object-types", objectTypes, "Table", "Table", true, true},
+                {"Type Properties", "type-properties", typeProperties, "Table", "Table", true, true},
+                {"Property Paths", "paths", paths, "Table", "Table", true, false}
             }
         ),
 

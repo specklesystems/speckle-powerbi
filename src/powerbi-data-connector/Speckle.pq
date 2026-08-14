@@ -311,14 +311,12 @@ shared Speckle.GetTables = Value.ReplaceType(
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data as a set of tables (star schema) from the version's 4.0 artifact bundle:#(lf)
+        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two tables:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
-            - Properties (object_key, path_key, typed values) — one row per INSTANCE property#(lf)
-            - Property Paths (path_key, Property)#(lf)
-            - Object Types (object_key, type_key) + Type Properties (type_key, path_key, typed values) — deduped type params#(lf)
-            Use Speckle.ExpandProperties(url, propertyPaths) to pivot only the property paths you name onto the object grain (instance-wins).#(lf)
-            Recommended relationships: Objects 1-* Properties *-1 Property Paths on object_key/path_key;#(lf)
-            Objects 1-* Object Types *-1 Type Properties on object_key/type_key (cross-filter Both for slicing).#(lf)
+            - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
+            Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source),#(lf)
+            or pivot them by URL with Speckle.ExpandProperties(url, propertyPaths) — instance values win over type values.#(lf)
+            The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that these helpers consume.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
