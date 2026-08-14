@@ -23,6 +23,9 @@ listing the failed facts.
   in-memory star-schema navigation tables, including instance-over-type
   precedence (including explicit nulls), validation, naming, raw values,
   malformed facts, Object Types invariants, and federated-key behavior.
+- `AddAllProperties.query.pq` — the convenience wrapper that appends every path
+  through `Speckle.AddProperties`, including null-only and moderately wide
+  property sets, while preserving empty Objects tables and validation behavior.
 
 ## Live suite (manual, needs a server + credential)
 

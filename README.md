@@ -57,6 +57,29 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
+### Add every object property
+
+For property-light CAD models, create a blank query in Power Query and pass the
+navigation table returned by `Speckle.GetTables` to the convenience helper:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    ObjectsWithProperties = Speckle.AddAllProperties(Source)
+in
+    ObjectsWithProperties
+```
+
+The result is the Objects table with every path from the Property Paths table
+appended. Instance values take precedence over type values, and paths without a
+value are retained as null columns. Property columns use the shortest unique
+suffix of their dotted paths.
+
+This helper is intended for models with relatively few property paths. BIM
+models can contain hundreds or thousands of paths, producing a very wide table
+and slower refreshes; use `Speckle.AddProperties(Source, propertyPaths)` to select
+only the properties needed in those cases.
+
 ## Development Setup
 
 ### For local development of the 3D Visual

@@ -384,6 +384,20 @@ shared Speckle.AddProperties = Value.ReplaceType(
     ]
 );
 
+shared Speckle.AddAllProperties = Value.ReplaceType(
+    Speckle.LoadFunction("AddAllProperties.pqm"),
+    type function (
+        source as table
+    ) as table meta [
+        Documentation.Name = "Speckle - Add All Properties",
+        Documentation.DisplayName = "Speckle - Add All Properties",
+        Documentation.LongDescription =
+            "Returns the Objects table from Speckle.GetTables with every property path appended. "
+            & "Instance values take precedence over type values. Intended as a convenience for property-light models; "
+            & "models with hundreds or thousands of property paths can produce very wide, slow-to-refresh tables."
+    ]
+);
+
 // here we register the GetTables function to power bi ui — the single Get Data
 // entry; the legacy Speckle.GetByUrl stays unpublished but exported
 GetTables.Publish = [

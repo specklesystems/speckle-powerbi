@@ -43,6 +43,9 @@ let
         Fact("AddProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddProperties)),
         Fact("AddProperties required arity", 2, RequiredCount(Speckle.AddProperties)),
         Fact("AddProperties returns table", true, ReturnsTable(Speckle.AddProperties)),
+        Fact("AddAllProperties parameters", {"source"}, ParamNames(Speckle.AddAllProperties)),
+        Fact("AddAllProperties required arity", 1, RequiredCount(Speckle.AddAllProperties)),
+        Fact("AddAllProperties returns table", true, ReturnsTable(Speckle.AddAllProperties)),
         Fact("AddInstanceProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddInstanceProperties")),
         Fact("AddTypeProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddTypeProperties")),
 
