@@ -40,12 +40,11 @@ let
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
         Fact("ExpandProperties parameters", {"url", "propertyPaths"}, ParamNames(Speckle.ExpandProperties)),
         Fact("ExpandProperties required arity", 1, RequiredCount(Speckle.ExpandProperties)),
-        Fact("AddInstanceProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddInstanceProperties)),
-        Fact("AddInstanceProperties required arity", 2, RequiredCount(Speckle.AddInstanceProperties)),
-        Fact("AddInstanceProperties returns table", true, ReturnsTable(Speckle.AddInstanceProperties)),
-        Fact("AddTypeProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddTypeProperties)),
-        Fact("AddTypeProperties required arity", 2, RequiredCount(Speckle.AddTypeProperties)),
-        Fact("AddTypeProperties returns table", true, ReturnsTable(Speckle.AddTypeProperties)),
+        Fact("AddProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddProperties)),
+        Fact("AddProperties required arity", 2, RequiredCount(Speckle.AddProperties)),
+        Fact("AddProperties returns table", true, ReturnsTable(Speckle.AddProperties)),
+        Fact("AddInstanceProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddInstanceProperties")),
+        Fact("AddTypeProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddTypeProperties")),
 
         // 3.x single-parameter interfaces preserved
         Fact("GetStructuredData parameters", {"url"}, ParamNames(Speckle.GetStructuredData)),

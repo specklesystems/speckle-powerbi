@@ -370,33 +370,17 @@ shared Speckle.ExpandProperties = Value.ReplaceType(
     ]
 );
 
-shared Speckle.AddInstanceProperties = Value.ReplaceType(
-    Speckle.LoadFunction("AddInstanceProperties.pqm"),
+shared Speckle.AddProperties = Value.ReplaceType(
+    Speckle.LoadFunction("AddProperties.pqm"),
     type function (
         source as table,
         propertyPaths as list
     ) as table meta [
-        Documentation.Name = "Speckle - Add Instance Properties",
-        Documentation.DisplayName = "Speckle - Add Instance Properties",
+        Documentation.Name = "Speckle - Add Properties",
+        Documentation.DisplayName = "Speckle - Add Properties",
         Documentation.LongDescription =
-            "Returns the Objects table from Speckle.GetTables with the requested instance-property values appended. "
-            & "Pass exact dotted paths from the Property Paths table. Type properties are never used."
-    ]
-);
-
-shared Speckle.AddTypeProperties = Value.ReplaceType(
-    Speckle.LoadFunction("AddTypeProperties.pqm"),
-    type function (
-        source as table,
-        propertyPaths as list
-    ) as table meta [
-        Documentation.Name = "Speckle - Add Type Properties",
-        Documentation.DisplayName = "Speckle - Add Type Properties",
-        Documentation.LongDescription =
-            "Returns the Objects table from Speckle.GetTables with the requested type-property values appended "
-            & "(resolved through Object Types and Type Properties). Pass exact dotted paths from the Property Paths "
-            & "table. Only declared type values are used — instance properties are never read, so an instance "
-            & "override does not hide the type value."
+            "Returns the Objects table from Speckle.GetTables with the requested property values appended. "
+            & "Pass exact dotted paths from the Property Paths table. Instance values take precedence over type values."
     ]
 );
 

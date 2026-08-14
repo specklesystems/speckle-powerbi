@@ -19,13 +19,10 @@ listing the failed facts.
 - `Legacy.Shapes.query.pq` — the restored legacy data-shaping helpers against
   legacy-shaped inputs (the flat shapes returned by `Speckle.GetByUrl`).
   These helpers are not expected to accept `Speckle.GetTables` output.
-- `AddInstanceProperties.query.pq` — the shared instance-property enrichment
-  helper against in-memory star-schema navigation tables, including validation,
-  null, naming, typing, and federated-key behavior.
-- `AddTypeProperties.query.pq` — the shared type-property enrichment helper
-  against in-memory star-schema navigation tables, including shared-type
-  projection, instance data staying unread, Object Types duplicate validation,
-  orphan-row handling, and federated-key behavior.
+- `AddProperties.query.pq` — the unified property enrichment helper against
+  in-memory star-schema navigation tables, including instance-over-type
+  precedence (including explicit nulls), validation, naming, raw values,
+  malformed facts, Object Types invariants, and federated-key behavior.
 
 ## Live suite (manual, needs a server + credential)
 

@@ -1,10 +1,9 @@
-// Adds selected type EAV values to the Objects navigation table. This
-// deliberately has no dependency on the instance Properties table: values come
-// from Object Types -> Type Properties only, so a declared type value stays
-// visible here even when the object carries an instance override.
+// Adds selected EAV values to the Objects navigation table. Instance-row
+// presence wins over a projected type value, including when the instance Value
+// is null.
 (source as table, propertyPaths as list) as table =>
     let
-        requiredKeys = {"objects", "object-types", "type-properties", "paths"},
+        requiredKeys = {"objects", "properties", "object-types", "type-properties", "paths"},
         hasNavigationColumns = Table.HasColumns(source, {"Key", "Data"}),
         availableKeys = if hasNavigationColumns then
             List.Select(Table.Column(source, "Key"), each Value.Is(_, type text))
@@ -19,15 +18,16 @@
             requiredKeys,
         validatedSource = if not hasNavigationColumns or not List.IsEmpty(missingKeys) then
             error Error.Record(
-                "Speckle.AddTypeProperties.InvalidNavigationSource",
+                "Speckle.AddProperties.InvalidNavigationSource",
                 "The source is missing required Speckle navigation entries: "
                     & Text.Combine(missingKeys, ", ")
-                    & ". Expected: Speckle.AddTypeProperties(Speckle.GetTables(url), propertyPaths).",
+                    & ". Expected: Speckle.AddProperties(Speckle.GetTables(url), propertyPaths).",
                 [MissingKeys = missingKeys, RequiredKeys = requiredKeys]
             )
         else
             source,
         objects = validatedSource{[Key = "objects"]}[Data],
+        properties = validatedSource{[Key = "properties"]}[Data],
         objectTypes = validatedSource{[Key = "object-types"]}[Data],
         typeProperties = validatedSource{[Key = "type-properties"]}[Data],
         paths = validatedSource{[Key = "paths"]}[Data],
@@ -43,7 +43,7 @@
             propertyPaths
         else
             error Error.Record(
-                "Speckle.AddTypeProperties.InvalidPropertyPaths",
+                "Speckle.AddProperties.InvalidPropertyPaths",
                 "propertyPaths contains invalid items at positions "
                     & Text.Combine(List.Transform(invalidPathIndexes, each Text.From(_ + 1)), ", ")
                     & ". Each item must be non-empty text.",
@@ -63,26 +63,47 @@
                     List.Positions(wanted),
                     (i) => Candidate(pathParts{i}, depths{i})
                 ),
+                existingConflicts = List.Transform(
+                    List.Positions(candidates),
+                    (i) => List.Contains(existingNames, candidates{i}, Comparer.Ordinal)
+                ),
+                duplicatePositions = List.Transform(
+                    candidates,
+                    (candidate) => List.PositionOf(
+                        candidates,
+                        candidate,
+                        Occurrence.All,
+                        Comparer.Ordinal
+                    )
+                ),
+                duplicateConflicts = List.Transform(duplicatePositions, each List.Count(_) > 1),
                 conflicts = List.Transform(
                     List.Positions(candidates),
-                    (i) =>
-                        List.Contains(existingNames, candidates{i}, Comparer.Ordinal)
-                        or List.Count(
-                            List.PositionOf(candidates, candidates{i}, Occurrence.All, Comparer.Ordinal)
-                        ) > 1
+                    (i) => existingConflicts{i} or duplicateConflicts{i}
                 ),
-                cannotGrow = List.Transform(
+                canGrow = List.Transform(
+                    List.Positions(depths),
+                    (i) => depths{i} < List.Count(pathParts{i})
+                ),
+                unresolvableConflicts = List.Transform(
                     List.Positions(conflicts),
-                    (i) => conflicts{i} and depths{i} >= List.Count(pathParts{i})
+                    (i) =>
+                        (existingConflicts{i} and not canGrow{i})
+                        or (
+                            duplicateConflicts{i}
+                            and not List.AnyTrue(
+                                List.Transform(duplicatePositions{i}, (j) => canGrow{j})
+                            )
+                        )
                 ),
                 nextDepths = List.Transform(
                     List.Positions(depths),
-                    (i) => if conflicts{i} then depths{i} + 1 else depths{i}
+                    (i) => if conflicts{i} and canGrow{i} then depths{i} + 1 else depths{i}
                 )
             in
-                if List.AnyTrue(cannotGrow) then
+                if List.AnyTrue(unresolvableConflicts) then
                     error Error.Record(
-                        "Speckle.AddTypeProperties.NameCollision",
+                        "Speckle.AddProperties.NameCollision",
                         "Requested property columns cannot be made unique against the Objects columns.",
                         [PropertyPaths = wanted, ExistingColumns = existingNames]
                     )
@@ -91,11 +112,9 @@
                 else
                     candidates,
         outputNames = ResolveNames(List.Transform(wanted, each 1)),
-        // Object Types rows for objects that are not in Objects are ignored
-        // (federated slices can carry bridge rows for objects filtered away);
-        // among the remaining rows one row per object is an invariant this
-        // helper enforces, because a duplicated bridge silently multiplies the
-        // projected type values.
+
+        // Orphan bridge rows are ignored. More than one bridge row for an
+        // object that is present in Objects is invalid, even if the rows match.
         bridgeRows = Table.RemoveColumns(
             Table.NestedJoin(
                 Table.SelectColumns(objectTypes, {"object_key", "type_key"}),
@@ -116,14 +135,15 @@
             bridgeRows
         else
             error Error.Record(
-                "Speckle.AddTypeProperties.InvalidObjectTypes",
+                "Speckle.AddProperties.InvalidObjectTypes",
                 "Object Types must contain at most one row per object. Repeated object_key values: "
                     & Text.Combine(List.Transform(duplicateObjectKeys, each Text.From(_)), ", ")
                     & ".",
                 [ObjectKeys = duplicateObjectKeys]
             ),
-        // Paths is the small dimension. Filter it before the fact join so the
-        // Type Properties scan carries only requested path keys and the raw Value.
+
+        // Paths is the small dimension. Filter it before either fact join so
+        // the large fact scans carry only requested keys and the raw Value.
         wantedPaths = Table.SelectColumns(
             Table.SelectRows(
                 paths,
@@ -131,38 +151,49 @@
             ),
             {"path_key", "Property"}
         ),
-        typeValues = Table.ExpandTableColumn(
-            Table.NestedJoin(
-                Table.SelectColumns(typeProperties, {"type_key", "path_key", "Value"}),
-                {"path_key"},
-                wantedPaths, {"path_key"},
-                "__path", JoinKind.Inner
+        SelectRequestedPropertyValues = (facts as table, grainKey as text) as table =>
+            Table.ExpandTableColumn(
+                Table.NestedJoin(
+                    Table.SelectColumns(facts, {grainKey, "path_key", "Value"}),
+                    {"path_key"},
+                    wantedPaths, {"path_key"},
+                    "__wantedPath", JoinKind.Inner
+                ),
+                "__wantedPath", {"Property"}, {"__property"}
             ),
-            "__path", {"Property"}, {"__path"}
-        ),
-        // one bridge row per object times the deduped type fact — the shared
-        // type values project onto every object of that type
-        selected = Table.ExpandTableColumn(
+        instanceValues = SelectRequestedPropertyValues(properties, "object_key"),
+        requestedTypeValues = SelectRequestedPropertyValues(typeProperties, "type_key"),
+        projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
                 validatedBridge, {"type_key"},
-                typeValues, {"type_key"},
+                requestedTypeValues, {"type_key"},
                 "__type", JoinKind.Inner
             ),
-            "__type", {"Value", "__path"}, {"Value", "__path"}
+            "__type", {"path_key", "Value", "__property"}, {"path_key", "Value", "__property"}
         ),
-        grouped = Table.Group(
-            selected,
+        typeFallbackValues = Table.RemoveColumns(
+            Table.NestedJoin(
+                projectedTypeValues, {"object_key", "path_key"},
+                instanceValues, {"object_key", "path_key"},
+                "__instance", JoinKind.LeftAnti
+            ),
+            {"__instance"}
+        ),
+        selectedPropertyValues = Table.SelectColumns(
+            Table.Combine({instanceValues, typeFallbackValues}),
+            {"object_key", "Value", "__property"}
+        ),
+        propertyValuesByObject = Table.Group(
+            selectedPropertyValues,
             {"object_key"},
-            // (type_key, path_key) is a bundle invariant and the bridge is one
-            // row per object, so (object_key, path_key) is unique here.
-            // Record.FromList is intentionally allowed to fail if malformed
-            // input violates it.
-            {{"__props", each Record.FromList([Value], [__path]), type record}}
+            // Duplicate (object_key, path_key) facts intentionally reach
+            // record construction and fail rather than being silently selected.
+            {{"__props", each Record.FromList([Value], [__property]), type record}}
         ),
         withProperties = Table.ExpandTableColumn(
             Table.NestedJoin(
                 objects, {"object_key"},
-                grouped, {"object_key"},
+                propertyValuesByObject, {"object_key"},
                 "__group", JoinKind.LeftOuter
             ),
             "__group", {"__props"}, {"__props"}
