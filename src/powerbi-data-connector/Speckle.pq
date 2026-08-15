@@ -293,7 +293,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
 );
 
 // ARTIFACT entry point (ENG-9165): the 4.0 star schema, reading artifact
-// bundles only — Speckle.GetTables exposes the navigation table,
+// bundles only — Speckle.GetTables exposes the Objects selection function,
 // Speckle.ExpandProperties the on-demand property pivot over the same pipeline
 GetTables.Impl = Speckle.LoadFunction("GetTables.pqm");
 
@@ -311,13 +311,10 @@ shared Speckle.GetTables = Value.ReplaceType(
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two tables:#(lf)
-            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
-            - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
-            Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source)#(lf)
-            (instance values in unprefixed columns, type values in Type_-prefixed columns), or pivot them by URL with#(lf)
-            Speckle.ExpandProperties(url, propertyPaths), which merges the two sources with instance values winning.#(lf)
-            The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that these helpers consume.#(lf)
+        Documentation.LongDescription = "Returns model data from the version's 4.0 artifact bundle. The Navigator exposes one Objects function.#(lf)
+            Open the function in Power Query and optionally select properties to append to the complete Objects table.#(lf)
+            Instance values are returned in unprefixed columns and type values in Type_-prefixed columns.#(lf)
+            Selecting all properties may significantly increase refresh time and table width.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)

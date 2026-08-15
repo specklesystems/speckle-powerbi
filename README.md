@@ -57,44 +57,23 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
-### Load model tables
+### Load model objects and properties
 
-Connecting with `Speckle.GetTables` lists two tables in the Navigator:
+Connecting with `Speckle.GetTables` exposes one **Objects** function in the
+Navigator. Select it and open it in Power Query to choose any properties you
+want appended to the Objects table. The property selection is optional; leaving
+it empty returns only the fixed object identity and model columns.
 
-- **Objects** — one row per object; feeds the Speckle 3D visual.
-- **Property Paths** — the catalog of dotted property paths available on the
-  model.
+Property values stay split by provenance. Values stored per object land in an
+unprefixed column (for example `Area`), while values stored on the object's type
+land in a `Type_`-prefixed column (`Type_Area`). A property with both an instance
+value and a type value produces both columns side by side. Missing selected
+properties are retained as null columns, and property columns use the shortest
+available suffix of their dotted paths.
 
-Property values are not loaded as separate tables. Append the ones you need to
-Objects with the helpers below — the underlying source keeps three hidden
-internal tables (Properties, Object Types, Type Properties) that the helpers
-read, and advanced M code can still address them by key.
-
-### Add every object property
-
-For property-light CAD models, create a blank query in Power Query and pass the
-navigation table returned by `Speckle.GetTables` to the convenience helper:
-
-```powerquery-m
-let
-    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
-    ObjectsWithProperties = Speckle.AddAllProperties(Source)
-in
-    ObjectsWithProperties
-```
-
-The result is the Objects table with every path from the Property Paths table
-appended, split by source so provenance stays visible in the field list: values
-stored per object land in an unprefixed column (for example `Area`), while
-values stored on the object's type land in a `Type_`-prefixed column
-(`Type_Area`). A property with both an instance value and a type value produces
-both columns side by side. Paths without a value are retained as null columns.
-Property columns use the shortest unique suffix of their dotted paths.
-
-This helper is intended for models with relatively few property paths. BIM
-models can contain hundreds or thousands of paths, producing a very wide table
-and slower refreshes; use `Speckle.AddProperties(Source, propertyPaths)` to select
-only the properties needed in those cases.
+The property selector includes Select all. Selecting every path can produce a
+very wide table and significantly increase refresh time, especially for BIM
+models with hundreds or thousands of property paths.
 
 ## Development Setup
 

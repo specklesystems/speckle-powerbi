@@ -38,6 +38,7 @@
         ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
         GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
         NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
+        AddProperties = Extension.LoadFunction("AddProperties.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
         MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
@@ -240,6 +241,78 @@
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
 
+                // AddProperties retains its existing five-table interface, but
+                // that transport structure is private now: the public Navigator
+                // exposes only the typed Objects function below.
+                propertySource = NavigationTable({
+                    [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
+                    [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true],
+                    [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
+                    [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true],
+                    [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true]
+                }),
+                propertyOptions = List.Buffer(Table.Column(pathsT, "Property")),
+                loadObjectsImpl = (optional Properties as nullable list) as table =>
+                    let
+                        selected = Properties ?? {},
+                        hasInvalidSelection = List.AnyTrue(
+                            List.Transform(
+                                selected,
+                                each if Value.Is(_, type text) then Text.Trim(_) = "" else true
+                            )
+                        ),
+                        orderedSelection = if hasInvalidSelection then
+                            // Preserve AddProperties' structured validation error.
+                            selected
+                        else
+                            let
+                                normalized = List.Distinct(
+                                    List.Transform(selected, each Text.Trim(_)),
+                                    Comparer.Ordinal
+                                ),
+                                selectedLookup = Record.FromList(
+                                    List.Repeat({true}, List.Count(normalized)),
+                                    normalized
+                                ),
+                                // Membership lookup only; propertyOptions stays
+                                // in the exact Paths table order exposed to UI.
+                                availablePaths = List.Distinct(
+                                    propertyOptions,
+                                    Comparer.Ordinal
+                                ),
+                                availableLookup = Record.FromList(
+                                    List.Repeat({true}, List.Count(availablePaths)),
+                                    availablePaths
+                                ),
+                                known = List.Select(
+                                    propertyOptions,
+                                    each Record.HasFields(selectedLookup, _)
+                                ),
+                                disappeared = List.Select(
+                                    normalized,
+                                    each not Record.HasFields(availableLookup, _)
+                                )
+                            in
+                                known & disappeared
+                    in
+                        AddProperties(propertySource, orderedSelection),
+                loadObjectsType = Type.ForFunction(
+                    [
+                        ReturnType = type table,
+                        Parameters = [
+                            Properties = type nullable list meta [
+                                Documentation.FieldCaption = "Properties (optional)",
+                                Documentation.FieldDescription = "Select properties to append. Instance and type values are returned in separate columns. Selecting all properties may significantly increase refresh time and table width.",
+                                Documentation.AllowedValues = propertyOptions
+                            ]
+                        ]
+                    ],
+                    0
+                ) meta [
+                    Documentation.Name = "Load Speckle Objects"
+                ],
+                loadObjects = Value.ReplaceType(loadObjectsImpl, loadObjectsType),
+
                 // On-demand property expansion — the replacement for the old eager
                 // Flat (Wide), surfaced as Speckle.ExpandProperties (deliberately
                 // NOT a navigator entry): comma-separated property paths in (browse
@@ -267,15 +340,8 @@
                 if propertyPaths <> null then
                     ExpandAcrossModels(propertyPaths)
                 else
-                    // The Navigator lists only Objects and Property Paths. The
-                    // three hidden rows stay in the table — Speckle.AddProperties
-                    // and Speckle.AddAllProperties index all five keys.
                     NavigationTable({
-                        [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
-                        [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true, hidden = true],
-                        [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                        [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true, hidden = true],
-                        [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true, hidden = true]
+                        [name = "Objects", key = "objects", data = loadObjects, itemKind = "Function", isLeaf = true]
                     }),
 
         results = Observe(

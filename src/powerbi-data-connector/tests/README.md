@@ -34,8 +34,9 @@ listing the failed facts.
 
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
   matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
-  contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
-  `Objects` and `Property Paths` rows are visible. It lives outside `tests\`
+  and invocation contract: the Navigator exposes one `Objects` function with
+  an optional property list populated from the model, and invoking it returns
+  the complete Objects table with the selected columns. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run
   without credentials. Fill in the placeholder URLs, set a credential with
   `PQTest.exe set-credential`, then run with
