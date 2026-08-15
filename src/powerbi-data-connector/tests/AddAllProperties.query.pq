@@ -128,18 +128,23 @@ let
 
     facts = {
         Fact(
-            "every path is appended in path-table order using AddProperties naming",
-            {"object_key", "Application ID", "Zeta.Area", "Alpha.Area", "Value"},
+            "every path is appended in path-table order with type-backed paths Type_-prefixed, and prefixed variants sharing a suffix still grow both paths",
+            {"object_key", "Application ID", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"},
             Table.ColumnNames(Result)
         ),
         Fact(
-            "instance values win over type values and explicit nulls suppress type fallback",
+            "instance and type values land in separate columns and explicit null instance rows no longer hide type values",
             {
-                {1, "instance-area", "type-quantity", null},
-                {2, null, "type-quantity", null},
-                {3, null, null, null}
+                {1, "instance-area", "type-area", "type-quantity", null},
+                {2, null, "type-area", "type-quantity", null},
+                {3, null, null, null, null}
             },
-            Table.ToRows(Table.SelectColumns(Result, {"object_key", "Zeta.Area", "Alpha.Area", "Value"}))
+            Table.ToRows(
+                Table.SelectColumns(
+                    Result,
+                    {"object_key", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"}
+                )
+            )
         ),
         Fact(
             "paths without values are retained as all-null columns",
@@ -147,9 +152,12 @@ let
             Table.Column(Result, "Value")
         ),
         Fact(
-            "added property columns retain type any",
-            true,
-            Type.Is(type any, Type.TableColumn(Value.Type(Result), "Zeta.Area"))
+            "added property columns retain type any on both sides of the split",
+            {true, true},
+            {
+                Type.Is(type any, Type.TableColumn(Value.Type(Result), "Zeta.Area")),
+                Type.Is(type any, Type.TableColumn(Value.Type(Result), "Type_Zeta.Area"))
+            }
         ),
         Fact(
             "an empty paths table returns the exact Objects value without reading fact tables",

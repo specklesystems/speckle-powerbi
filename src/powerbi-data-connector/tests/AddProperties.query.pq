@@ -115,6 +115,18 @@ let
         }
     ),
     SuffixNamingResult = Speckle.AddProperties(Source, {"Area", "properties.Area"}),
+    // path 12 has no facts (unprefixed) and path 11 is type-only (prefixed);
+    // both resolve to the suffix "Area" without colliding
+    NoCrossPrefixCollisionResult = Speckle.AddProperties(
+        Source,
+        {"properties.Geometry.Dimensions.Area", "properties.Quantities.Area"}
+    ),
+    // the second path is factless and resolves to the literal text "Type_Area",
+    // colliding with the first path's prefixed variant, so both paths grow
+    LiteralPrefixCollisionResult = Speckle.AddProperties(
+        Source,
+        {"properties.Dimensions.Area", "properties.Odd.Type_Area"}
+    ),
     InvalidPathResult = try Speckle.AddProperties(
         Source,
         {null, "   ", 123, "properties.Dimensions.Area"}
@@ -286,33 +298,41 @@ let
 
     facts = {
         Fact(
-            "instance and type paths can be requested together with instance-row precedence",
+            "split columns stay adjacent per path, and a type-only path emits only its prefixed column",
+            {"object_key", "Application ID", "Area", "Type_Area", "Type_TypeName", "Mark"},
+            Table.ColumnNames(Result)
+        ),
+        Fact(
+            "instance and type facts land in separate unprefixed and Type_-prefixed columns",
             {
-                {1, "one", "instance-area", "type-only", null},
-                {2, "two", null, "type-only", null},
-                {3, "three", null, null, null},
-                {4, "four", null, null, "instance-only"}
+                {1, "one", "instance-area", "type-area", "type-only", null},
+                {2, "two", null, "type-area", "type-only", null},
+                {3, "three", null, null, null, null},
+                {4, "four", null, null, null, "instance-only"}
             },
             Table.ToRows(Result)
         ),
         Fact(
-            "an explicit null instance row suppresses the non-null type value",
-            null,
-            Result{[object_key = 2]}[Area]
+            "an explicit null instance row no longer hides the type value, which stays visible in the prefixed column",
+            [Area = null, Type_Area = "type-area"],
+            [Area = Result{[object_key = 2]}[Area], Type_Area = Result{[object_key = 2]}[Type_Area]]
         ),
         Fact(
             "raw Value columns are used for both instance and type facts",
             {"instance-area", "type-only", "instance-only"},
             {
                 Result{[object_key = 1]}[Area],
-                Result{[object_key = 1]}[TypeName],
+                Result{[object_key = 1]}[Type_TypeName],
                 Result{[object_key = 4]}[Mark]
             }
         ),
         Fact(
-            "added property columns have type any",
-            true,
-            Type.Is(type any, Type.TableColumn(Value.Type(Result), "Area"))
+            "added property columns have type any on both sides of the split",
+            {true, true},
+            {
+                Type.Is(type any, Type.TableColumn(Value.Type(Result), "Area")),
+                Type.Is(type any, Type.TableColumn(Value.Type(Result), "Type_Area"))
+            }
         ),
         Fact(
             "an empty normalized path list returns the exact Objects value without reading other navigation data",
@@ -329,20 +349,31 @@ let
         ),
         Fact(
             "paths are trimmed and deduplicated ordinally",
-            {"object_key", "Application ID", "Area"},
+            {"object_key", "Application ID", "Area", "Type_Area"},
             Table.ColumnNames(NormalizedResult)
         ),
         Fact(
-            "shortest unique suffixes extend leftward and preserve requested order",
+            "shortest unique suffixes extend leftward over the emitted names and preserve requested order",
             {
                 "object_key",
                 "Application ID",
                 "Geometry.Dimensions.Area",
-                "Quantities.Area",
+                "Type_Quantities.Area",
                 "properties.Dimensions.Area",
+                "Type_properties.Dimensions.Area",
                 "Identity.Application ID"
             },
             Table.ColumnNames(NamingResult)
+        ),
+        Fact(
+            "an unprefixed path and a Type_-prefixed path sharing a resolved suffix do not collide",
+            {"object_key", "Application ID", "Area", "Type_Area"},
+            Table.ColumnNames(NoCrossPrefixCollisionResult)
+        ),
+        Fact(
+            "a genuine path resolving to a literal Type_ name collides with a prefixed name and grows",
+            {"object_key", "Application ID", "Dimensions.Area", "Type_Dimensions.Area", "Odd.Type_Area"},
+            Table.ColumnNames(LiteralPrefixCollisionResult)
         ),
         Fact(
             "a complete shorter path stays fixed while an ambiguous longer path extends leftward",
@@ -403,8 +434,8 @@ let
             DuplicateObjectTypesUnknownPathReason
         ),
         Fact(
-            "federated duplicate Property text resolves through namespaced object, type, and path keys",
-            {{1, "model-a", "first-instance"}, {4294967297, "model-b", "second-type"}},
+            "federated duplicate Property text resolves through namespaced keys and the split surfaces the type value previously hidden behind model A's instance value",
+            {{1, "model-a", "first-instance", "first-type"}, {4294967297, "model-b", null, "second-type"}},
             Table.ToRows(FederatedResult)
         ),
         Fact(

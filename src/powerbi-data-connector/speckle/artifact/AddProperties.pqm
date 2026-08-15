@@ -1,6 +1,7 @@
-// Adds selected EAV values to the Objects navigation table. Instance-row
-// presence wins over a projected type value, including when the instance Value
-// is null.
+// Adds selected EAV values to the Objects navigation table, split by source:
+// values from the Properties (instance) fact appear in an unprefixed column,
+// and values from the Type Properties fact, projected per object through the
+// Object Types bridge, appear in a Type_-prefixed column (Area / Type_Area).
 (source as table, propertyPaths as list) as table =>
     let
         requiredKeys = {"objects", "properties", "object-types", "type-properties", "paths"},
@@ -57,61 +58,6 @@
         pathParts = List.Transform(wanted, each Text.Split(_, ".")),
         Candidate = (parts as list, depth as number) as text =>
             Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
-        ResolveNames = (depths as list) as list =>
-            let
-                candidates = List.Transform(
-                    List.Positions(wanted),
-                    (i) => Candidate(pathParts{i}, depths{i})
-                ),
-                existingConflicts = List.Transform(
-                    List.Positions(candidates),
-                    (i) => List.Contains(existingNames, candidates{i}, Comparer.Ordinal)
-                ),
-                duplicatePositions = List.Transform(
-                    candidates,
-                    (candidate) => List.PositionOf(
-                        candidates,
-                        candidate,
-                        Occurrence.All,
-                        Comparer.Ordinal
-                    )
-                ),
-                duplicateConflicts = List.Transform(duplicatePositions, each List.Count(_) > 1),
-                conflicts = List.Transform(
-                    List.Positions(candidates),
-                    (i) => existingConflicts{i} or duplicateConflicts{i}
-                ),
-                canGrow = List.Transform(
-                    List.Positions(depths),
-                    (i) => depths{i} < List.Count(pathParts{i})
-                ),
-                unresolvableConflicts = List.Transform(
-                    List.Positions(conflicts),
-                    (i) =>
-                        (existingConflicts{i} and not canGrow{i})
-                        or (
-                            duplicateConflicts{i}
-                            and not List.AnyTrue(
-                                List.Transform(duplicatePositions{i}, (j) => canGrow{j})
-                            )
-                        )
-                ),
-                nextDepths = List.Transform(
-                    List.Positions(depths),
-                    (i) => if conflicts{i} and canGrow{i} then depths{i} + 1 else depths{i}
-                )
-            in
-                if List.AnyTrue(unresolvableConflicts) then
-                    error Error.Record(
-                        "Speckle.AddProperties.NameCollision",
-                        "Requested property columns cannot be made unique against the Objects columns.",
-                        [PropertyPaths = wanted, ExistingColumns = existingNames]
-                    )
-                else if List.AnyTrue(conflicts) then
-                    @ResolveNames(nextDepths)
-                else
-                    candidates,
-        outputNames = ResolveNames(List.Transform(wanted, each 1)),
 
         // Orphan bridge rows are ignored. More than one bridge row for an
         // object that is present in Objects is invalid, even if the rows match.
@@ -171,23 +117,142 @@
             ),
             "__type", {"path_key", "Value", "__property"}, {"path_key", "Value", "__property"}
         ),
-        typeFallbackValues = Table.RemoveColumns(
-            Table.NestedJoin(
-                projectedTypeValues, {"object_key", "path_key"},
-                instanceValues, {"object_key", "path_key"},
-                "__instance", JoinKind.LeftAnti
-            ),
-            {"__instance"}
+
+        // A path is type-backed iff any of its path_keys has at least one Type
+        // Properties row: which fact table a row lives in is the authoritative
+        // provenance signal (the path text carries none). The distinct lists
+        // are wanted-sized, so buffering them is safe; never buffer the
+        // fact-sized tables (see the SCALE note in GetEavModel.pqm).
+        typeBackedProperties = List.Buffer(
+            List.Distinct(Table.Column(requestedTypeValues, "__property"), Comparer.Ordinal)
         ),
-        selectedPropertyValues = Table.SelectColumns(
-            Table.Combine({instanceValues, typeFallbackValues}),
+        instanceBackedProperties = List.Buffer(
+            List.Distinct(Table.Column(instanceValues, "__property"), Comparer.Ordinal)
+        ),
+        emitsTypeColumn = List.Transform(
+            wanted,
+            each List.Contains(typeBackedProperties, _, Comparer.Ordinal)
+        ),
+        // A non-type-backed path always emits its unprefixed column without
+        // any instance existence check (a factless path stays a single all-null
+        // column). A type-backed path emits the unprefixed column only when an
+        // instance override row exists — an override coexists with the type row
+        // under the same path, so the instance check cannot be skipped.
+        emitsInstanceColumn = List.Transform(
+            List.Positions(wanted),
+            (i) =>
+                not emitsTypeColumn{i}
+                    or List.Contains(instanceBackedProperties, wanted{i}, Comparer.Ordinal)
+        ),
+
+        // Collision detection runs over the final emitted names. Both variants
+        // of a path share its suffix depth; a conflict on either variant grows
+        // that path.
+        EmittedVariants = (base as text, i as number) as list =>
+            (if emitsInstanceColumn{i} then {base} else {})
+                & (if emitsTypeColumn{i} then {"Type_" & base} else {}),
+        ResolveNames = (depths as list) as list =>
+            let
+                candidates = List.Transform(
+                    List.Positions(wanted),
+                    (i) => Candidate(pathParts{i}, depths{i})
+                ),
+                variants = List.Buffer(
+                    List.Transform(
+                        List.Positions(wanted),
+                        (i) => EmittedVariants(candidates{i}, i)
+                    )
+                ),
+                OwnersOf = (name as text) as list =>
+                    List.Select(
+                        List.Positions(variants),
+                        (j) => List.Contains(variants{j}, name, Comparer.Ordinal)
+                    ),
+                existingConflicts = List.Transform(
+                    variants,
+                    (names) => List.AnyTrue(
+                        List.Transform(
+                            names,
+                            (name) => List.Contains(existingNames, name, Comparer.Ordinal)
+                        )
+                    )
+                ),
+                duplicatedNames = List.Transform(
+                    variants,
+                    (names) => List.Select(names, (name) => List.Count(OwnersOf(name)) > 1)
+                ),
+                duplicateConflicts = List.Transform(duplicatedNames, each not List.IsEmpty(_)),
+                conflicts = List.Transform(
+                    List.Positions(wanted),
+                    (i) => existingConflicts{i} or duplicateConflicts{i}
+                ),
+                canGrow = List.Transform(
+                    List.Positions(depths),
+                    (i) => depths{i} < List.Count(pathParts{i})
+                ),
+                unresolvableConflicts = List.Transform(
+                    List.Positions(conflicts),
+                    (i) =>
+                        (existingConflicts{i} and not canGrow{i})
+                        or List.AnyTrue(
+                            List.Transform(
+                                duplicatedNames{i},
+                                (name) => not List.AnyTrue(
+                                    List.Transform(OwnersOf(name), (j) => canGrow{j})
+                                )
+                            )
+                        )
+                ),
+                nextDepths = List.Transform(
+                    List.Positions(depths),
+                    (i) => if conflicts{i} and canGrow{i} then depths{i} + 1 else depths{i}
+                )
+            in
+                if List.AnyTrue(unresolvableConflicts) then
+                    error Error.Record(
+                        "Speckle.AddProperties.NameCollision",
+                        "Requested property columns cannot be made unique against the Objects columns.",
+                        [PropertyPaths = wanted, ExistingColumns = existingNames]
+                    )
+                else if List.AnyTrue(conflicts) then
+                    @ResolveNames(nextDepths)
+                else
+                    candidates,
+        outputNames = ResolveNames(List.Transform(wanted, each 1)),
+        emittedNames = List.Combine(
+            List.Transform(
+                List.Positions(wanted),
+                (i) => EmittedVariants(outputNames{i}, i)
+            )
+        ),
+
+        // Rename __property to the final emitted column name per side before
+        // combining. Cross-side field collisions are impossible by
+        // construction (the prefix separates them), so record construction
+        // below stays the loud-failure path for duplicate facts.
+        instanceColumnNames = Record.FromList(outputNames, wanted),
+        typeColumnNames = Record.FromList(
+            List.Transform(outputNames, each "Type_" & _),
+            wanted
+        ),
+        RenameToEmittedColumn = (values as table, columnNames as record) as table =>
+            Table.TransformColumns(
+                values,
+                {{"__property", each Record.Field(columnNames, _), type text}}
+            ),
+        emittedValues = Table.SelectColumns(
+            Table.Combine({
+                RenameToEmittedColumn(instanceValues, instanceColumnNames),
+                RenameToEmittedColumn(projectedTypeValues, typeColumnNames)
+            }),
             {"object_key", "Value", "__property"}
         ),
         propertyValuesByObject = Table.Group(
-            selectedPropertyValues,
+            emittedValues,
             {"object_key"},
-            // Duplicate (object_key, path_key) facts intentionally reach
-            // record construction and fail rather than being silently selected.
+            // Duplicate (object_key, path_key) facts on either side
+            // intentionally reach record construction and fail rather than
+            // being silently selected.
             {{"__props", each Record.FromList([Value], [__property]), type record}}
         ),
         withProperties = Table.ExpandTableColumn(
@@ -202,4 +267,4 @@
         if List.IsEmpty(wanted) then
             objects
         else
-            Table.ExpandRecordColumn(withProperties, "__props", wanted, outputNames)
+            Table.ExpandRecordColumn(withProperties, "__props", emittedNames, emittedNames)

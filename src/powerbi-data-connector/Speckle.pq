@@ -314,8 +314,9 @@ shared Speckle.GetTables = Value.ReplaceType(
         Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two tables:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
-            Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source),#(lf)
-            or pivot them by URL with Speckle.ExpandProperties(url, propertyPaths) — instance values win over type values.#(lf)
+            Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source)#(lf)
+            (instance values in unprefixed columns, type values in Type_-prefixed columns), or pivot them by URL with#(lf)
+            Speckle.ExpandProperties(url, propertyPaths), which merges the two sources with instance values winning.#(lf)
             The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that these helpers consume.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
@@ -378,7 +379,8 @@ shared Speckle.AddProperties = Value.ReplaceType(
         Documentation.DisplayName = "Speckle - Add Properties",
         Documentation.LongDescription =
             "Returns the Objects table from Speckle.GetTables with the requested property values appended. "
-            & "Pass exact dotted paths from the Property Paths table. Instance values take precedence over type values."
+            & "Pass exact dotted paths from the Property Paths table. Values are split by source: instance values "
+            & "land in unprefixed columns and type values in Type_-prefixed columns (Area / Type_Area)."
     ]
 );
 
@@ -391,7 +393,8 @@ shared Speckle.AddAllProperties = Value.ReplaceType(
         Documentation.DisplayName = "Speckle - Add All Properties",
         Documentation.LongDescription =
             "Returns the Objects table from Speckle.GetTables with every property path appended. "
-            & "Instance values take precedence over type values. Intended as a convenience for property-light models; "
+            & "Values are split by source: instance values land in unprefixed columns and type values in "
+            & "Type_-prefixed columns. Intended as a convenience for property-light models; "
             & "models with hundreds or thousands of property paths can produce very wide, slow-to-refresh tables."
     ]
 );

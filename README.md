@@ -84,9 +84,12 @@ in
 ```
 
 The result is the Objects table with every path from the Property Paths table
-appended. Instance values take precedence over type values, and paths without a
-value are retained as null columns. Property columns use the shortest unique
-suffix of their dotted paths.
+appended, split by source so provenance stays visible in the field list: values
+stored per object land in an unprefixed column (for example `Area`), while
+values stored on the object's type land in a `Type_`-prefixed column
+(`Type_Area`). A property with both an instance value and a type value produces
+both columns side by side. Paths without a value are retained as null columns.
+Property columns use the shortest unique suffix of their dotted paths.
 
 This helper is intended for models with relatively few property paths. BIM
 models can contain hundreds or thousands of paths, producing a very wide table

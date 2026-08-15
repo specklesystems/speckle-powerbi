@@ -20,12 +20,15 @@ listing the failed facts.
   legacy-shaped inputs (the flat shapes returned by `Speckle.GetByUrl`).
   These helpers are not expected to accept `Speckle.GetTables` output.
 - `AddProperties.query.pq` — the unified property enrichment helper against
-  in-memory star-schema navigation tables, including instance-over-type
-  precedence (including explicit nulls), validation, naming, raw values,
-  malformed facts, Object Types invariants, and federated-key behavior.
+  in-memory star-schema navigation tables, including source-split columns
+  (instance values unprefixed, type values `Type_`-prefixed, instance
+  overrides surfacing both side by side), validation, naming over the emitted
+  names, raw values, malformed facts, Object Types invariants, and
+  federated-key behavior.
 - `AddAllProperties.query.pq` — the convenience wrapper that appends every path
-  through `Speckle.AddProperties`, including null-only and moderately wide
-  property sets, while preserving empty Objects tables and validation behavior.
+  through `Speckle.AddProperties` with the same source-split columns, including
+  null-only and moderately wide property sets, while preserving empty Objects
+  tables and validation behavior.
 
 ## Live suite (manual, needs a server + credential)
 

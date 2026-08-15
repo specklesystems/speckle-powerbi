@@ -1,6 +1,7 @@
 // Adds every property path exposed by the Speckle.GetTables navigation table.
 // AddProperties remains the single implementation of validation, naming, and
-// instance-over-type value selection.
+// source-split column emission (instance values unprefixed, type values
+// Type_-prefixed).
 (source as table) as table =>
     let
         paths = source{[Key = "paths"]}[Data],
