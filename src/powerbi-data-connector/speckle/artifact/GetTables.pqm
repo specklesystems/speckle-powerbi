@@ -36,6 +36,8 @@
         ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
         GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
         NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
+        AddProperties = Extension.LoadFunction("AddProperties.pqm"),
+        BuildNavigation = Extension.LoadFunction("BuildNavigation.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
         MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
         ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
@@ -237,16 +239,20 @@
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
             in
-                // The Navigator lists only Objects and Property Paths. The
-                // three hidden rows stay in the table — Speckle.AddProperties
-                // and Speckle.AddAllProperties index all five keys.
-                NavigationTable({
-                    [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
-                    [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true, hidden = true],
-                    [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                    [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true, hidden = true],
-                    [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true, hidden = true]
-                }),
+                // The Navigator lists Objects, Property Paths and the
+                // model-bound ExpandProperties function. The three hidden rows
+                // stay in the table — Speckle.AddProperties and
+                // Speckle.AddAllProperties index all five table keys.
+                BuildNavigation(
+                    [NavigationTable = NavigationTable, AddProperties = AddProperties],
+                    [
+                        Objects = objectsT,
+                        Properties = propertiesT,
+                        Paths = pathsT,
+                        ObjectTypes = objectTypesT,
+                        TypeProperties = typePropertiesT
+                    ]
+                ),
 
         results = Observe(
             permissionGuard,

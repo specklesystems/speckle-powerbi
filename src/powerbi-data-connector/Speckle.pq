@@ -310,12 +310,15 @@ shared Speckle.GetTables = Value.ReplaceType(
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two tables:#(lf)
+        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists three entries:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
-            Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source)#(lf)
-            (instance values in unprefixed columns, type values in Type_-prefixed columns).#(lf)
-            The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that these helpers consume.#(lf)
+            - ExpandProperties (function) — returns a new copy of Objects with the selected property values appended#(lf)
+            Invoke ExpandProperties into its own query and load that result; keep Property Paths and ExpandProperties connection-only.#(lf)
+            Selecting all properties can significantly increase refresh time and table width.#(lf)
+            Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
+            Speckle.AddProperties(Source, propertyPaths) and Speckle.AddAllProperties(Source) remain available for M code.#(lf)
+            The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that the function and helpers consume.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)

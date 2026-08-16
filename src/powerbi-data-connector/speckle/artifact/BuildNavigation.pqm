@@ -1,0 +1,115 @@
+// Composes the public Speckle.GetTables navigation table (ENG-9165) from the
+// five already-combined star-schema tables. The Navigator shows three entries
+// — Objects, Property Paths and the model-bound ExpandProperties function —
+// while the three hidden helper rows stay addressable by key for
+// Speckle.AddProperties and Speckle.AddAllProperties.
+//
+// deps:   [NavigationTable = ..., AddProperties = ...]
+// tables: [Objects = ..., Properties = ..., Paths = ..., ObjectTypes = ...,
+//          TypeProperties = ...]
+(deps as record, tables as record) as table =>
+    let
+        NavigationTable = deps[NavigationTable],
+        AddProperties = deps[AddProperties],
+
+        // the five keyed rows AddProperties indexes; hidden flags implement
+        // the Navigator contract (only Objects and Property Paths are visible
+        // tables)
+        helperRows = {
+            [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
+            [name = "Properties", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = true],
+            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true],
+            [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
+            [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true]
+        },
+
+        // ExpandProperties closes over this private five-row navigator, not
+        // over the public table it is itself a row of — building the helper
+        // source first keeps the public navigation table non-recursive
+        helperSource = NavigationTable(helperRows),
+
+        // the selector catalogue: Property Paths values deduplicated in
+        // first-appearance order. Federated models repeat identical path text
+        // under per-source keys; the selector lists each path once and a
+        // selection applies across all sources.
+        propertyOptions = List.Buffer(
+            List.Distinct(Table.Column(tables[Paths], "Property"), Comparer.Ordinal)
+        ),
+
+        ExpandProperties.Impl = (optional Properties as nullable list) as table =>
+            let
+                selected = Properties ?? {},
+                hasInvalidSelection = List.AnyTrue(
+                    List.Transform(
+                        selected,
+                        each if Value.Is(_, type text) then Text.Trim(_) = "" else true
+                    )
+                ),
+                orderedSelection = if hasInvalidSelection then
+                    // hand the raw list through so AddProperties raises its
+                    // structured invalid-path error with the caller's
+                    // original one-based positions
+                    selected
+                else if List.IsEmpty(selected) then
+                    {}
+                else
+                    let
+                        normalized = List.Distinct(
+                            List.Transform(selected, each Text.Trim(_)),
+                            Comparer.Ordinal
+                        ),
+                        selectedLookup = Record.FromList(
+                            List.Repeat({true}, List.Count(normalized)),
+                            normalized
+                        ),
+                        availableLookup = Record.FromList(
+                            List.Repeat({true}, List.Count(propertyOptions)),
+                            propertyOptions
+                        ),
+                        // known selections follow the catalogue order shown in
+                        // the selector, not caller order; paths missing from
+                        // this model version trail behind them and surface
+                        // downstream as all-null columns
+                        known = List.Select(
+                            propertyOptions,
+                            each Record.HasFields(selectedLookup, _)
+                        ),
+                        disappeared = List.Select(
+                            normalized,
+                            each not Record.HasFields(availableLookup, _)
+                        )
+                    in
+                        known & disappeared
+            in
+                AddProperties(helperSource, orderedSelection),
+
+        ExpandProperties.Type = Type.ForFunction(
+            [
+                ReturnType = type table,
+                Parameters = [
+                    Properties = type nullable list meta [
+                        Documentation.FieldCaption = "Properties (optional)",
+                        Documentation.FieldDescription = "Dotted property paths (see the Property Paths table) to append to the Objects table. Instance values land in unprefixed columns and type values in Type_-prefixed columns. Selecting all properties can significantly increase refresh time and table width.",
+                        Documentation.AllowedValues = propertyOptions
+                    ]
+                ]
+            ],
+            0
+        ) meta [
+            Documentation.Name = "ExpandProperties",
+            Documentation.LongDescription = "Returns a new copy of the full Objects table with the selected property values appended. An omitted, null or empty selection returns Objects unchanged. Selecting all properties can significantly increase refresh time and table width."
+        ],
+        ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type)
+    in
+        NavigationTable(
+            helperRows
+                & {
+                    [
+                        name = "ExpandProperties",
+                        key = "expand-properties",
+                        data = ExpandProperties.Value,
+                        itemKind = "Function",
+                        isLeaf = true
+                    ]
+                }
+        )

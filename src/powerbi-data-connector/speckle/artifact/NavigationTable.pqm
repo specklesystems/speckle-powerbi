@@ -1,5 +1,6 @@
 // Builds a Power BI navigation table from a list of entry records:
-//   { name, key, data, itemKind ("Table"), isLeaf, optional hidden }
+//   { name, key, data, itemKind (for example "Table" or "Function"),
+//     isLeaf, optional hidden }
 // Standard Table.ToNavigationTable pattern from the Power Query SDK docs.
 // Entries with hidden = true keep their row in the returned table (so M code
 // can still address them by key) but the Navigator filters them out through
