@@ -293,8 +293,7 @@ shared Speckle.GetByUrl = Value.ReplaceType(
 );
 
 // ARTIFACT entry point (ENG-9165): the 4.0 star schema, reading artifact
-// bundles only — Speckle.GetTables exposes the navigation table,
-// Speckle.ExpandProperties the on-demand property pivot over the same pipeline
+// bundles only — Speckle.GetTables exposes the navigation table
 GetTables.Impl = Speckle.LoadFunction("GetTables.pqm");
 
 [DataSource.Kind = "Speckle", Publish="GetTables.Publish"]
@@ -315,8 +314,7 @@ shared Speckle.GetTables = Value.ReplaceType(
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
             Append property values onto Objects with Speckle.AddProperties(Source, propertyPaths) or Speckle.AddAllProperties(Source)#(lf)
-            (instance values in unprefixed columns, type values in Type_-prefixed columns), or pivot them by URL with#(lf)
-            Speckle.ExpandProperties(url, propertyPaths), which merges the two sources with instance values winning.#(lf)
+            (instance values in unprefixed columns, type values in Type_-prefixed columns).#(lf)
             The source also carries three hidden internal tables (Properties, Object Types, Type Properties) that these helpers consume.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
@@ -328,44 +326,6 @@ shared Speckle.GetTables = Value.ReplaceType(
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID1,MODEL_ID2')#(lf)
             - Project-Wide Model Load URL: Resolves the project's flat model collection during refresh#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/all')"
-    ]
-);
-
-// on-demand property expansion over the same pipeline as Speckle.GetTables —
-// deliberately unpublished (no Get Data / navigator entry): invoke it from a
-// blank query in the Power Query editor once the model tables are loaded.
-// propertyPaths is optional ONLY because the data source path for a kind is
-// inferred from required parameters — a second required param here would make
-// the 'Speckle' kind ambiguous and the whole extension fails to load
-[DataSource.Kind = "Speckle"]
-shared Speckle.ExpandProperties = Value.ReplaceType(
-    (url as text, optional propertyPaths as text) as table =>
-        if propertyPaths = null then
-            error "Speckle.ExpandProperties requires property paths — pass a comma-separated list as listed in the Property Paths table"
-        else
-            GetTables.Impl(url, propertyPaths),
-    type function (
-        url as (
-            Uri.Type meta [
-                Documentation.FieldCaption = "Speckle Model URL",
-                Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
-                Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
-            ]
-        ),
-        optional propertyPaths as (
-            type text meta [
-                Documentation.FieldCaption = "Property paths (comma-separated)",
-                Documentation.FieldDescription = "Dotted property paths as listed in the Property Paths table",
-                Documentation.SampleValues = {"category, properties.Dimensions.Area"}
-            ]
-        )
-    ) as table meta [
-        Documentation.Name = "Speckle - Expand Properties",
-        Documentation.DisplayName = "Speckle - Expand Properties",
-        Documentation.LongDescription =
-            "Returns object_key plus one column per requested property path (instance value wins over type value). "
-            & "Browse available paths in the Property Paths table. Only the requested paths are evaluated, so this "
-            & "stays fast on large models — relate the result to Objects 1:1 on object_key to slice the 3D visual."
     ]
 );
 

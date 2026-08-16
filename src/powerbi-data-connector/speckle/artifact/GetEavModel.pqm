@@ -11,16 +11,11 @@
 //   Paths             path_key | Property                        (dimension)
 //   ObjectTypes       object_key | type_key                      (bridge; empty when bundle has no types)
 //   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
-//   ExpandProperties  (pathsText) => object_key | one column per REQUESTED path
-//                     — backs the shared Speckle.ExpandProperties function:
-//                     on-demand pivot, instance-wins over type params; relate
-//                     1:1 to Objects
 //
 // Every table carries dense-int keys so model relationships join on ints
 // (fast in VertiPaq, and the name match helps Desktop's autodetect):
 //   Objects 1-* Properties *-1 Paths;  Objects 1-* ObjectTypes *-1 TypeProperties(type_key)
-//   with both-direction cross-filter for slicing; expanded tables join Objects
-//   1-1 on object_key — Application ID stays for display/direct binding.
+//   with both-direction cross-filter for slicing.
 //
 // Type-level parameters are projected into the fact via object_type + type_eav
 // (instance values win on the same path) — type names arrive as ordinary rows.
@@ -141,7 +136,7 @@
         // fact (one row per type-param). Slice: Type Properties -> Object Types ->
         // Objects with both-direction cross-filtering. NOTE: an instance override
         // of a type param coexists with the type row (instance-wins is a query-
-        // time concern, not baked in — Expand Properties DOES bake instance-wins).
+        // time concern, not baked in).
         ObjectTypesOut = if hasTypes then
             Table.TransformColumnTypes(
                 Table.SelectColumns(
@@ -178,134 +173,12 @@
                     Value = any
                 ],
                 {}
-            ),
-
-        // ---- on-demand property expansion (replaces the eager flat tables) ----
-        // Invoked via the shared Speckle.ExpandProperties function:
-        // pivots ONLY the requested dotted paths onto the object grain, so cost is
-        // proportional to what the user asked for, not the path dictionary. Browse
-        // available path strings in the Property Paths table. Output = object_key +
-        // one column per path (relate 1:1 to Objects — no Application ID / Model
-        // Info baggage). Same Group→Record.FromList→FromRecords shape as the old
-        // wide pivot (Table.Pivot takes minutes at scale).
-        ExpandPropertiesOut = (pathsText as text) as table =>
-            let
-                wanted = List.Distinct(
-                    List.Select(
-                        List.Transform(Text.Split(pathsText, ","), each Text.Trim(_)),
-                        each _ <> ""
-                    )
-                ),
-                // the small wanted-paths key table — filtering the whale fact via an
-                // engine-level INNER JOIN against it, never a per-row List.Contains
-                // lambda (a 100M-row M lambda scan is the "cumbersome" that was)
-                wantedKeys = Table.SelectColumns(
-                    Table.SelectRows(paths, each List.Contains(wanted, [path])),
-                    {"path_index"}
-                ),
-                JoinToWanted = (t as table) as table =>
-                    Table.RemoveColumns(
-                        Table.NestedJoin(
-                            t, {"path_index"},
-                            wantedKeys, {"path_index"},
-                            "_w", JoinKind.Inner
-                        ),
-                        {"_w"}
-                    ),
-                // Instance rows for the requested paths...
-                instSub = JoinToWanted(fact),
-                // ...merged with the per-object type-param projection, instance-wins.
-                // The objects × type-params fan-out that would explode globally (274M
-                // rows on a whale) is harmless here: it is scoped to the handful of
-                // requested paths.
-                typeSub = if hasTypes then
-                    Table.RemoveColumns(
-                        Table.NestedJoin(
-                            Table.SelectColumns(
-                                Table.ExpandTableColumn(
-                                    Table.NestedJoin(
-                                        objectType, {"type_index"},
-                                        JoinToWanted(typeEav),
-                                        {"type_index"},
-                                        "_te", JoinKind.Inner
-                                    ),
-                                    "_te",
-                                    {"path_index", "value_string", "value_double", "value_boolean"},
-                                    {"path_index", "value_string", "value_double", "value_boolean"}
-                                ),
-                                propCols
-                            ),
-                            {"object_index", "path_index"},
-                            instSub, {"object_index", "path_index"},
-                            "_dup", JoinKind.LeftAnti
-                        ),
-                        {"_dup"}
-                    )
-                else
-                    #table(propCols, {}),
-                // Distinct on the small merged subset only (the global fact is never
-                // deduped — see the MEMORY note): Record.FromList hard-errors on
-                // duplicate field names.
-                subset = Table.Distinct(
-                    Table.Combine({instSub, typeSub}),
-                    {"object_index", "path_index"}
-                ),
-                withPath = Table.ExpandTableColumn(
-                    Table.NestedJoin(
-                        subset, {"path_index"},
-                        paths, {"path_index"},
-                        "_p", JoinKind.Inner
-                    ),
-                    "_p", {"path"}, {"__path"}
-                ),
-                // typed-first coalesce: producers populate value_string even for
-                // numeric rows (display form), so string-first would make every
-                // column text — prefer the typed value so numeric paths expand as
-                // real numbers (each path is its own column, types don't mix)
-                withValue = Table.AddColumn(
-                    withPath,
-                    "__value",
-                    each
-                        if [value_double] <> null then [value_double]
-                        else if [value_boolean] <> null then [value_boolean]
-                        else [value_string]
-                ),
-                grouped = Table.Group(
-                    withValue,
-                    {"object_index"},
-                    {{"__props", each Record.FromList([__value], [__path]), type record}}
-                ),
-                base = Table.ExpandTableColumn(
-                    Table.NestedJoin(
-                        objects, {"object_index"},
-                        grouped, {"object_index"},
-                        "_g", JoinKind.LeftOuter
-                    ),
-                    "_g", {"__props"}, {"__props"}
-                ),
-                records = Table.TransformRows(
-                    base,
-                    (r) =>
-                        Record.Combine({
-                            [object_key = r[object_index] + keyOffset],
-                            if r[__props] = null then [] else r[__props]
-                        })
-                )
-            in
-                Table.TransformColumnTypes(
-                    Table.FromRecords(
-                        records,
-                        {"object_key"} & wanted,
-                        MissingField.UseNull
-                    ),
-                    {{"object_key", Int64.Type}}
-                )
+            )
     in
         [
             Objects = ObjectsOut,
             Properties = PropertiesOut,
             Paths = PathsOut,
             ObjectTypes = ObjectTypesOut,
-            TypeProperties = TypePropertiesOut,
-            ExpandProperties = ExpandPropertiesOut
+            TypeProperties = TypePropertiesOut
         ]

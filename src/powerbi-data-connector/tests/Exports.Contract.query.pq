@@ -38,8 +38,6 @@ let
         // the 4.0 star schema is a separate entry point
         Fact("GetTables parameters", {"url"}, ParamNames(Speckle.GetTables)),
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
-        Fact("ExpandProperties parameters", {"url", "propertyPaths"}, ParamNames(Speckle.ExpandProperties)),
-        Fact("ExpandProperties required arity", 1, RequiredCount(Speckle.ExpandProperties)),
         Fact("AddProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddProperties)),
         Fact("AddProperties required arity", 2, RequiredCount(Speckle.AddProperties)),
         Fact("AddProperties returns table", true, ReturnsTable(Speckle.AddProperties)),
@@ -48,6 +46,7 @@ let
         Fact("AddAllProperties returns table", true, ReturnsTable(Speckle.AddAllProperties)),
         Fact("AddInstanceProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddInstanceProperties")),
         Fact("AddTypeProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddTypeProperties")),
+        Fact("ExpandProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.ExpandProperties")),
 
         // 3.x single-parameter interfaces preserved
         Fact("GetStructuredData parameters", {"url"}, ParamNames(Speckle.GetStructuredData)),

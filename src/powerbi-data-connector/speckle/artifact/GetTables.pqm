@@ -1,10 +1,8 @@
 // ARTIFACT PATH — the 4.0 star-schema pipeline behind Speckle.GetTables
 // (ENG-9165). Reads artifact bundles only: versions without a bundle are NOT
 // adapted from their JSON representation; they error towards Speckle.GetByUrl.
-// propertyPaths = null -> the star-schema navigation table (the normal
-// Get Data path). propertyPaths given -> skips the navigator and returns the
-// on-demand property expansion directly (backs Speckle.ExpandProperties).
-(url as text, optional propertyPaths as text) as table =>
+// Returns the star-schema navigation table.
+(url as text) as table =>
     let
         // single source of truth for the connector version (keep Speckle.pq [Version]
         // and Speckle.proj <Version> aligned with this)
@@ -210,8 +208,7 @@
         WithModelInfo = (t as table, modelInfoBlob as text) as table =>
             Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
 
-        // combines per-model tables and assembles the result: the navigation
-        // table, or — when propertyPaths was passed — the expanded table itself.
+        // combines per-model tables and assembles the navigation table.
         // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
         // on object_key / path_key.
         BuildResult = (modelsData as list, addSourceModel as logical) as table =>
@@ -238,45 +235,18 @@
                 propertiesT = CombinePart((mm) => mm[Properties], false),
                 pathsT = CombinePart((mm) => mm[Paths], false),
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
-                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
-
-                // On-demand property expansion — the replacement for the old eager
-                // Flat (Wide), surfaced as Speckle.ExpandProperties (deliberately
-                // NOT a navigator entry): comma-separated property paths in (browse
-                // them in Property Paths), and only those columns are evaluated.
-                // Lean output: object_key + the requested columns (no Model Info
-                // blob, no Application ID — the 1:1 object_key relationship to
-                // Objects carries identity). Federation: each model expands
-                // independently, results union with namespaced object_keys; paths
-                // absent in a model = null.
-                ExpandAcrossModels = (pathsText as text) as table =>
-                    Table.Combine(
-                        List.Transform(
-                            modelsData,
-                            (m) =>
-                                let
-                                    t = m[Model][ExpandProperties](pathsText)
-                                in
-                                    if addSourceModel then
-                                        Table.AddColumn(t, "Source Model", (row) => m[SourceLabel], type text)
-                                    else
-                                        t
-                        )
-                    )
+                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
             in
-                if propertyPaths <> null then
-                    ExpandAcrossModels(propertyPaths)
-                else
-                    // The Navigator lists only Objects and Property Paths. The
-                    // three hidden rows stay in the table — Speckle.AddProperties
-                    // and Speckle.AddAllProperties index all five keys.
-                    NavigationTable({
-                        [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
-                        [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true, hidden = true],
-                        [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
-                        [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true, hidden = true],
-                        [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true, hidden = true]
-                    }),
+                // The Navigator lists only Objects and Property Paths. The
+                // three hidden rows stay in the table — Speckle.AddProperties
+                // and Speckle.AddAllProperties index all five keys.
+                NavigationTable({
+                    [name = "Objects", key = "objects", data = objectsT, itemKind = "Table", isLeaf = true],
+                    [name = "Properties", key = "properties", data = propertiesT, itemKind = "Table", isLeaf = true, hidden = true],
+                    [name = "Property Paths", key = "paths", data = pathsT, itemKind = "Table", isLeaf = true],
+                    [name = "Object Types", key = "object-types", data = objectTypesT, itemKind = "Table", isLeaf = true, hidden = true],
+                    [name = "Type Properties", key = "type-properties", data = typePropertiesT, itemKind = "Table", isLeaf = true, hidden = true]
+                }),
 
         results = Observe(
             permissionGuard,

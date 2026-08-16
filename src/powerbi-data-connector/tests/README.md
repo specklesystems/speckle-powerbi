@@ -15,7 +15,7 @@ listing the failed facts.
 - `Exports.Contract.query.pq` — the public interface: every 3.x export exists
   with its 3.x parameter names, arity and return type (ENG-9165 regression:
   removed exports fail existing reports with "name wasn't recognized"), plus
-  the 4.0 `Speckle.GetTables` / `Speckle.ExpandProperties` entry points.
+  the 4.0 `Speckle.GetTables` entry point.
 - `Legacy.Shapes.query.pq` — the restored legacy data-shaping helpers against
   legacy-shaped inputs (the flat shapes returned by `Speckle.GetByUrl`).
   These helpers are not expected to accept `Speckle.GetTables` output.
