@@ -2,8 +2,34 @@
 // (ENG-9165). Reads artifact bundles only: versions without a bundle are NOT
 // adapted from their JSON representation; they error towards Speckle.GetByUrl.
 // Returns the star-schema navigation table.
-(url as text) as table =>
+(url as text, optional options as nullable record) as table =>
     let
+        // Advanced options record from the connect dialog. TableLayout is the
+        // only known option; unknown fields fail loudly rather than being
+        // silently ignored. The layout text itself is validated in
+        // BuildNavigation.pqm.
+        knownOptions = {"TableLayout"},
+        unknownOptions = if options = null then
+            {}
+        else
+            List.Select(
+                Record.FieldNames(options),
+                each not List.Contains(knownOptions, _, Comparer.Ordinal)
+            ),
+        tableLayout = if not List.IsEmpty(unknownOptions) then
+            error Error.Record(
+                "Speckle.GetTables.InvalidOptions",
+                "options contains unknown fields: "
+                    & Text.Combine(unknownOptions, ", ")
+                    & ". Supported options: "
+                    & Text.Combine(knownOptions, ", ") & ".",
+                [UnknownOptions = unknownOptions, SupportedOptions = knownOptions]
+            )
+        else if options = null then
+            null
+        else
+            Record.FieldOrDefault(options, "TableLayout", null),
+
         // single source of truth for the connector version (keep Speckle.pq [Version]
         // and Speckle.proj <Version> aligned with this)
         ConnectorVersion = "4.0.0",
@@ -211,8 +237,8 @@
             Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
 
         // combines per-model tables and assembles the navigation table.
-        // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
-        // on object_key / path_key.
+        // Recommended PBI relationships: Objects 1-* Property Values *-1
+        // Property Paths on object_key / path_key.
         BuildResult = (modelsData as list, addSourceModel as logical) as table =>
             let
                 // delimiter chosen to avoid conflicts with base64 characters
@@ -239,9 +265,10 @@
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
             in
-                // The Navigator lists Objects and the model-bound
-                // Properties function. The four hidden rows
-                // stay in the table — Speckle.AddProperties and
+                // The default Simplified layout lists Objects and the
+                // model-bound Properties function; tableLayout = "All tables"
+                // unhides the four supporting rows. Hidden or not, all five
+                // rows stay in the table — Speckle.AddProperties and
                 // Speckle.AddAllProperties index all five table keys.
                 BuildNavigation(
                     [NavigationTable = NavigationTable, AddProperties = AddProperties],
@@ -251,7 +278,8 @@
                         Paths = pathsT,
                         ObjectTypes = objectTypesT,
                         TypeProperties = typePropertiesT
-                    ]
+                    ],
+                    tableLayout
                 ),
 
         results = Observe(

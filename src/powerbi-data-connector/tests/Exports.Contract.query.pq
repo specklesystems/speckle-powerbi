@@ -29,6 +29,12 @@ let
     RequiredCount = (f as function) as number => Type.FunctionRequiredParameters(Value.Type(f)),
     ReturnsTable = (f as function) as logical => Type.Is(Type.FunctionReturn(Value.Type(f)), type table),
 
+    // the GetTables advanced-options record: a typed record parameter renders
+    // as the connect dialog's collapsible group, titled by its FieldCaption
+    GetTablesOptionsType = Type.FunctionParameters(Value.Type(Speckle.GetTables))[options],
+    GetTablesOptionsFields = Type.RecordFields(Type.NonNullable(GetTablesOptionsType)),
+    GetTablesTableLayoutMeta = Value.Metadata(GetTablesOptionsFields[TableLayout][Type]),
+
     facts = {
         // Speckle.GetByUrl keeps the full 3.x contract (url + optional ExpandProperties)
         Fact("GetByUrl parameters", {"url", "ExpandProperties"}, ParamNames(Speckle.GetByUrl)),
@@ -36,8 +42,24 @@ let
         Fact("GetByUrl returns table", true, ReturnsTable(Speckle.GetByUrl)),
 
         // the 4.0 star schema is a separate entry point
-        Fact("GetTables parameters", {"url"}, ParamNames(Speckle.GetTables)),
+        Fact("GetTables parameters", {"url", "options"}, ParamNames(Speckle.GetTables)),
+        Fact("GetTables required arity", 1, RequiredCount(Speckle.GetTables)),
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
+        Fact("GetTables options render as the collapsible Advanced options group",
+            "Advanced options",
+            Value.Metadata(GetTablesOptionsType)[Documentation.FieldCaption]),
+        Fact("GetTables options carry the single optional TableLayout field",
+            [Names = {"TableLayout"}, Optional = true],
+            [
+                Names = Record.FieldNames(GetTablesOptionsFields),
+                Optional = GetTablesOptionsFields[TableLayout][Optional]
+            ]),
+        Fact("TableLayout is a dropdown captioned Table layout with the Simplified default first",
+            [Caption = "Table layout", AllowedValues = {"Simplified", "All tables"}],
+            [
+                Caption = GetTablesTableLayoutMeta[Documentation.FieldCaption],
+                AllowedValues = GetTablesTableLayoutMeta[Documentation.AllowedValues]
+            ]),
         Fact("AddProperties parameters", {"source", "propertyPaths", "columnNames"}, ParamNames(Speckle.AddProperties)),
         Fact("AddProperties required arity", 2, RequiredCount(Speckle.AddProperties)),
         Fact("AddProperties returns table", true, ReturnsTable(Speckle.AddProperties)),

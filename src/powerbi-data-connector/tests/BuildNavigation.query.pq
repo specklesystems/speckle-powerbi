@@ -3,6 +3,8 @@
 // plus the visible Properties function row. Deep enrichment semantics
 // (suffix naming, source splits, strict failures) stay covered by
 // AddProperties.query.pq; this suite covers the six-row layout, the
+// Table layout option (Simplified default hides the supporting rows,
+// All tables shows every row, invalid values raise a structured error), the
 // model-bound function's type/documentation contract, selection
 // normalization and ordering, the lean relationship-ready result shape
 // (object_key + selected property columns, every Objects row retained),
@@ -65,16 +67,27 @@ let
             {4294967306, "properties.Material.Name"}
         }
     ),
-    Nav = BuildNavigation(
-        Deps,
+    SourceTables = [
+        Objects = Objects,
+        Properties = Properties,
+        Paths = Paths,
+        ObjectTypes = ObjectTypes,
+        TypeProperties = TypeProperties
+    ],
+    Nav = BuildNavigation(Deps, SourceTables),
+    SimplifiedNav = BuildNavigation(Deps, SourceTables, "Simplified"),
+    AllTablesNav = BuildNavigation(Deps, SourceTables, "All tables"),
+    CaseInsensitiveLayoutNav = BuildNavigation(Deps, SourceTables, "all TABLES"),
+    // List.AnyTrue forces the lazy Hidden cells so the validation error
+    // surfaces inside the try (Table.Column alone returns an unevaluated list)
+    InvalidLayoutResult = try List.AnyTrue(Table.Column(BuildNavigation(Deps, SourceTables, "Everything"), "Hidden")),
+    InvalidLayoutError = if not InvalidLayoutResult[HasError] then
+        [Reason = null, AllowedValues = {}]
+    else
         [
-            Objects = Objects,
-            Properties = Properties,
-            Paths = Paths,
-            ObjectTypes = ObjectTypes,
-            TypeProperties = TypeProperties
-        ]
-    ),
+            Reason = try InvalidLayoutResult[Error][Reason] otherwise null,
+            AllowedValues = try InvalidLayoutResult[Error][Detail][AllowedValues] otherwise {}
+        ],
     NavType = Value.Type(Nav),
     NavMeta = Value.Metadata(NavType),
     FunctionRow = Nav{[Key = "expand-properties"]},
@@ -94,16 +107,15 @@ let
     // laziness rig: building the navigator and empty invocations must never
     // force the property fact tables (Paths, the small dimension, is real —
     // it feeds AllowedValues)
-    LazyNav = BuildNavigation(
-        Deps,
-        [
-            Objects = Objects,
-            Properties = error "Properties must not be read",
-            Paths = Paths,
-            ObjectTypes = error "Object Types must not be read",
-            TypeProperties = error "Type Properties must not be read"
-        ]
-    ),
+    LazyTables = [
+        Objects = Objects,
+        Properties = error "Properties must not be read",
+        Paths = Paths,
+        ObjectTypes = error "Object Types must not be read",
+        TypeProperties = error "Type Properties must not be read"
+    ],
+    LazyNav = BuildNavigation(Deps, LazyTables),
+    LazyAllTablesNav = BuildNavigation(Deps, LazyTables, "All tables"),
     LazyFn = LazyNav{[Key = "expand-properties"]}[Data],
     Shape = (t as table) as record => [
         Columns = Table.ColumnNames(t),
@@ -166,7 +178,7 @@ let
         ),
         Fact(
             "row names follow the settled order",
-            {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "Properties"},
+            {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"},
             Table.Column(Nav, "Name")
         ),
         Fact(
@@ -183,6 +195,47 @@ let
             "visible entries appear as Objects, Properties",
             {"Objects", "Properties"},
             Table.Column(Table.SelectRows(Nav, each not [Hidden]), "Name")
+        ),
+
+        // -- Table layout option ------------------------------------------------
+        Fact(
+            "an explicit Simplified layout matches the default hidden flags",
+            {false, true, true, true, true, false},
+            Table.Column(SimplifiedNav, "Hidden")
+        ),
+        Fact(
+            "the All tables layout shows every row",
+            {false, false, false, false, false, false},
+            Table.Column(AllTablesNav, "Hidden")
+        ),
+        Fact(
+            "the All tables layout keeps the settled keys and names",
+            [
+                Keys = {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
+                Names = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"}
+            ],
+            [
+                Keys = Table.Column(AllTablesNav, "Key"),
+                Names = Table.Column(AllTablesNav, "Name")
+            ]
+        ),
+        Fact(
+            "the layout value matches case-insensitively",
+            {false, false, false, false, false, false},
+            Table.Column(CaseInsensitiveLayoutNav, "Hidden")
+        ),
+        Fact(
+            "an unknown layout raises the structured error listing the allowed values",
+            [
+                Reason = "Speckle.GetTables.InvalidTableLayout",
+                AllowedValues = {"Simplified", "All tables"}
+            ],
+            InvalidLayoutError
+        ),
+        Fact(
+            "the All tables layout does not force the fact tables",
+            {false, false, false, false, false, false},
+            Table.Column(LazyAllTablesNav, "Hidden")
         ),
         Fact(
             "every row is a leaf",

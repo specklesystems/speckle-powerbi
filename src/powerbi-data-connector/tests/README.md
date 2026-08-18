@@ -34,7 +34,10 @@ listing the failed facts.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
   `Speckle.GetTables`, against tiny synthetic five-table data: the six-row
   layout (visible `Objects` and `Properties`, hidden
-  helper rows), navigation metadata and keys, and the model-bound
+  supporting rows), the `TableLayout` option (`Simplified` default,
+  case-insensitive `All tables` showing every row without forcing the fact
+  tables, structured errors for unknown values), navigation metadata and
+  keys, and the model-bound
   `Properties` function's contract — two optional parameters (the
   nullable-list selection and the nullable-text `ColumnNames` mode with its
   `Shortest` / `Full path` `AllowedValues`), zero required arity,
@@ -50,10 +53,11 @@ listing the failed facts.
 
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
   matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
-  contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
+  contract: `NavigationTable.HiddenColumn` names `Hidden`, by default only the
   `Objects` and `Properties` rows are visible — the
   last one a real model-bound function that the suite also invokes against
-  live data. It lives outside `tests\`
+  live data — and the `[TableLayout = "All tables"]` advanced option shows
+  every row. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run
   without credentials. Fill in the placeholder URLs, set a credential with
   `PQTest.exe set-credential`, then run with

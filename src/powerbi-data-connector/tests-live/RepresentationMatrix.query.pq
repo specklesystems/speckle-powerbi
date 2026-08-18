@@ -45,17 +45,20 @@ let
             if outcome[HasError] then outcome[Error][Reason] else "<no error>",
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
-    StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "Properties"},
-    // Objects and the Properties function surface in the Navigator; the other
-    // four rows are hidden implementation details
-    // for the property helpers
+    StarTables = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"},
+    // With the default Simplified table layout, Objects and the Properties
+    // function surface in the Navigator; the other four rows stay hidden and
+    // feed the property helpers. The advanced option
+    // [TableLayout = "All tables"] unhides them.
     StarHidden = {false, true, true, true, true, false},
+    StarAllVisible = {false, false, false, false, false, false},
     HiddenColumnName = (nav as table) as any =>
         Record.FieldOrDefault(Value.Metadata(Value.Type(nav)), "NavigationTable.HiddenColumn", null),
 
     legacyBoth = Speckle.GetByUrl(UrlJsonAndArtifact),
     legacyJsonOnly = Speckle.GetByUrl(UrlJsonOnly),
     starBoth = Speckle.GetTables(UrlJsonAndArtifact),
+    starBothAllTables = Speckle.GetTables(UrlJsonAndArtifact, [TableLayout = "All tables"]),
     starArtifactOnly = Speckle.GetTables(UrlArtifactOnly),
     starObjects = starBoth{[Key = "objects"]}[Data],
     starExpand = starBoth{[Key = "expand-properties"]}[Data],
@@ -74,6 +77,10 @@ let
             HiddenColumnName(starBoth)),
         Fact("GetTables(both) hides all but Objects and Properties", StarHidden,
             Table.Column(starBoth, "Hidden")),
+        Fact("GetTables(both, All tables) shows every row", StarAllVisible,
+            Table.Column(starBothAllTables, "Hidden")),
+        Fact("GetTables(both, All tables) keeps the same rows", StarTables,
+            Table.Column(starBothAllTables, "Name")),
         Fact("GetTables(both) exposes Properties as a function", true,
             Value.Is(starExpand, type function)),
         Fact("Properties(null) returns an object_key-only table with every object",

@@ -1,5 +1,5 @@
 // Adds selected EAV values to the Objects navigation table, split by source:
-// values from the Properties (instance) fact appear in an unprefixed column,
+// values from the Property Values (instance) fact appear in an unprefixed column,
 // and values from the Type Properties fact, projected per object through the
 // Object Types bridge, appear in a Type_-prefixed column (Area / Type_Area).
 // columnNames picks the column naming mode: "Shortest" (default) uses the

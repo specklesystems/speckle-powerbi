@@ -1,25 +1,47 @@
 // Composes the public Speckle.GetTables navigation table (ENG-9165) from the
-// five already-combined star-schema tables. The Navigator shows two entries
-// — Objects and the model-bound Properties function — while the four
-// hidden helper rows stay addressable by key for
-// Speckle.AddProperties and Speckle.AddAllProperties.
+// five already-combined star-schema tables. With the default Simplified
+// layout the Navigator shows two entries — Objects and the model-bound
+// Properties function — while the four hidden supporting rows stay
+// addressable by key for Speckle.AddProperties and Speckle.AddAllProperties.
+// The All tables layout unhides the supporting rows for users building their
+// own relationships.
 //
-// deps:   [NavigationTable = ..., AddProperties = ...]
-// tables: [Objects = ..., Properties = ..., Paths = ..., ObjectTypes = ...,
-//          TypeProperties = ...]
-(deps as record, tables as record) as table =>
+// deps:        [NavigationTable = ..., AddProperties = ...]
+// tables:      [Objects = ..., Properties = ..., Paths = ..., ObjectTypes = ...,
+//               TypeProperties = ...]
+// tableLayout: null | "Simplified" | "All tables" (case-insensitive)
+(deps as record, tables as record, optional tableLayout as nullable text) as table =>
     let
         NavigationTable = deps[NavigationTable],
         AddProperties = deps[AddProperties],
 
+        // Table layout — the Speckle.GetTables advanced option. Named after
+        // the public export so the structured error reads correctly there.
+        allowedTableLayouts = {"Simplified", "All tables"},
+        showAllTables = if tableLayout = null
+            or Comparer.OrdinalIgnoreCase(tableLayout, "Simplified") = 0 then
+            false
+        else if Comparer.OrdinalIgnoreCase(tableLayout, "All tables") = 0 then
+            true
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidTableLayout",
+                "TableLayout must be one of: "
+                    & Text.Combine(allowedTableLayouts, ", ")
+                    & ". Got: " & tableLayout & ".",
+                [TableLayout = tableLayout, AllowedValues = allowedTableLayouts]
+            ),
+
         // the five keyed rows AddProperties indexes; hidden flags implement
-        // the Navigator contract (only Objects is a visible table)
+        // the Navigator contract (Simplified shows only Objects as a table,
+        // All tables shows every row). Keys are the stable API — the
+        // Property Values row keeps its historical "properties" key.
         helperRows = {
             [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
-            [name = "Properties", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true]
+            [name = "Property Values", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = not showAllTables]
         },
 
         // ExpandProperties closes over this private five-row navigator, not

@@ -67,10 +67,27 @@ Connecting with `Speckle.GetTables` lists two entries in the Navigator:
   Objects row — relate it one-to-one to the Objects table on `object_key`. It
   never modifies the imported Objects query.
 
-Property values are not loaded as separate tables. Select the ones you need
-with `Properties` (or the M helpers below) — the underlying source keeps
-four hidden supporting tables (Properties, Property Paths, Object Types, Type
-Properties) that they read, and advanced M code can still address them by key.
+Property values are not loaded as separate tables by default. Select the ones
+you need with `Properties` (or the M helpers below) — the underlying source
+keeps four hidden supporting tables (Property Values, Property Paths, Object
+Types, Type Properties) that they read, and advanced M code can still address
+them by key.
+
+For advanced users who prefer to build their own relationships, the **Table
+layout** setting under the connect dialog's collapsible **Advanced options**
+section controls what the Navigator shows:
+
+- **Simplified** (the default, and the behavior when omitted) — the Objects
+  table and the `Properties` function, as above.
+- **All tables** — additionally shows the four supporting tables (Property
+  Values, Property Paths, Object Types, Type Properties) so you can load them
+  and relate them yourself, e.g. Objects 1-\* Property Values \*-1 Property
+  Paths on `object_key` / `path_key`.
+
+The same choice can be written directly in M:
+`Speckle.GetTables(url, [TableLayout = "All tables"])`. The layout only
+changes Navigator visibility — the underlying tables, keys and the
+`Properties` function are identical in both layouts.
 
 ### Select properties with Properties
 

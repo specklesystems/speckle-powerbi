@@ -298,7 +298,11 @@ GetTables.Impl = Speckle.LoadFunction("GetTables.pqm");
 
 [DataSource.Kind = "Speckle", Publish="GetTables.Publish"]
 shared Speckle.GetTables = Value.ReplaceType(
-    (url as text) as table => GetTables.Impl(url),
+    (url as text, optional options as record) as table => GetTables.Impl(url, options),
+    // the options parameter is a typed record so the connect dialog renders
+    // its fields under a collapsible group titled by the record type's
+    // FieldCaption — the same pattern certified connectors (Starburst, Trino)
+    // use for their Advanced options section
     type function (
         url as (
             Uri.Type meta [
@@ -306,11 +310,24 @@ shared Speckle.GetTables = Value.ReplaceType(
                 Documentation.FieldDescription = "The URL of a model in a Speckle server project. You can copy it directly from your browser.",
                 Documentation.SampleValues = {"https://app.speckle.systems/projects/7902de1f57/models/7f890a65df"}
             ]
+        ),
+        optional options as (
+            type nullable [
+                optional TableLayout = (
+                    type nullable text meta [
+                        Documentation.FieldCaption = "Table layout",
+                        Documentation.FieldDescription = "Default: Simplified. Simplified shows the Objects table and the Properties function; All tables also shows the supporting tables (Property Values, Property Paths, Object Types, Type Properties) so you can build your own relationships.",
+                        Documentation.AllowedValues = {"Simplified", "All tables"}
+                    ]
+                )
+            ] meta [
+                Documentation.FieldCaption = "Advanced options"
+            ]
         )
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two entries:#(lf)
+        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. With the default Simplified table layout the Navigator lists two entries:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Properties (function) — returns a lean table of object_key plus the selected property columns, one row per Objects row#(lf)
             Invoke Properties into its own query, load that result and relate it one-to-one to Objects on object_key; keep Properties connection-only.#(lf)
@@ -318,7 +335,7 @@ shared Speckle.GetTables = Value.ReplaceType(
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
             Column names default to the shortest unique trailing part of each dotted path; the optional Column names setting (Shortest / Full path) switches to entire paths.#(lf)
             Speckle.AddProperties(Source, propertyPaths, columnNames) and Speckle.AddAllProperties(Source, columnNames) remain available for M code.#(lf)
-            The source also carries four hidden supporting tables (Properties, Property Paths, Object Types, Type Properties) that the function and helpers consume.#(lf)
+            The source also carries four supporting tables (Property Values, Property Paths, Object Types, Type Properties) that the function and helpers consume; they are hidden by default, and the Table layout setting under Advanced options (Simplified / All tables; in M: Speckle.GetTables(url, [TableLayout = ""All tables""])) shows them in the Navigator for building your own relationships.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
