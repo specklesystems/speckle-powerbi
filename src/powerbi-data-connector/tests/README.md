@@ -29,13 +29,24 @@ listing the failed facts.
   through `Speckle.AddProperties` with the same source-split columns, including
   null-only and moderately wide property sets, while preserving empty Objects
   tables and validation behavior.
+- `BuildNavigation.query.pq` — the navigator composition seam behind
+  `Speckle.GetTables`, against tiny synthetic five-table data: the six-row
+  layout (visible `Objects`, `Property Paths` and `ExpandProperties`, hidden
+  helper rows), navigation metadata and keys, and the model-bound
+  `ExpandProperties` function's contract — optional nullable-list parameter,
+  zero required arity, `ExpandProperties` documentation, deduplicated
+  catalogue-ordered `AllowedValues`, table return type, empty-selection
+  laziness (fact tables are never forced), selection trimming/ordering,
+  disappeared-path null columns and structured invalid-path errors.
 
 ## Live suite (manual, needs a server + credential)
 
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
   matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
   contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
-  `Objects` and `Property Paths` rows are visible. It lives outside `tests\`
+  `Objects`, `Property Paths` and `ExpandProperties` rows are visible — the
+  last one a real model-bound function that the suite also invokes against
+  live data. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run
   without credentials. Fill in the placeholder URLs, set a credential with
   `PQTest.exe set-credential`, then run with
