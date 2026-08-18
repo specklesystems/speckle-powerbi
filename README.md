@@ -117,6 +117,11 @@ Selection behavior:
 - Every Objects row is preserved in Objects order, so the result relates
   one-to-one to Objects on `object_key`; instance values land in unprefixed
   columns and type values in `Type_`-prefixed columns (see below).
+- An optional second argument, **Column names**, controls how property columns
+  are named: `"Shortest"` (the default) uses the shortest unique trailing part
+  of each dotted path, `"Full path"` uses the entire path — for example
+  `Properties({"properties.Dimensions.Area"}, "Full path")`. The `Type_`
+  prefix applies in both modes.
 
 ### Add every object property
 
@@ -139,12 +144,16 @@ stored per object land in an unprefixed column (for example `Area`), while
 values stored on the object's type land in a `Type_`-prefixed column
 (`Type_Area`). A property with both an instance value and a type value produces
 both columns side by side. Paths without a value are retained as null columns.
-Property columns use the shortest unique suffix of their dotted paths.
+Property columns use the shortest unique suffix of their dotted paths by
+default; both helpers accept the same optional `columnNames` argument as the
+`Properties` function (`"Shortest"` or `"Full path"`), so
+`Speckle.AddAllProperties(Source, "Full path")` names every column with its
+entire dotted path.
 
 This helper is intended for models with relatively few property paths. BIM
 models can contain hundreds or thousands of paths, producing a very wide table
-and slower refreshes; use `Speckle.AddProperties(Source, propertyPaths)` to select
-only the properties needed in those cases.
+and slower refreshes; use `Speckle.AddProperties(Source, propertyPaths, columnNames)`
+to select only the properties needed in those cases.
 
 ## Development Setup
 
