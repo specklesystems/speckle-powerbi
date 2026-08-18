@@ -35,9 +35,12 @@ listing the failed facts.
   helper rows), navigation metadata and keys, and the model-bound
   `ExpandProperties` function's contract — optional nullable-list parameter,
   zero required arity, `ExpandProperties` documentation, deduplicated
-  catalogue-ordered `AllowedValues`, table return type, empty-selection
+  catalogue-ordered `AllowedValues`, table return type, the lean
+  relationship-ready result (`object_key` plus the selected property columns,
+  every Objects row retained in order with its key type), empty-selection
   laziness (fact tables are never forced), selection trimming/ordering,
-  disappeared-path null columns and structured invalid-path errors.
+  disappeared-path null columns, collision detection against the lean base
+  and structured invalid-path errors.
 
 ## Live suite (manual, needs a server + credential)
 

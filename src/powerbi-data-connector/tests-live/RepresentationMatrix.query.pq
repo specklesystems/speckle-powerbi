@@ -76,11 +76,17 @@ let
             Table.Column(starBoth, "Hidden")),
         Fact("GetTables(both) exposes ExpandProperties as a function", true,
             Value.Is(starExpand, type function)),
-        Fact("ExpandProperties(null) returns the full Objects table", Table.RowCount(starObjects),
-            Table.RowCount(starExpand(null))),
-        Fact("ExpandProperties appends the selected property while preserving all rows", true,
+        Fact("ExpandProperties(null) returns an object_key-only table with every object",
+            [Columns = {"object_key"}, Rows = Table.RowCount(starObjects)],
+            [
+                Columns = Table.ColumnNames(starExpand(null)),
+                Rows = Table.RowCount(starExpand(null))
+            ]),
+        Fact("ExpandProperties returns object_key plus the selected property while preserving all rows", true,
             Table.RowCount(starExpanded) = Table.RowCount(starObjects)
-                and Table.ColumnCount(starExpanded) > Table.ColumnCount(starObjects)),
+                and List.First(Table.ColumnNames(starExpanded)) = "object_key"
+                and not List.Contains(Table.ColumnNames(starExpanded), "Application ID")
+                and Table.ColumnCount(starExpanded) >= 2),
 
         // JSON only — force a known table row: the Data column also carries
         // the ExpandProperties function, so combining every Data value would
