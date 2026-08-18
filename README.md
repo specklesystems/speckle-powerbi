@@ -62,9 +62,10 @@ To get started with Power BI connector, please take a look at the [documentation
 Connecting with `Speckle.GetTables` lists two entries in the Navigator:
 
 - **Objects** — one row per object; feeds the Speckle 3D visual.
-- **Properties** — a function bound to the model: it returns a new copy
-  of the Objects table with the property values you select appended. It never
-  modifies the imported Objects query.
+- **Properties** — a function bound to the model: it returns a lean
+  table of `object_key` plus the property columns you select, with one row per
+  Objects row — relate it one-to-one to the Objects table on `object_key`. It
+  never modifies the imported Objects query.
 
 Property values are not loaded as separate tables. Select the ones you need
 with `Properties` (or the M helpers below) — the underlying source keeps
@@ -80,7 +81,10 @@ The recommended query model uses three queries:
 2. **Properties** — the function query; functions are inherently
    connection-only.
 3. **Invoked result** — invoking `Properties` creates a separate table
-   query; this is the one you normally load into the semantic model.
+   query; load it into the semantic model and relate it to Objects
+   one-to-one on `object_key` (the connector guarantees a
+   relationship-ready key; Power BI may or may not autodetect the
+   relationship).
 
 In the invocation dialog, pick the properties to append from the dropdown
 (the values come from the hidden Property Paths catalog, listed once each — in
@@ -95,27 +99,29 @@ The same call can be written directly in M:
 let
     Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
     Properties = Source{[Key = "expand-properties"]}[Data],
-    ObjectsWithProperties = Properties({"properties.Dimensions.Area", "properties.Material.Name"})
+    ObjectProperties = Properties({"properties.Dimensions.Area", "properties.Material.Name"})
 in
-    ObjectsWithProperties
+    ObjectProperties
 ```
 
 Selection behavior:
 
-- Omitting the argument, passing `null` or passing `{}` returns the Objects
-  table unchanged.
-- Entries are trimmed and duplicates are dropped. Known paths are appended in
+- Omitting the argument, passing `null` or passing `{}` returns an
+  `object_key`-only table containing every object.
+- Entries are trimmed and duplicates are dropped. Known paths are emitted in
   Property Paths catalog order (not the order you pass them); unknown paths
   follow the known ones.
 - A well-formed path that disappears in a later model version keeps its column
   as an all-null column, so saved reports keep refreshing.
 - Blank or non-text entries raise a structured invalid-path error.
-- All Objects rows are preserved; instance values land in unprefixed columns
-  and type values in `Type_`-prefixed columns (see below).
+- Every Objects row is preserved in Objects order, so the result relates
+  one-to-one to Objects on `object_key`; instance values land in unprefixed
+  columns and type values in `Type_`-prefixed columns (see below).
 
 ### Add every object property
 
-The M helpers remain available alongside `Properties`. For property-light
+The M helpers remain available alongside `Properties` and, unlike it, return
+the full Objects table enriched with property columns. For property-light
 CAD models, create a blank query in Power Query and pass the navigation table
 returned by `Speckle.GetTables` to the convenience helper:
 
