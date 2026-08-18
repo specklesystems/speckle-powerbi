@@ -249,6 +249,7 @@
   "sorting": {
     "default": {}
   },
+  "advancedEditModeSupport": 2,
   "supportsEmptyDataView": true,
   "supportsHighlight": true,
   "supportsKeyboardFocus": true,
