@@ -208,8 +208,10 @@
 
         // combines per-model tables and assembles the navigation table.
         // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
-        // on object_key / path_key. Models stays disconnected — no relationship
-        // or model key; the visual reads its single Model Info cell directly.
+        // on object_key / path_key, plus Objects *-1 Models on model_key —
+        // Power BI cannot compose row groupings from unrelated tables, so the
+        // visual's Models[Model Info] parent grouping needs that relationship
+        // (Desktop's autodetect finds it: matching names, unique one side).
         BuildResult = (modelsData as list, addSourceModel as logical) as table =>
             let
                 // delimiter chosen to avoid conflicts with base64 characters;
@@ -232,13 +234,22 @@
                         )
                     ),
 
-                objectsT = CombinePart((mm) => mm[Objects], true),
+                // model_key is a CONSTANT 1 on every row of both tables: it
+                // exists only to carry the Objects *-1 Models relationship.
+                // A constant int column value-encodes to almost nothing in
+                // VertiPaq — unlike the ~1KB blob it replaces per row.
+                objectsT = Table.AddColumn(
+                    CombinePart((mm) => mm[Objects], true),
+                    "model_key",
+                    each 1,
+                    Int64.Type
+                ),
                 // the whole per-load payload lives in this ONE visible row —
                 // repeating it on every Objects row was the dominant term in
                 // the visual host's fetchMoreData memory ceiling
                 modelsT = #table(
-                    type table [#"Model Info" = text],
-                    {{combinedBlobs}}
+                    type table [#"Model Info" = text, model_key = Int64.Type],
+                    {{combinedBlobs, 1}}
                 ),
                 propertiesT = CombinePart((mm) => mm[Properties], false),
                 pathsT = CombinePart((mm) => mm[Paths], false),

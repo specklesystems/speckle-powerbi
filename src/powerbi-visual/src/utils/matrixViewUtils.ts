@@ -204,7 +204,7 @@ export async function processMatrixView(
   if (modelInfoIsFirstLevel) {
     // the connector's Models table is one row by contract; several distinct
     // grouping values would silently render every model's objects against the
-    // FIRST payload only (Models is disconnected, so the matrix cross-joins)
+    // FIRST payload only
     if (localMatrixView.length !== 1) {
       throw new Error(
         `The Models table must contain exactly one Model Info row (found ${localMatrixView.length}). Load Models from a single Speckle.GetTables call.`

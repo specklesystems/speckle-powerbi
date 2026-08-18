@@ -19,9 +19,9 @@
         objectTypesRow = [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
         typePropertiesRow = [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true],
 
-        // the visible one-row Model Info payload table — deliberately NOT part
-        // of helperRows: AddProperties indexes only the five star-schema keys,
-        // and Models stays a disconnected table with no relationship or key
+        // the visible one-row Model Info payload table (related to Objects via
+        // the constant model_key) — deliberately NOT part of helperRows:
+        // AddProperties indexes only the five star-schema keys
         modelsRow = [name = "Models", key = "models", data = tables[Models], itemKind = "Table", isLeaf = true],
 
         // the five keyed rows AddProperties indexes; hidden flags implement

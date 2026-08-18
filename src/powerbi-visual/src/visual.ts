@@ -43,7 +43,7 @@ const LIGHT_ROW_THRESHOLD = 30000
 
 /** The one copy of the required-binding guidance — shown by the pre-flight
  *  recovery gate and the catch-all warning alike so the texts cannot drift. */
-const BIND_GUIDANCE = `Load the "Models" and "Objects" tables from the Speckle connector (4.x), then bind Models[Model Info] to the "Model Info" field and Objects[object_key] (or Objects[Application ID]) to "Application IDs".`
+const BIND_GUIDANCE = `Load the "Models" and "Objects" tables from the Speckle connector (4.x), relate Objects[model_key] to Models[model_key] (Power BI usually autodetects this), then bind Models[Model Info] to the "Model Info" field and Objects[object_key] (or Objects[Application ID]) to "Application IDs".`
 
 /** Leaf-row count of the matrix (fast — no value parsing), for paging decisions. */
 const countMatrixLeafRows = (matrix: powerbi.DataViewMatrix): number => {

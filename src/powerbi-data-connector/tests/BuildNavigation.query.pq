@@ -36,9 +36,13 @@ let
     NavigationTable = Speckle.LoadFunction("NavigationTable.pqm"),
     Deps = [NavigationTable = NavigationTable, AddProperties = Speckle.AddProperties],
 
+    // model_key is the constant relationship key GetTables stamps on Objects
+    // and Models alike: Power BI cannot compose row groupings from unrelated
+    // tables, so the visual's Models[Model Info] -> Objects hierarchy needs
+    // the Objects[model_key] *-1 Models[model_key] relationship
     Objects = #table(
-        type table [object_key = Int64.Type, #"Application ID" = text],
-        {{1, "one"}, {2, "two"}, {4294967297, "fed"}}
+        type table [object_key = Int64.Type, #"Application ID" = text, model_key = Int64.Type],
+        {{1, "one", 1}, {2, "two", 1}, {4294967297, "fed", 1}}
     ) meta [TestMarker = "base Objects"],
     Properties = #table(
         type table [object_key = Int64.Type, path_key = Int64.Type, Value = any],
@@ -66,10 +70,11 @@ let
         }
     ),
     // the one-row Models table GetTables builds from the combined per-model
-    // blobs (federated loads keep the ||| concatenation)
+    // blobs (federated loads keep the ||| concatenation) plus the constant
+    // relationship key
     Models = #table(
-        type table [#"Model Info" = text],
-        {{"blob-one|||blob-two"}}
+        type table [#"Model Info" = text, model_key = Int64.Type],
+        {{"blob-one|||blob-two", 1}}
     ),
     Nav = BuildNavigation(
         Deps,
@@ -117,8 +122,8 @@ let
         Marker = try Value.Metadata(t)[TestMarker] otherwise null
     ],
     ExpectedBase = [
-        Columns = {"object_key", "Application ID"},
-        Rows = {{1, "one"}, {2, "two"}, {4294967297, "fed"}},
+        Columns = {"object_key", "Application ID", "model_key"},
+        Rows = {{1, "one", 1}, {2, "two", 1}, {4294967297, "fed", 1}},
         Marker = "base Objects"
     ],
 
@@ -176,10 +181,10 @@ let
             Table.Column(Nav, "ItemKind")
         ),
         Fact(
-            "Models is exactly the one-row, one-text-column payload table",
+            "Models is exactly the one-row payload table keyed for the Objects relationship",
             [
-                Columns = {"Model Info"},
-                Rows = {{"blob-one|||blob-two"}}
+                Columns = {"Model Info", "model_key"},
+                Rows = {{"blob-one|||blob-two", 1}}
             ],
             [
                 Columns = Table.ColumnNames(Nav{[Key = "models"]}[Data]),
@@ -295,11 +300,11 @@ let
         Fact(
             "known selections follow catalogue order and unknown paths trail as all-null columns",
             [
-                Columns = {"object_key", "Application ID", "Area", "Type_Area", "Mark", "unknown"},
+                Columns = {"object_key", "Application ID", "model_key", "Area", "Type_Area", "Mark", "unknown"},
                 Rows = {
-                    {1, "one", "instance-area", "type-area", null, null},
-                    {2, "two", null, "type-area", "instance-mark", null},
-                    {4294967297, "fed", null, null, null, null}
+                    {1, "one", 1, "instance-area", "type-area", null, null},
+                    {2, "two", 1, null, "type-area", "instance-mark", null},
+                    {4294967297, "fed", 1, null, null, null, null}
                 }
             ],
             [
@@ -309,13 +314,13 @@ let
         ),
         Fact(
             "selections are trimmed and ordinally deduplicated",
-            {"object_key", "Application ID", "Mark"},
+            {"object_key", "Application ID", "model_key", "Mark"},
             Table.ColumnNames(TrimDedupResult)
         ),
         Fact(
             "a federated duplicate path is selected once and produces one column across sources",
             [
-                Columns = {"object_key", "Application ID", "Type_Name"},
+                Columns = {"object_key", "Application ID", "model_key", "Type_Name"},
                 Values = {"type-name", "type-name", "fed-type-name"}
             ],
             [
@@ -326,11 +331,11 @@ let
         Fact(
             "invoking with every AllowedValues entry appends every emitted column and preserves all rows",
             [
-                Columns = {"object_key", "Application ID", "Area", "Type_Area", "Type_Name", "Mark", "Slot"},
+                Columns = {"object_key", "Application ID", "model_key", "Area", "Type_Area", "Type_Name", "Mark", "Slot"},
                 Rows = {
-                    {1, "one", "instance-area", "type-area", "type-name", null, null},
-                    {2, "two", null, "type-area", "type-name", "instance-mark", null},
-                    {4294967297, "fed", null, null, "fed-type-name", null, null}
+                    {1, "one", 1, "instance-area", "type-area", "type-name", null, null},
+                    {2, "two", 1, null, "type-area", "type-name", "instance-mark", null},
+                    {4294967297, "fed", 1, null, null, "fed-type-name", null, null}
                 }
             ],
             [

@@ -42,7 +42,8 @@
         reservedNames = {
             "Application ID", "Property", "Value", "Model Info", "Source Model",
             "Value Text", "Value Number", "Value Bool",
-            "object_index", "application_id", "object_key", "path_key", "value"
+            "object_index", "application_id", "object_key", "path_key", "value",
+            "model_key"
         },
         paths = Table.Buffer(
             Table.TransformColumns(

@@ -75,12 +75,15 @@ let
             HiddenColumnName(starBoth)),
         Fact("GetTables(both) hides all but Objects, Models, Property Paths and ExpandProperties", StarHidden,
             Table.Column(starBoth, "Hidden")),
-        Fact("GetTables(both) Models is exactly one row with the single Model Info text column", true,
-            Table.ColumnNames(starModels) = {"Model Info"}
+        Fact("GetTables(both) Models is exactly one row keyed for the Objects relationship", true,
+            Table.ColumnNames(starModels) = {"Model Info", "model_key"}
                 and Table.RowCount(starModels) = 1
-                and Value.Is(starModels{0}[Model Info], type text)),
+                and Value.Is(starModels{0}[Model Info], type text)
+                and starModels{0}[model_key] = 1),
         Fact("GetTables(both) Objects omits Model Info", false,
             List.Contains(Table.ColumnNames(starObjects), "Model Info")),
+        Fact("GetTables(both) Objects carries the constant model_key relationship key", {1},
+            List.Distinct(Table.Column(starObjects, "model_key"))),
         Fact("GetTables(both) exposes ExpandProperties as a function", true,
             Value.Is(starExpand, type function)),
         Fact("ExpandProperties(null) returns the full Objects table", Table.RowCount(starObjects),

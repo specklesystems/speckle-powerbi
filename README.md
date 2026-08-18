@@ -63,18 +63,22 @@ Connecting with `Speckle.GetTables` lists four entries in the Navigator:
 
 - **Objects** — one row per object; provides the object identifiers for the
   Speckle 3D visual.
-- **Models** — a single row with the single text column `Model Info`: the
-  payload the Speckle 3D visual needs to locate and load the model. Load it
-  as-is and keep it disconnected — no relationship or key to other tables.
+- **Models** — a single row with the text column `Model Info` (the payload the
+  Speckle 3D visual needs to locate and load the model) and a constant
+  `model_key`. Relate `Objects[model_key]` many-to-one to `Models[model_key]`
+  — Power BI usually autodetects this relationship on load; the visual cannot
+  combine the two tables without it.
 - **Property Paths** — the catalog of dotted property paths available on the
   model.
 - **ExpandProperties** — a function bound to the model: it returns a new copy
   of the Objects table with the property values you select appended. It never
   modifies the imported Objects query.
 
-To render the model, bind `Models[Model Info]` to the visual's **Model Info**
-field and an Objects identifier — `Objects[object_key]` or
-`Objects[Application ID]` — to **Application IDs**.
+To render the model, verify the `Objects[model_key]` → `Models[model_key]`
+relationship exists (create it in Model view if autodetect did not), then bind
+`Models[Model Info]` to the visual's **Model Info** field and an Objects
+identifier — `Objects[object_key]` or `Objects[Application ID]` — to
+**Application IDs**.
 
 Property values are not loaded as separate tables. Select the ones you need
 with `ExpandProperties` (or the M helpers below) — the underlying source keeps
@@ -88,7 +92,7 @@ The recommended query model uses five queries:
 1. **Objects** — the raw table; load it if the 3D visual needs it, otherwise
    loading is optional.
 2. **Models** — the one-row `Model Info` payload table; load it if the 3D
-   visual needs it and leave it disconnected.
+   visual needs it and relate it to Objects on `model_key`.
 3. **Property Paths** — a reference catalog; normally disable load
    (connection-only).
 4. **ExpandProperties** — the function query; functions are inherently

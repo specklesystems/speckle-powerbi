@@ -32,9 +32,10 @@ listing the failed facts.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
   `Speckle.GetTables`, against tiny synthetic six-table data: the seven-row
   layout (visible `Objects`, `Models`, `Property Paths` and
-  `ExpandProperties`, hidden helper rows), the one-row/one-column
-  `Models[Model Info]` payload shape, Objects and enriched results staying
-  free of `Model Info`, navigation metadata and keys, and the model-bound
+  `ExpandProperties`, hidden helper rows), the one-row `Models` payload shape
+  (`Model Info` plus the constant `model_key` relationship key), Objects and
+  enriched results staying free of `Model Info`, navigation metadata and
+  keys, and the model-bound
   `ExpandProperties` function's contract — optional nullable-list parameter,
   zero required arity, `ExpandProperties` documentation, deduplicated
   catalogue-ordered `AllowedValues`, table return type, empty-selection
