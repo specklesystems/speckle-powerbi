@@ -45,8 +45,8 @@ let
             if outcome[HasError] then outcome[Error][Reason] else "<no error>",
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
-    StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
-    // Objects, Property Paths and the ExpandProperties function surface in
+    StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "Properties"},
+    // Objects, Property Paths and the Properties function surface in
     // the Navigator; the other three rows are hidden implementation details
     // for the property helpers
     StarHidden = {false, true, false, true, true, false},
@@ -72,18 +72,18 @@ let
             Table.Column(starBoth, "Name")),
         Fact("GetTables(both) declares the Navigator hidden column", "Hidden",
             HiddenColumnName(starBoth)),
-        Fact("GetTables(both) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(both) hides all but Objects, Property Paths and Properties", StarHidden,
             Table.Column(starBoth, "Hidden")),
-        Fact("GetTables(both) exposes ExpandProperties as a function", true,
+        Fact("GetTables(both) exposes Properties as a function", true,
             Value.Is(starExpand, type function)),
-        Fact("ExpandProperties(null) returns the full Objects table", Table.RowCount(starObjects),
+        Fact("Properties(null) returns the full Objects table", Table.RowCount(starObjects),
             Table.RowCount(starExpand(null))),
-        Fact("ExpandProperties appends the selected property while preserving all rows", true,
+        Fact("Properties appends the selected property while preserving all rows", true,
             Table.RowCount(starExpanded) = Table.RowCount(starObjects)
                 and Table.ColumnCount(starExpanded) > Table.ColumnCount(starObjects)),
 
         // JSON only — force a known table row: the Data column also carries
-        // the ExpandProperties function, so combining every Data value would
+        // the Properties function, so combining every Data value would
         // fail for the wrong reason
         Fact("GetByUrl(json-only) returns the 3.x flat columns", true,
             List.ContainsAll(Table.ColumnNames(legacyJsonOnly), LegacyColumns)),
@@ -95,7 +95,7 @@ let
             ErrorReason(() => Table.RowCount(Speckle.GetByUrl(UrlArtifactOnly)))),
         Fact("GetTables(artifact-only) returns the star-schema navigation table", StarTables,
             Table.Column(starArtifactOnly, "Name")),
-        Fact("GetTables(artifact-only) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(artifact-only) hides all but Objects, Property Paths and Properties", StarHidden,
             Table.Column(starArtifactOnly, "Hidden"))
     }
 in

@@ -64,16 +64,16 @@ Connecting with `Speckle.GetTables` lists three entries in the Navigator:
 - **Objects** — one row per object; feeds the Speckle 3D visual.
 - **Property Paths** — the catalog of dotted property paths available on the
   model.
-- **ExpandProperties** — a function bound to the model: it returns a new copy
+- **Properties** — a function bound to the model: it returns a new copy
   of the Objects table with the property values you select appended. It never
   modifies the imported Objects query.
 
 Property values are not loaded as separate tables. Select the ones you need
-with `ExpandProperties` (or the M helpers below) — the underlying source keeps
+with `Properties` (or the M helpers below) — the underlying source keeps
 three hidden internal tables (Properties, Object Types, Type Properties) that
 they read, and advanced M code can still address them by key.
 
-### Select properties with ExpandProperties
+### Select properties with Properties
 
 The recommended query model uses four queries:
 
@@ -81,9 +81,9 @@ The recommended query model uses four queries:
    loading is optional.
 2. **Property Paths** — a reference catalog; normally disable load
    (connection-only).
-3. **ExpandProperties** — the function query; functions are inherently
+3. **Properties** — the function query; functions are inherently
    connection-only.
-4. **Invoked result** — invoking `ExpandProperties` creates a separate table
+4. **Invoked result** — invoking `Properties` creates a separate table
    query; this is the one you normally load into the semantic model.
 
 In the invocation dialog, pick the properties to append from the dropdown
@@ -98,8 +98,8 @@ The same call can be written directly in M:
 ```powerquery-m
 let
     Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
-    ExpandProperties = Source{[Key = "expand-properties"]}[Data],
-    ObjectsWithProperties = ExpandProperties({"properties.Dimensions.Area", "properties.Material.Name"})
+    Properties = Source{[Key = "expand-properties"]}[Data],
+    ObjectsWithProperties = Properties({"properties.Dimensions.Area", "properties.Material.Name"})
 in
     ObjectsWithProperties
 ```
@@ -119,7 +119,7 @@ Selection behavior:
 
 ### Add every object property
 
-The M helpers remain available alongside `ExpandProperties`. For property-light
+The M helpers remain available alongside `Properties`. For property-light
 CAD models, create a blank query in Power Query and pass the navigation table
 returned by `Speckle.GetTables` to the convenience helper:
 

@@ -1,6 +1,6 @@
 // Offline contract tests for BuildNavigation.pqm — the composition seam that
 // assembles the public Speckle.GetTables navigator: the five keyed helper rows
-// plus the visible ExpandProperties function row. Deep enrichment semantics
+// plus the visible Properties function row. Deep enrichment semantics
 // (suffix naming, source splits, strict failures) stay covered by
 // AddProperties.query.pq; this suite covers the six-row layout, the
 // model-bound function's type/documentation contract, selection
@@ -137,7 +137,7 @@ let
         ),
         Fact(
             "row names follow the settled order",
-            {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
+            {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "Properties"},
             Table.Column(Nav, "Name")
         ),
         Fact(
@@ -146,13 +146,13 @@ let
             List.Count(List.Distinct(Table.Column(Nav, "Key"), Comparer.Ordinal))
         ),
         Fact(
-            "hidden flags leave exactly Objects, Property Paths and ExpandProperties visible",
+            "hidden flags leave exactly Objects, Property Paths and Properties visible",
             {false, true, false, true, true, false},
             Table.Column(Nav, "Hidden")
         ),
         Fact(
-            "visible entries appear as Objects, Property Paths, ExpandProperties",
-            {"Objects", "Property Paths", "ExpandProperties"},
+            "visible entries appear as Objects, Property Paths, Properties",
+            {"Objects", "Property Paths", "Properties"},
             Table.Column(Table.SelectRows(Nav, each not [Hidden]), "Name")
         ),
         Fact(
@@ -230,8 +230,8 @@ let
             ParamMeta[Documentation.AllowedValues]
         ),
         Fact(
-            "the documentation name is ExpandProperties",
-            "ExpandProperties",
+            "the documentation name is Properties",
+            "Properties",
             Value.Metadata(FnType)[Documentation.Name]
         ),
         Fact(
