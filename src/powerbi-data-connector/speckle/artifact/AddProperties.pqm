@@ -2,7 +2,10 @@
 // values from the Properties (instance) fact appear in an unprefixed column,
 // and values from the Type Properties fact, projected per object through the
 // Object Types bridge, appear in a Type_-prefixed column (Area / Type_Area).
-(source as table, propertyPaths as list) as table =>
+// columnNames picks the column naming mode: "Shortest" (default) uses the
+// shortest unique trailing part of each dotted path, "Full path" the entire
+// path. The Type_ prefix applies in both modes.
+(source as table, propertyPaths as list, optional columnNames as nullable text) as table =>
     let
         requiredKeys = {"objects", "properties", "object-types", "type-properties", "paths"},
         hasNavigationColumns = Table.HasColumns(source, {"Key", "Data"}),
@@ -54,6 +57,20 @@
             List.Transform(validatedPaths, each Text.Trim(_)),
             Comparer.Ordinal
         ),
+        allowedColumnNames = {"Shortest", "Full path"},
+        useFullPaths = if columnNames = null
+            or Comparer.OrdinalIgnoreCase(columnNames, "Shortest") = 0 then
+            false
+        else if Comparer.OrdinalIgnoreCase(columnNames, "Full path") = 0 then
+            true
+        else
+            error Error.Record(
+                "Speckle.AddProperties.InvalidColumnNames",
+                "columnNames must be one of: "
+                    & Text.Combine(allowedColumnNames, ", ")
+                    & ". Got: " & columnNames & ".",
+                [ColumnNames = columnNames, AllowedValues = allowedColumnNames]
+            ),
         existingNames = Table.ColumnNames(objects),
         pathParts = List.Transform(wanted, each Text.Split(_, ".")),
         Candidate = (parts as list, depth as number) as text =>
@@ -218,7 +235,15 @@
                     @ResolveNames(nextDepths)
                 else
                     candidates,
-        outputNames = ResolveNames(List.Transform(wanted, each 1)),
+        // "Full path" seeds every depth at its maximum: names cannot grow, so
+        // residual collisions (a literal object_key path, a literal Type_*
+        // path) fail through the same NameCollision error instead of renaming
+        outputNames = ResolveNames(
+            if useFullPaths then
+                List.Transform(pathParts, List.Count)
+            else
+                List.Transform(wanted, each 1)
+        ),
         emittedNames = List.Combine(
             List.Transform(
                 List.Positions(wanted),
@@ -265,6 +290,9 @@
         )
     in
         if List.IsEmpty(wanted) then
-            objects
+            // observing useFullPaths makes an invalid columnNames fail loudly
+            // even with an empty selection; both branches return the exact
+            // Objects value, metadata included
+            if useFullPaths then objects else objects
         else
             Table.ExpandRecordColumn(withProperties, "__props", emittedNames, emittedNames)

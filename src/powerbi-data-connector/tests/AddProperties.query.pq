@@ -66,7 +66,8 @@ let
             {13, "properties.Material.TypeName"},
             {14, "properties.Instance.Mark"},
             {15, "properties.Identity.Application ID"},
-            {16, "object_key"}
+            {16, "object_key"},
+            {17, "Type_properties.Dimensions.Area"}
         }
     ),
     // mirrors the real Speckle.GetTables shape, including the Navigator-only
@@ -178,6 +179,69 @@ let
             PropertyPaths = try NameCollisionResult[Error][Detail][PropertyPaths] otherwise {},
             ExistingColumns = try NameCollisionResult[Error][Detail][ExistingColumns] otherwise {}
         ],
+
+    FullPathResult = Speckle.AddProperties(
+        Source,
+        {
+            "properties.Dimensions.Area",
+            "properties.Material.TypeName",
+            "properties.Instance.Mark"
+        },
+        "Full path"
+    ),
+    FullPathCaseInsensitiveResult = Speckle.AddProperties(
+        Source,
+        {"properties.Dimensions.Area"},
+        "full PATH"
+    ),
+    ExplicitShortestResult = Speckle.AddProperties(
+        Source,
+        {
+            "properties.Dimensions.Area",
+            "properties.Material.TypeName",
+            "properties.Instance.Mark"
+        },
+        "shortest"
+    ),
+    InvalidColumnNamesResult = try Table.RowCount(
+        Speckle.AddProperties(Source, {"properties.Dimensions.Area"}, "Longest")
+    ),
+    InvalidColumnNamesError = if not InvalidColumnNamesResult[HasError] then
+        [Reason = null, ColumnNames = null, AllowedValues = {}]
+    else
+        [
+            Reason = try InvalidColumnNamesResult[Error][Reason] otherwise null,
+            ColumnNames = try InvalidColumnNamesResult[Error][Detail][ColumnNames] otherwise null,
+            AllowedValues = try InvalidColumnNamesResult[Error][Detail][AllowedValues] otherwise {}
+        ],
+    EmptyInvalidColumnNamesResult = try Table.RowCount(
+        Speckle.AddProperties(EmptySource, {}, "Longest")
+    ),
+    EmptyInvalidColumnNamesReason = if not EmptyInvalidColumnNamesResult[HasError] then
+        null
+    else
+        try EmptyInvalidColumnNamesResult[Error][Reason] otherwise null,
+    EmptyFullPathResult = Speckle.AddProperties(EmptySource, {}, "Full path"),
+    FullPathBaseCollisionResult = try Table.RowCount(
+        Speckle.AddProperties(Source, {"object_key"}, "Full path")
+    ),
+    FullPathBaseCollisionReason = if not FullPathBaseCollisionResult[HasError] then
+        null
+    else
+        try FullPathBaseCollisionResult[Error][Reason] otherwise null,
+    // the literal path resolves to exactly the first path's Type_ variant and
+    // neither name can grow at full depth
+    FullPathPrefixCollisionResult = try Table.RowCount(
+        Speckle.AddProperties(
+            Source,
+            {"properties.Dimensions.Area", "Type_properties.Dimensions.Area"},
+            "Full path"
+        )
+    ),
+    FullPathPrefixCollisionReason = if not FullPathPrefixCollisionResult[HasError] then
+        null
+    else
+        try FullPathPrefixCollisionResult[Error][Reason] otherwise null,
 
     DuplicateObjectTypesSource = #table(
         type table [Name = text, Key = text, Data = table, ItemKind = text, ItemName = text, IsLeaf = logical],
@@ -437,6 +501,71 @@ let
             "federated duplicate Property text resolves through namespaced keys and the split surfaces the type value previously hidden behind model A's instance value",
             {{1, "model-a", "first-instance", "first-type"}, {4294967297, "model-b", null, "second-type"}},
             Table.ToRows(FederatedResult)
+        ),
+        Fact(
+            "Full path names every column with the entire dotted path, keeping the Type_ split",
+            {
+                "object_key",
+                "Application ID",
+                "properties.Dimensions.Area",
+                "Type_properties.Dimensions.Area",
+                "Type_properties.Material.TypeName",
+                "properties.Instance.Mark"
+            },
+            Table.ColumnNames(FullPathResult)
+        ),
+        Fact(
+            "Full path renames columns only — cell values match the Shortest result",
+            Table.ToRows(Result),
+            Table.ToRows(FullPathResult)
+        ),
+        Fact(
+            "columnNames matches case-insensitively in both modes",
+            [
+                FullPath = {
+                    "object_key",
+                    "Application ID",
+                    "properties.Dimensions.Area",
+                    "Type_properties.Dimensions.Area"
+                },
+                Shortest = Table.ColumnNames(Result)
+            ],
+            [
+                FullPath = Table.ColumnNames(FullPathCaseInsensitiveResult),
+                Shortest = Table.ColumnNames(ExplicitShortestResult)
+            ]
+        ),
+        Fact(
+            "an unknown columnNames value raises the structured error listing the allowed values",
+            [
+                Reason = "Speckle.AddProperties.InvalidColumnNames",
+                ColumnNames = "Longest",
+                AllowedValues = {"Shortest", "Full path"}
+            ],
+            InvalidColumnNamesError
+        ),
+        Fact(
+            "an invalid columnNames fails loudly even with an empty selection and unread fact tables",
+            "Speckle.AddProperties.InvalidColumnNames",
+            EmptyInvalidColumnNamesReason
+        ),
+        Fact(
+            "a valid columnNames with an empty selection still returns the exact Objects value",
+            [Columns = {"object_key", "Application ID"}, Marker = "original Objects"],
+            [
+                Columns = Table.ColumnNames(EmptyFullPathResult),
+                Marker = try Value.Metadata(EmptyFullPathResult)[TestMarker] otherwise null
+            ]
+        ),
+        Fact(
+            "a Full path collision with an Objects column cannot grow and keeps the structured error",
+            "Speckle.AddProperties.NameCollision",
+            FullPathBaseCollisionReason
+        ),
+        Fact(
+            "a Full path collision between a Type_ variant and a literal Type_ path cannot grow and keeps the structured error",
+            "Speckle.AddProperties.NameCollision",
+            FullPathPrefixCollisionReason
         ),
         Fact(
             "duplicate instance facts fail instead of silently selecting a value",

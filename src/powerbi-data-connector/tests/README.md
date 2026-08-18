@@ -23,18 +23,22 @@ listing the failed facts.
   in-memory star-schema navigation tables, including source-split columns
   (instance values unprefixed, type values `Type_`-prefixed, instance
   overrides surfacing both side by side), validation, naming over the emitted
-  names, raw values, malformed facts, Object Types invariants, and
+  names, the `columnNames` modes (`Shortest` default, case-insensitive
+  `Full path`, loud structured errors for unknown values and for full-depth
+  collisions), raw values, malformed facts, Object Types invariants, and
   federated-key behavior.
 - `AddAllProperties.query.pq` — the convenience wrapper that appends every path
-  through `Speckle.AddProperties` with the same source-split columns, including
-  null-only and moderately wide property sets, while preserving empty Objects
-  tables and validation behavior.
+  through `Speckle.AddProperties` with the same source-split columns and
+  forwarded `columnNames`, including null-only and moderately wide property
+  sets, while preserving empty Objects tables and validation behavior.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
   `Speckle.GetTables`, against tiny synthetic five-table data: the six-row
   layout (visible `Objects` and `Properties`, hidden
   helper rows), navigation metadata and keys, and the model-bound
-  `Properties` function's contract — optional nullable-list parameter,
-  zero required arity, `Properties` documentation, deduplicated
+  `Properties` function's contract — two optional parameters (the
+  nullable-list selection and the nullable-text `ColumnNames` mode with its
+  `Shortest` / `Full path` `AllowedValues`), zero required arity,
+  `Properties` documentation, deduplicated
   catalogue-ordered `AllowedValues`, table return type, the lean
   relationship-ready result (`object_key` plus the selected property columns,
   every Objects row retained in order with its key type), empty-selection

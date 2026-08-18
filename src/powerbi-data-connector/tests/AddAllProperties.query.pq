@@ -126,6 +126,13 @@ let
     ),
     WideResult = Speckle.AddAllProperties(WideSource),
 
+    FullPathResult = Speckle.AddAllProperties(Source, "Full path"),
+    InvalidColumnNamesResult = try Table.RowCount(Speckle.AddAllProperties(Source, "Longest")),
+    InvalidColumnNamesReason = if not InvalidColumnNamesResult[HasError] then
+        null
+    else
+        try InvalidColumnNamesResult[Error][Reason] otherwise null,
+
     facts = {
         Fact(
             "every path is appended in path-table order with type-backed paths Type_-prefixed, and prefixed variants sharing a suffix still grow both paths",
@@ -176,6 +183,23 @@ let
             "malformed path entries reuse AddProperties structured validation",
             [Reason = "Speckle.AddProperties.InvalidPropertyPaths", Positions = {2, 3, 4}],
             InvalidError
+        ),
+        Fact(
+            "columnNames forwards to AddProperties: Full path names every column with the entire dotted path",
+            {
+                "object_key",
+                "Application ID",
+                "properties.Zeta.Area",
+                "Type_properties.Zeta.Area",
+                "Type_properties.Alpha.Area",
+                "properties.Empty.Value"
+            },
+            Table.ColumnNames(FullPathResult)
+        ),
+        Fact(
+            "an unknown columnNames value forwards to the structured AddProperties error",
+            "Speckle.AddProperties.InvalidColumnNames",
+            InvalidColumnNamesReason
         ),
         Fact(
             "a moderately wide property-light model adds every null-only path",

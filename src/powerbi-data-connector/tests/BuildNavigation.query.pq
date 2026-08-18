@@ -82,6 +82,8 @@ let
     FnType = Value.Type(ExpandFn),
     ParamType = Type.FunctionParameters(FnType)[Properties],
     ParamMeta = Value.Metadata(ParamType),
+    ColumnNamesParamType = Type.FunctionParameters(FnType)[ColumnNames],
+    ColumnNamesParamMeta = Value.Metadata(ColumnNamesParamType),
     Catalogue = {
         "properties.Dimensions.Area",
         "properties.Material.Name",
@@ -135,6 +137,17 @@ let
             Reason = try CollisionResult[Error][Reason] otherwise null,
             ExistingColumns = try CollisionResult[Error][Detail][ExistingColumns] otherwise {}
         ],
+    // column naming through the closure: Full path names columns with entire
+    // dotted paths, matching case-insensitively; validation stays in
+    // AddProperties and must fire without reading the fact tables
+    FullPathResult = ExpandFn({"properties.Dimensions.Area"}, "Full path"),
+    CaseInsensitiveFullPathResult = ExpandFn({"properties.Instance.Mark"}, "full path"),
+    LazyFullPathEmptyResult = LazyFn({}, "Full path"),
+    LazyInvalidColumnNamesResult = try Table.RowCount(LazyFn({}, "Longest")),
+    LazyInvalidColumnNamesReason = if not LazyInvalidColumnNamesResult[HasError] then
+        null
+    else
+        try LazyInvalidColumnNamesResult[Error][Reason] otherwise null,
     InvalidResult = try ExpandFn({"   ", 5, "properties.Instance.Mark"}),
     InvalidError = if not InvalidResult[HasError] then
         [Reason = null, Positions = {}]
@@ -218,8 +231,8 @@ let
             Type.Is(Type.FunctionReturn(FnType), type table)
         ),
         Fact(
-            "the single parameter's machine name is Properties",
-            {"Properties"},
+            "the machine parameter names are Properties and ColumnNames",
+            {"Properties", "ColumnNames"},
             Record.FieldNames(Type.FunctionParameters(FnType))
         ),
         Fact(
@@ -236,8 +249,8 @@ let
             ]
         ),
         Fact(
-            "the parameter caption marks it optional",
-            "Properties (optional)",
+            "the parameter caption omits the (optional) suffix the parameter dialog adds itself",
+            "Properties",
             ParamMeta[Documentation.FieldCaption]
         ),
         Fact(
@@ -256,6 +269,32 @@ let
             Text.Contains(
                 ParamMeta[Documentation.FieldDescription],
                 "significantly increase refresh time and table width"
+            )
+        ),
+        Fact(
+            "the ColumnNames parameter is nullable text",
+            [IsText = true, IsNullable = true],
+            [
+                IsText = Type.Is(ColumnNamesParamType, type nullable text),
+                IsNullable = Type.IsNullable(ColumnNamesParamType)
+            ]
+        ),
+        Fact(
+            "the ColumnNames caption omits the (optional) suffix the parameter dialog adds itself",
+            "Column names",
+            ColumnNamesParamMeta[Documentation.FieldCaption]
+        ),
+        Fact(
+            "the ColumnNames AllowedValues list the two modes with the Shortest default first",
+            {"Shortest", "Full path"},
+            ColumnNamesParamMeta[Documentation.AllowedValues]
+        ),
+        Fact(
+            "the ColumnNames description leads with the default",
+            true,
+            Text.StartsWith(
+                ColumnNamesParamMeta[Documentation.FieldDescription],
+                "Default: Shortest."
             )
         ),
 
@@ -279,6 +318,16 @@ let
             "an empty selection returns the object_key-only base without reading facts",
             ExpectedBase,
             Shape(LazyFn({}))
+        ),
+        Fact(
+            "an empty selection with Full path returns the base without reading facts",
+            ExpectedBase,
+            Shape(LazyFullPathEmptyResult)
+        ),
+        Fact(
+            "an invalid ColumnNames raises the structured error without reading facts",
+            "Speckle.AddProperties.InvalidColumnNames",
+            LazyInvalidColumnNamesReason
         ),
 
         // -- selection behavior through the closure ----------------------------
@@ -332,6 +381,26 @@ let
                 Columns = Table.ColumnNames(SelectAllResult),
                 Rows = Table.ToRows(SelectAllResult)
             ]
+        ),
+        Fact(
+            "a Full path selection names columns with entire dotted paths over the lean base",
+            [
+                Columns = {"object_key", "properties.Dimensions.Area", "Type_properties.Dimensions.Area"},
+                Rows = {
+                    {1, "instance-area", "type-area"},
+                    {2, null, "type-area"},
+                    {4294967297, null, null}
+                }
+            ],
+            [
+                Columns = Table.ColumnNames(FullPathResult),
+                Rows = Table.ToRows(FullPathResult)
+            ]
+        ),
+        Fact(
+            "the ColumnNames value matches case-insensitively through the closure",
+            {"object_key", "properties.Instance.Mark"},
+            Table.ColumnNames(CaseInsensitiveFullPathResult)
         ),
         Fact(
             "a path named after a removed Objects column no longer collides against the lean base",

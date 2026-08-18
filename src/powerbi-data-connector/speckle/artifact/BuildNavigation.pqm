@@ -49,7 +49,10 @@
             List.Distinct(Table.Column(tables[Paths], "Property"), Comparer.Ordinal)
         ),
 
-        ExpandProperties.Impl = (optional Properties as nullable list) as table =>
+        ExpandProperties.Impl = (
+            optional Properties as nullable list,
+            optional ColumnNames as nullable text
+        ) as table =>
             let
                 selected = Properties ?? {},
                 hasInvalidSelection = List.AnyTrue(
@@ -94,23 +97,32 @@
                     in
                         known & disappeared
             in
-                AddProperties(helperSource, orderedSelection),
+                // ColumnNames passes through unvalidated: AddProperties owns
+                // the canonical validation and its structured error
+                AddProperties(helperSource, orderedSelection, ColumnNames),
 
         ExpandProperties.Type = Type.ForFunction(
             [
                 ReturnType = type table,
                 Parameters = [
+                    // no "(optional)" in captions: the Power BI parameter
+                    // dialog appends that suffix itself for optional params
                     Properties = type nullable list meta [
-                        Documentation.FieldCaption = "Properties (optional)",
+                        Documentation.FieldCaption = "Properties",
                         Documentation.FieldDescription = "Dotted property paths (see the Property Paths table) to return as columns alongside object_key. Instance values land in unprefixed columns and type values in Type_-prefixed columns. Selecting all properties can significantly increase refresh time and table width.",
                         Documentation.AllowedValues = propertyOptions
+                    ],
+                    ColumnNames = type nullable text meta [
+                        Documentation.FieldCaption = "Column names",
+                        Documentation.FieldDescription = "Default: Shortest. Shortest names each column with the shortest unique trailing part of its dotted path, growing only on collisions; Full path uses the entire dotted path. Type values keep the Type_ prefix in both modes.",
+                        Documentation.AllowedValues = {"Shortest", "Full path"}
                     ]
                 ]
             ],
             0
         ) meta [
             Documentation.Name = "Properties",
-            Documentation.LongDescription = "Returns a lean table of object_key plus the selected property columns, with one row per Objects row — relate it one-to-one to the Objects table on object_key. An omitted, null or empty selection returns an object_key-only table containing every object. Selecting all properties can significantly increase refresh time and table width."
+            Documentation.LongDescription = "Returns a lean table of object_key plus the selected property columns, with one row per Objects row — relate it one-to-one to the Objects table on object_key. An omitted, null or empty selection returns an object_key-only table containing every object. Column names default to the shortest unique trailing part of each dotted path; set Column names to Full path to use entire paths. Selecting all properties can significantly increase refresh time and table width."
         ],
         ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type)
     in

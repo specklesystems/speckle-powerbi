@@ -316,7 +316,8 @@ shared Speckle.GetTables = Value.ReplaceType(
             Invoke Properties into its own query, load that result and relate it one-to-one to Objects on object_key; keep Properties connection-only.#(lf)
             Selecting all properties can significantly increase refresh time and table width.#(lf)
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
-            Speckle.AddProperties(Source, propertyPaths) and Speckle.AddAllProperties(Source) remain available for M code.#(lf)
+            Column names default to the shortest unique trailing part of each dotted path; the optional Column names setting (Shortest / Full path) switches to entire paths.#(lf)
+            Speckle.AddProperties(Source, propertyPaths, columnNames) and Speckle.AddAllProperties(Source, columnNames) remain available for M code.#(lf)
             The source also carries four hidden supporting tables (Properties, Property Paths, Object Types, Type Properties) that the function and helpers consume.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
@@ -335,28 +336,42 @@ shared Speckle.AddProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddProperties.pqm"),
     type function (
         source as table,
-        propertyPaths as list
+        propertyPaths as list,
+        optional columnNames as (type nullable text meta [
+            Documentation.FieldCaption = "Column names",
+            Documentation.FieldDescription = "Default: Shortest. Shortest names each column with the shortest unique trailing part of its dotted path, growing only on collisions; Full path uses the entire dotted path. Type values keep the Type_ prefix in both modes.",
+            Documentation.AllowedValues = {"Shortest", "Full path"}
+        ])
     ) as table meta [
         Documentation.Name = "Speckle - Add Properties",
         Documentation.DisplayName = "Speckle - Add Properties",
         Documentation.LongDescription =
             "Returns the Objects table from Speckle.GetTables with the requested property values appended. "
             & "Pass exact dotted paths from the Property Paths table. Values are split by source: instance values "
-            & "land in unprefixed columns and type values in Type_-prefixed columns (Area / Type_Area)."
+            & "land in unprefixed columns and type values in Type_-prefixed columns (Area / Type_Area). "
+            & "columnNames controls the emitted column names: Shortest (default) uses the shortest unique "
+            & "trailing part of each dotted path, Full path uses the entire path."
     ]
 );
 
 shared Speckle.AddAllProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddAllProperties.pqm"),
     type function (
-        source as table
+        source as table,
+        optional columnNames as (type nullable text meta [
+            Documentation.FieldCaption = "Column names",
+            Documentation.FieldDescription = "Default: Shortest. Shortest names each column with the shortest unique trailing part of its dotted path, growing only on collisions; Full path uses the entire dotted path. Type values keep the Type_ prefix in both modes.",
+            Documentation.AllowedValues = {"Shortest", "Full path"}
+        ])
     ) as table meta [
         Documentation.Name = "Speckle - Add All Properties",
         Documentation.DisplayName = "Speckle - Add All Properties",
         Documentation.LongDescription =
             "Returns the Objects table from Speckle.GetTables with every property path appended. "
             & "Values are split by source: instance values land in unprefixed columns and type values in "
-            & "Type_-prefixed columns. Intended as a convenience for property-light models; "
+            & "Type_-prefixed columns. columnNames controls the emitted column names: Shortest (default) uses "
+            & "the shortest unique trailing part of each dotted path, Full path uses the entire path. "
+            & "Intended as a convenience for property-light models; "
             & "models with hundreds or thousands of property paths can produce very wide, slow-to-refresh tables."
     ]
 );

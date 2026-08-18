@@ -38,10 +38,10 @@ let
         // the 4.0 star schema is a separate entry point
         Fact("GetTables parameters", {"url"}, ParamNames(Speckle.GetTables)),
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
-        Fact("AddProperties parameters", {"source", "propertyPaths"}, ParamNames(Speckle.AddProperties)),
+        Fact("AddProperties parameters", {"source", "propertyPaths", "columnNames"}, ParamNames(Speckle.AddProperties)),
         Fact("AddProperties required arity", 2, RequiredCount(Speckle.AddProperties)),
         Fact("AddProperties returns table", true, ReturnsTable(Speckle.AddProperties)),
-        Fact("AddAllProperties parameters", {"source"}, ParamNames(Speckle.AddAllProperties)),
+        Fact("AddAllProperties parameters", {"source", "columnNames"}, ParamNames(Speckle.AddAllProperties)),
         Fact("AddAllProperties required arity", 1, RequiredCount(Speckle.AddAllProperties)),
         Fact("AddAllProperties returns table", true, ReturnsTable(Speckle.AddAllProperties)),
         Fact("AddInstanceProperties is no longer exported", false, Record.HasFields(#shared, "Speckle.AddInstanceProperties")),
