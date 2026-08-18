@@ -31,10 +31,10 @@ listing the failed facts.
   tables and validation behavior.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
   `Speckle.GetTables`, against tiny synthetic five-table data: the six-row
-  layout (visible `Objects` and `ExpandProperties`, hidden
+  layout (visible `Objects` and `Properties`, hidden
   helper rows), navigation metadata and keys, and the model-bound
-  `ExpandProperties` function's contract — optional nullable-list parameter,
-  zero required arity, `ExpandProperties` documentation, deduplicated
+  `Properties` function's contract — optional nullable-list parameter,
+  zero required arity, `Properties` documentation, deduplicated
   catalogue-ordered `AllowedValues`, table return type, empty-selection
   laziness (fact tables are never forced), selection trimming/ordering,
   disappeared-path null columns and structured invalid-path errors.
@@ -44,7 +44,7 @@ listing the failed facts.
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
   matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
   contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
-  `Objects` and `ExpandProperties` rows are visible — the
+  `Objects` and `Properties` rows are visible — the
   last one a real model-bound function that the suite also invokes against
   live data. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run

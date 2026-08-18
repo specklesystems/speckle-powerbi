@@ -1,6 +1,6 @@
 // Composes the public Speckle.GetTables navigation table (ENG-9165) from the
 // five already-combined star-schema tables. The Navigator shows two entries
-// — Objects and the model-bound ExpandProperties function — while the four
+// — Objects and the model-bound Properties function — while the four
 // hidden helper rows stay addressable by key for
 // Speckle.AddProperties and Speckle.AddAllProperties.
 //
@@ -95,7 +95,7 @@
             ],
             0
         ) meta [
-            Documentation.Name = "ExpandProperties",
+            Documentation.Name = "Properties",
             Documentation.LongDescription = "Returns a new copy of the full Objects table with the selected property values appended. An omitted, null or empty selection returns Objects unchanged. Selecting all properties can significantly increase refresh time and table width."
         ],
         ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type)
@@ -104,7 +104,7 @@
             helperRows
                 & {
                     [
-                        name = "ExpandProperties",
+                        name = "Properties",
                         key = "expand-properties",
                         data = ExpandProperties.Value,
                         itemKind = "Function",

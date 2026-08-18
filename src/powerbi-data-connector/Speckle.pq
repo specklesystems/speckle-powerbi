@@ -312,8 +312,8 @@ shared Speckle.GetTables = Value.ReplaceType(
         Documentation.DisplayName = "Speckle - Get Tables",
         Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists two entries:#(lf)
             - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
-            - ExpandProperties (function) — returns a new copy of Objects with the selected property values appended#(lf)
-            Invoke ExpandProperties into its own query and load that result; keep ExpandProperties connection-only.#(lf)
+            - Properties (function) — returns a new copy of Objects with the selected property values appended#(lf)
+            Invoke Properties into its own query and load that result; keep Properties connection-only.#(lf)
             Selecting all properties can significantly increase refresh time and table width.#(lf)
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
             Speckle.AddProperties(Source, propertyPaths) and Speckle.AddAllProperties(Source) remain available for M code.#(lf)
