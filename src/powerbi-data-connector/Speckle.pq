@@ -310,8 +310,9 @@ shared Speckle.GetTables = Value.ReplaceType(
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists three entries:#(lf)
-            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
+        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. The Navigator lists four entries:#(lf)
+            - Objects (object_key, Application ID) — the object identifiers for the Speckle 4.0 3D visual#(lf)
+            - Models (Model Info) — a single row carrying the model payload; bind Models[Model Info] to the visual's Model Info field and keep the table disconnected#(lf)
             - Property Paths (path_key, Property) — the catalog of dotted property paths available on the model#(lf)
             - ExpandProperties (function) — returns a new copy of Objects with the selected property values appended#(lf)
             Invoke ExpandProperties into its own query and load that result; keep Property Paths and ExpandProperties connection-only.#(lf)

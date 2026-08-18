@@ -206,16 +206,15 @@
                     EncodedUserInfo = encodedUserInfo
                 ],
 
-        // appends the shared per-load column (versionIds travel inside the blob)
-        WithModelInfo = (t as table, modelInfoBlob as text) as table =>
-            Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
-
         // combines per-model tables and assembles the navigation table.
         // Recommended PBI relationships: Objects 1-* Properties *-1 Property Paths
-        // on object_key / path_key.
+        // on object_key / path_key. Models stays disconnected — no relationship
+        // or model key; the visual reads its single Model Info cell directly.
         BuildResult = (modelsData as list, addSourceModel as logical) as table =>
             let
-                // delimiter chosen to avoid conflicts with base64 characters
+                // delimiter chosen to avoid conflicts with base64 characters;
+                // the concatenation order is a correctness invariant — it must
+                // match the federation ordinal that namespaces object_key
                 combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
 
                 CombinePart = (getPart as function, withSource as logical) as table =>
@@ -233,20 +232,28 @@
                         )
                     ),
 
-                objectsT = WithModelInfo(CombinePart((mm) => mm[Objects], true), combinedBlobs),
+                objectsT = CombinePart((mm) => mm[Objects], true),
+                // the whole per-load payload lives in this ONE visible row —
+                // repeating it on every Objects row was the dominant term in
+                // the visual host's fetchMoreData memory ceiling
+                modelsT = #table(
+                    type table [#"Model Info" = text],
+                    {{combinedBlobs}}
+                ),
                 propertiesT = CombinePart((mm) => mm[Properties], false),
                 pathsT = CombinePart((mm) => mm[Paths], false),
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
             in
-                // The Navigator lists Objects, Property Paths and the
+                // The Navigator lists Objects, Models, Property Paths and the
                 // model-bound ExpandProperties function. The three hidden rows
                 // stay in the table — Speckle.AddProperties and
-                // Speckle.AddAllProperties index all five table keys.
+                // Speckle.AddAllProperties index all five star-schema keys.
                 BuildNavigation(
                     [NavigationTable = NavigationTable, AddProperties = AddProperties],
                     [
                         Objects = objectsT,
+                        Models = modelsT,
                         Properties = propertiesT,
                         Paths = pathsT,
                         ObjectTypes = objectTypesT,

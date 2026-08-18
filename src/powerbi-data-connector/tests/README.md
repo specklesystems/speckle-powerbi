@@ -30,9 +30,11 @@ listing the failed facts.
   null-only and moderately wide property sets, while preserving empty Objects
   tables and validation behavior.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
-  `Speckle.GetTables`, against tiny synthetic five-table data: the six-row
-  layout (visible `Objects`, `Property Paths` and `ExpandProperties`, hidden
-  helper rows), navigation metadata and keys, and the model-bound
+  `Speckle.GetTables`, against tiny synthetic six-table data: the seven-row
+  layout (visible `Objects`, `Models`, `Property Paths` and
+  `ExpandProperties`, hidden helper rows), the one-row/one-column
+  `Models[Model Info]` payload shape, Objects and enriched results staying
+  free of `Model Info`, navigation metadata and keys, and the model-bound
   `ExpandProperties` function's contract — optional nullable-list parameter,
   zero required arity, `ExpandProperties` documentation, deduplicated
   catalogue-ordered `AllowedValues`, table return type, empty-selection
@@ -44,9 +46,10 @@ listing the failed facts.
 - `../tests-live/RepresentationMatrix.query.pq` — the ENG-9165 representation
   matrix (JSON/artifact × GetByUrl/GetTables), plus the Navigator visibility
   contract: `NavigationTable.HiddenColumn` names `Hidden`, and only the
-  `Objects`, `Property Paths` and `ExpandProperties` rows are visible — the
-  last one a real model-bound function that the suite also invokes against
-  live data. It lives outside `tests\`
+  `Objects`, `Models`, `Property Paths` and `ExpandProperties` rows are
+  visible — the last one a real model-bound function that the suite also
+  invokes against live data, and `Models` the one-row `Model Info` payload
+  table that `Objects` and enrichment results no longer repeat. It lives outside `tests\`
   because PQTest recurses through this folder and the live suite cannot run
   without credentials. Fill in the placeholder URLs, set a credential with
   `PQTest.exe set-credential`, then run with

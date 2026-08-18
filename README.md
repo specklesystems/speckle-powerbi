@@ -59,14 +59,22 @@ To get started with Power BI connector, please take a look at the [documentation
 
 ### Load model tables
 
-Connecting with `Speckle.GetTables` lists three entries in the Navigator:
+Connecting with `Speckle.GetTables` lists four entries in the Navigator:
 
-- **Objects** — one row per object; feeds the Speckle 3D visual.
+- **Objects** — one row per object; provides the object identifiers for the
+  Speckle 3D visual.
+- **Models** — a single row with the single text column `Model Info`: the
+  payload the Speckle 3D visual needs to locate and load the model. Load it
+  as-is and keep it disconnected — no relationship or key to other tables.
 - **Property Paths** — the catalog of dotted property paths available on the
   model.
 - **ExpandProperties** — a function bound to the model: it returns a new copy
   of the Objects table with the property values you select appended. It never
   modifies the imported Objects query.
+
+To render the model, bind `Models[Model Info]` to the visual's **Model Info**
+field and an Objects identifier — `Objects[object_key]` or
+`Objects[Application ID]` — to **Application IDs**.
 
 Property values are not loaded as separate tables. Select the ones you need
 with `ExpandProperties` (or the M helpers below) — the underlying source keeps
@@ -75,15 +83,17 @@ they read, and advanced M code can still address them by key.
 
 ### Select properties with ExpandProperties
 
-The recommended query model uses four queries:
+The recommended query model uses five queries:
 
 1. **Objects** — the raw table; load it if the 3D visual needs it, otherwise
    loading is optional.
-2. **Property Paths** — a reference catalog; normally disable load
+2. **Models** — the one-row `Model Info` payload table; load it if the 3D
+   visual needs it and leave it disconnected.
+3. **Property Paths** — a reference catalog; normally disable load
    (connection-only).
-3. **ExpandProperties** — the function query; functions are inherently
+4. **ExpandProperties** — the function query; functions are inherently
    connection-only.
-4. **Invoked result** — invoking `ExpandProperties` creates a separate table
+5. **Invoked result** — invoking `ExpandProperties` creates a separate table
    query; this is the one you normally load into the semantic model.
 
 In the invocation dialog, pick the properties to append from the dropdown

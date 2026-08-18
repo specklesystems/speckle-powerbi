@@ -45,11 +45,11 @@ let
             if outcome[HasError] then outcome[Error][Reason] else "<no error>",
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
-    StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
-    // Objects, Property Paths and the ExpandProperties function surface in
-    // the Navigator; the other three rows are hidden implementation details
-    // for the property helpers
-    StarHidden = {false, true, false, true, true, false},
+    StarTables = {"Objects", "Models", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
+    // Objects, Models, Property Paths and the ExpandProperties function
+    // surface in the Navigator; the other three rows are hidden
+    // implementation details for the property helpers
+    StarHidden = {false, false, true, false, true, true, false},
     HiddenColumnName = (nav as table) as any =>
         Record.FieldOrDefault(Value.Metadata(Value.Type(nav)), "NavigationTable.HiddenColumn", null),
 
@@ -58,6 +58,7 @@ let
     starBoth = Speckle.GetTables(UrlJsonAndArtifact),
     starArtifactOnly = Speckle.GetTables(UrlArtifactOnly),
     starObjects = starBoth{[Key = "objects"]}[Data],
+    starModels = starBoth{[Key = "models"]}[Data],
     starExpand = starBoth{[Key = "expand-properties"]}[Data],
     starFirstPath = List.First(Table.Column(starBoth{[Key = "paths"]}[Data], "Property")),
     starExpanded = starExpand({starFirstPath}),
@@ -72,8 +73,14 @@ let
             Table.Column(starBoth, "Name")),
         Fact("GetTables(both) declares the Navigator hidden column", "Hidden",
             HiddenColumnName(starBoth)),
-        Fact("GetTables(both) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(both) hides all but Objects, Models, Property Paths and ExpandProperties", StarHidden,
             Table.Column(starBoth, "Hidden")),
+        Fact("GetTables(both) Models is exactly one row with the single Model Info text column", true,
+            Table.ColumnNames(starModels) = {"Model Info"}
+                and Table.RowCount(starModels) = 1
+                and Value.Is(starModels{0}[Model Info], type text)),
+        Fact("GetTables(both) Objects omits Model Info", false,
+            List.Contains(Table.ColumnNames(starObjects), "Model Info")),
         Fact("GetTables(both) exposes ExpandProperties as a function", true,
             Value.Is(starExpand, type function)),
         Fact("ExpandProperties(null) returns the full Objects table", Table.RowCount(starObjects),
@@ -81,6 +88,8 @@ let
         Fact("ExpandProperties appends the selected property while preserving all rows", true,
             Table.RowCount(starExpanded) = Table.RowCount(starObjects)
                 and Table.ColumnCount(starExpanded) > Table.ColumnCount(starObjects)),
+        Fact("ExpandProperties results omit Model Info", false,
+            List.Contains(Table.ColumnNames(starExpanded), "Model Info")),
 
         // JSON only — force a known table row: the Data column also carries
         // the ExpandProperties function, so combining every Data value would
@@ -95,7 +104,7 @@ let
             ErrorReason(() => Table.RowCount(Speckle.GetByUrl(UrlArtifactOnly)))),
         Fact("GetTables(artifact-only) returns the star-schema navigation table", StarTables,
             Table.Column(starArtifactOnly, "Name")),
-        Fact("GetTables(artifact-only) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(artifact-only) hides all but Objects, Models, Property Paths and ExpandProperties", StarHidden,
             Table.Column(starArtifactOnly, "Hidden"))
     }
 in

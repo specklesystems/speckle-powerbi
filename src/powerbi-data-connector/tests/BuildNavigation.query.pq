@@ -1,10 +1,12 @@
 // Offline contract tests for BuildNavigation.pqm — the composition seam that
 // assembles the public Speckle.GetTables navigator: the five keyed helper rows
-// plus the visible ExpandProperties function row. Deep enrichment semantics
-// (suffix naming, source splits, strict failures) stay covered by
-// AddProperties.query.pq; this suite covers the six-row layout, the
-// model-bound function's type/documentation contract, selection
-// normalization and ordering, and laziness of the fact tables.
+// plus the visible Models table and ExpandProperties function rows. Deep
+// enrichment semantics (suffix naming, source splits, strict failures) stay
+// covered by AddProperties.query.pq; this suite covers the seven-row layout
+// (four visible entries: Objects, Models, Property Paths, ExpandProperties),
+// the one-row/one-column Models shape, the model-bound function's
+// type/documentation contract, selection normalization and ordering, and
+// laziness of the fact tables.
 let
     Repr = (v as any) as text => try Text.FromBinary(Json.FromValue(v)) otherwise "<unserializable>",
     Fact = (description as text, expected as any, actual as any) as record => [
@@ -63,10 +65,17 @@ let
             {4294967306, "properties.Material.Name"}
         }
     ),
+    // the one-row Models table GetTables builds from the combined per-model
+    // blobs (federated loads keep the ||| concatenation)
+    Models = #table(
+        type table [#"Model Info" = text],
+        {{"blob-one|||blob-two"}}
+    ),
     Nav = BuildNavigation(
         Deps,
         [
             Objects = Objects,
+            Models = Models,
             Properties = Properties,
             Paths = Paths,
             ObjectTypes = ObjectTypes,
@@ -94,6 +103,7 @@ let
         Deps,
         [
             Objects = Objects,
+            Models = Models,
             Properties = error "Properties must not be read",
             Paths = Paths,
             ObjectTypes = error "Object Types must not be read",
@@ -131,39 +141,55 @@ let
     facts = {
         // -- navigator layout -------------------------------------------------
         Fact(
-            "the six rows keep the five helper keys and append expand-properties",
-            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
+            "the seven rows insert models after objects and append expand-properties",
+            {"objects", "models", "properties", "paths", "object-types", "type-properties", "expand-properties"},
             Table.Column(Nav, "Key")
         ),
         Fact(
             "row names follow the settled order",
-            {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
+            {"Objects", "Models", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
             Table.Column(Nav, "Name")
         ),
         Fact(
             "keys are unique",
-            6,
+            7,
             List.Count(List.Distinct(Table.Column(Nav, "Key"), Comparer.Ordinal))
         ),
         Fact(
-            "hidden flags leave exactly Objects, Property Paths and ExpandProperties visible",
-            {false, true, false, true, true, false},
+            "hidden flags leave exactly Objects, Models, Property Paths and ExpandProperties visible",
+            {false, false, true, false, true, true, false},
             Table.Column(Nav, "Hidden")
         ),
         Fact(
-            "visible entries appear as Objects, Property Paths, ExpandProperties",
-            {"Objects", "Property Paths", "ExpandProperties"},
+            "visible entries appear as Objects, Models, Property Paths, ExpandProperties",
+            {"Objects", "Models", "Property Paths", "ExpandProperties"},
             Table.Column(Table.SelectRows(Nav, each not [Hidden]), "Name")
         ),
         Fact(
             "every row is a leaf",
-            {true, true, true, true, true, true},
+            {true, true, true, true, true, true, true},
             Table.Column(Nav, "IsLeaf")
         ),
         Fact(
             "table rows keep ItemKind Table and the function row uses Function for both ItemKind and ItemName",
-            {"Table", "Table", "Table", "Table", "Table", "Function"},
+            {"Table", "Table", "Table", "Table", "Table", "Table", "Function"},
             Table.Column(Nav, "ItemKind")
+        ),
+        Fact(
+            "Models is exactly the one-row, one-text-column payload table",
+            [
+                Columns = {"Model Info"},
+                Rows = {{"blob-one|||blob-two"}}
+            ],
+            [
+                Columns = Table.ColumnNames(Nav{[Key = "models"]}[Data]),
+                Rows = Table.ToRows(Nav{[Key = "models"]}[Data])
+            ]
+        ),
+        Fact(
+            "Objects passes through without a Model Info column",
+            false,
+            List.Contains(Table.ColumnNames(Nav{[Key = "objects"]}[Data]), "Model Info")
         ),
         Fact(
             "the function row's ItemName is Function",
@@ -246,7 +272,7 @@ let
         // -- empty selections and laziness ------------------------------------
         Fact(
             "building the navigator does not force the fact tables",
-            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
+            {"objects", "models", "properties", "paths", "object-types", "type-properties", "expand-properties"},
             Table.Column(LazyNav, "Key")
         ),
         Fact(
@@ -311,6 +337,11 @@ let
                 Columns = Table.ColumnNames(SelectAllResult),
                 Rows = Table.ToRows(SelectAllResult)
             ]
+        ),
+        Fact(
+            "enriched Objects stay free of Model Info even when every property is selected",
+            false,
+            List.Contains(Table.ColumnNames(SelectAllResult), "Model Info")
         ),
         Fact(
             "blank or non-text entries raise the structured invalid-path error with caller positions",

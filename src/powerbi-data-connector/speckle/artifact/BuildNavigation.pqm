@@ -1,27 +1,33 @@
 // Composes the public Speckle.GetTables navigation table (ENG-9165) from the
-// five already-combined star-schema tables. The Navigator shows three entries
-// — Objects, Property Paths and the model-bound ExpandProperties function —
-// while the three hidden helper rows stay addressable by key for
-// Speckle.AddProperties and Speckle.AddAllProperties.
+// five already-combined star-schema tables plus the one-row Models payload
+// table. The Navigator shows four entries — Objects, Models, Property Paths
+// and the model-bound ExpandProperties function — while the three hidden
+// helper rows stay addressable by key for Speckle.AddProperties and
+// Speckle.AddAllProperties.
 //
 // deps:   [NavigationTable = ..., AddProperties = ...]
-// tables: [Objects = ..., Properties = ..., Paths = ..., ObjectTypes = ...,
-//          TypeProperties = ...]
+// tables: [Objects = ..., Models = ..., Properties = ..., Paths = ...,
+//          ObjectTypes = ..., TypeProperties = ...]
 (deps as record, tables as record) as table =>
     let
         NavigationTable = deps[NavigationTable],
         AddProperties = deps[AddProperties],
 
+        objectsRow = [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
+        propertiesRow = [name = "Properties", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = true],
+        pathsRow = [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true],
+        objectTypesRow = [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
+        typePropertiesRow = [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true],
+
+        // the visible one-row Model Info payload table — deliberately NOT part
+        // of helperRows: AddProperties indexes only the five star-schema keys,
+        // and Models stays a disconnected table with no relationship or key
+        modelsRow = [name = "Models", key = "models", data = tables[Models], itemKind = "Table", isLeaf = true],
+
         // the five keyed rows AddProperties indexes; hidden flags implement
         // the Navigator contract (only Objects and Property Paths are visible
-        // tables)
-        helperRows = {
-            [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
-            [name = "Properties", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true],
-            [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true]
-        },
+        // among them)
+        helperRows = {objectsRow, propertiesRow, pathsRow, objectTypesRow, typePropertiesRow},
 
         // ExpandProperties closes over this private five-row navigator, not
         // over the public table it is itself a row of — building the helper
@@ -101,15 +107,22 @@
         ],
         ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type)
     in
+        // the public row list IS the Navigator order (visible entries:
+        // Objects, Models, Property Paths, ExpandProperties)
         NavigationTable(
-            helperRows
-                & {
-                    [
-                        name = "ExpandProperties",
-                        key = "expand-properties",
-                        data = ExpandProperties.Value,
-                        itemKind = "Function",
-                        isLeaf = true
-                    ]
-                }
+            {
+                objectsRow,
+                modelsRow,
+                propertiesRow,
+                pathsRow,
+                objectTypesRow,
+                typePropertiesRow,
+                [
+                    name = "ExpandProperties",
+                    key = "expand-properties",
+                    data = ExpandProperties.Value,
+                    itemKind = "Function",
+                    isLeaf = true
+                ]
+            }
         )
