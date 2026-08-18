@@ -146,13 +146,13 @@ let
             List.Count(List.Distinct(Table.Column(Nav, "Key"), Comparer.Ordinal))
         ),
         Fact(
-            "hidden flags leave exactly Objects, Property Paths and ExpandProperties visible",
-            {false, true, false, true, true, false},
+            "hidden flags leave exactly Objects and ExpandProperties visible",
+            {false, true, true, true, true, false},
             Table.Column(Nav, "Hidden")
         ),
         Fact(
-            "visible entries appear as Objects, Property Paths, ExpandProperties",
-            {"Objects", "Property Paths", "ExpandProperties"},
+            "visible entries appear as Objects, ExpandProperties",
+            {"Objects", "ExpandProperties"},
             Table.Column(Table.SelectRows(Nav, each not [Hidden]), "Name")
         ),
         Fact(

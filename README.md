@@ -59,39 +59,35 @@ To get started with Power BI connector, please take a look at the [documentation
 
 ### Load model tables
 
-Connecting with `Speckle.GetTables` lists three entries in the Navigator:
+Connecting with `Speckle.GetTables` lists two entries in the Navigator:
 
 - **Objects** — one row per object; feeds the Speckle 3D visual.
-- **Property Paths** — the catalog of dotted property paths available on the
-  model.
 - **ExpandProperties** — a function bound to the model: it returns a new copy
   of the Objects table with the property values you select appended. It never
   modifies the imported Objects query.
 
 Property values are not loaded as separate tables. Select the ones you need
 with `ExpandProperties` (or the M helpers below) — the underlying source keeps
-three hidden internal tables (Properties, Object Types, Type Properties) that
-they read, and advanced M code can still address them by key.
+four hidden supporting tables (Properties, Property Paths, Object Types, Type
+Properties) that they read, and advanced M code can still address them by key.
 
 ### Select properties with ExpandProperties
 
-The recommended query model uses four queries:
+The recommended query model uses three queries:
 
 1. **Objects** — the raw table; load it if the 3D visual needs it, otherwise
    loading is optional.
-2. **Property Paths** — a reference catalog; normally disable load
-   (connection-only).
-3. **ExpandProperties** — the function query; functions are inherently
+2. **ExpandProperties** — the function query; functions are inherently
    connection-only.
-4. **Invoked result** — invoking `ExpandProperties` creates a separate table
+3. **Invoked result** — invoking `ExpandProperties` creates a separate table
    query; this is the one you normally load into the semantic model.
 
 In the invocation dialog, pick the properties to append from the dropdown
-(the values come from Property Paths, listed once each — in federated models a
-path shared by several source models appears once and applies across all of
-them, with `Source Model` providing row provenance). Invoking with **Select
-All** works and has no width cap, but appending every property can
-significantly increase refresh time and table width.
+(the values come from the hidden Property Paths catalog, listed once each — in
+federated models a path shared by several source models appears once and
+applies across all of them, with `Source Model` providing row provenance).
+Invoking with **Select All** works and has no width cap, but appending every
+property can significantly increase refresh time and table width.
 
 The same call can be written directly in M:
 

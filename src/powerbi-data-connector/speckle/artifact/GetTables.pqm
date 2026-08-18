@@ -239,8 +239,8 @@
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
                 typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
             in
-                // The Navigator lists Objects, Property Paths and the
-                // model-bound ExpandProperties function. The three hidden rows
+                // The Navigator lists Objects and the model-bound
+                // ExpandProperties function. The four hidden rows
                 // stay in the table — Speckle.AddProperties and
                 // Speckle.AddAllProperties index all five table keys.
                 BuildNavigation(

@@ -46,10 +46,10 @@ let
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
     StarTables = {"Objects", "Properties", "Property Paths", "Object Types", "Type Properties", "ExpandProperties"},
-    // Objects, Property Paths and the ExpandProperties function surface in
-    // the Navigator; the other three rows are hidden implementation details
+    // Objects and the ExpandProperties function surface in the Navigator;
+    // the other four rows are hidden implementation details
     // for the property helpers
-    StarHidden = {false, true, false, true, true, false},
+    StarHidden = {false, true, true, true, true, false},
     HiddenColumnName = (nav as table) as any =>
         Record.FieldOrDefault(Value.Metadata(Value.Type(nav)), "NavigationTable.HiddenColumn", null),
 
@@ -72,7 +72,7 @@ let
             Table.Column(starBoth, "Name")),
         Fact("GetTables(both) declares the Navigator hidden column", "Hidden",
             HiddenColumnName(starBoth)),
-        Fact("GetTables(both) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(both) hides all but Objects and ExpandProperties", StarHidden,
             Table.Column(starBoth, "Hidden")),
         Fact("GetTables(both) exposes ExpandProperties as a function", true,
             Value.Is(starExpand, type function)),
@@ -95,7 +95,7 @@ let
             ErrorReason(() => Table.RowCount(Speckle.GetByUrl(UrlArtifactOnly)))),
         Fact("GetTables(artifact-only) returns the star-schema navigation table", StarTables,
             Table.Column(starArtifactOnly, "Name")),
-        Fact("GetTables(artifact-only) hides all but Objects, Property Paths and ExpandProperties", StarHidden,
+        Fact("GetTables(artifact-only) hides all but Objects and ExpandProperties", StarHidden,
             Table.Column(starArtifactOnly, "Hidden"))
     }
 in

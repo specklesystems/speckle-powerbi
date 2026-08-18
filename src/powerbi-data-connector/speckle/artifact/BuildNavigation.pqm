@@ -1,7 +1,7 @@
 // Composes the public Speckle.GetTables navigation table (ENG-9165) from the
-// five already-combined star-schema tables. The Navigator shows three entries
-// — Objects, Property Paths and the model-bound ExpandProperties function —
-// while the three hidden helper rows stay addressable by key for
+// five already-combined star-schema tables. The Navigator shows two entries
+// — Objects and the model-bound ExpandProperties function — while the four
+// hidden helper rows stay addressable by key for
 // Speckle.AddProperties and Speckle.AddAllProperties.
 //
 // deps:   [NavigationTable = ..., AddProperties = ...]
@@ -13,12 +13,11 @@
         AddProperties = deps[AddProperties],
 
         // the five keyed rows AddProperties indexes; hidden flags implement
-        // the Navigator contract (only Objects and Property Paths are visible
-        // tables)
+        // the Navigator contract (only Objects is a visible table)
         helperRows = {
             [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
             [name = "Properties", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = true],
-            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true],
+            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true, hidden = true],
             [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = true],
             [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = true]
         },
