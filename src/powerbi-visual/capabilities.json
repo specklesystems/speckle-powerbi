@@ -2,7 +2,7 @@
   "dataRoles": [
     {
       "displayName": "Model Info",
-      "kind": "Measure",
+      "kind": "Grouping",
       "name": "modelInfo"
     },
     {
@@ -33,6 +33,11 @@
           "select": [
             {
               "bind": {
+                "to": "modelInfo"
+              }
+            },
+            {
+              "bind": {
                 "to": "colorBy"
               }
             },
@@ -45,11 +50,6 @@
         },
         "values": {
           "select": [
-            {
-              "for": {
-                "in": "modelInfo"
-              }
-            },
             {
               "for": {
                 "in": "tooltipData"

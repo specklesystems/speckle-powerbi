@@ -583,10 +583,32 @@ export class Visual implements IVisual {
 
   /* ---------------------------------------------------------- data probes */
 
-  /** Walks the matrix for the first value cell whose source has the modelInfo role. */
+  /**
+   * Finds the Model Info blob: first as a rows-grouping node value (the 4.0
+   * binding — Models[Model Info] is the top-level matrix grouping), then falls
+   * back to scanning value cells whose source has the modelInfo role (legacy
+   * per-row measure binding).
+   */
   private findModelInfoValue(dv: powerbi.DataView): string | null {
     const matrix = dv.matrix
     if (!matrix) return null
+
+    const groupingLevel = (matrix.rows?.levels || []).findIndex((level) =>
+      (level.sources || []).some((src) => src.roles && src.roles.modelInfo)
+    )
+    if (groupingLevel >= 0 && matrix.rows?.root) {
+      let nodes: DataViewMatrixNode[] = matrix.rows.root.children || []
+      for (let depth = 0; depth < groupingLevel; depth++) {
+        const next: DataViewMatrixNode[] = []
+        // per-element push: spreading 150k+ children overflows V8's argument limit
+        for (const n of nodes) if (n.children) for (const c of n.children) next.push(c)
+        nodes = next
+      }
+      for (const node of nodes) {
+        if (typeof node.value === 'string' && node.value.length > 0) return node.value
+      }
+    }
+
     const modelInfoIndices = new Set<number>()
     ;(matrix.valueSources || []).forEach((src, i) => {
       if (src.roles && src.roles.modelInfo) modelInfoIndices.add(i)
@@ -600,8 +622,11 @@ export class Visual implements IVisual {
           const idx = Number(key)
           const cell = node.values[idx]
           const valueSourceIdx = cell.valueSourceIndex ?? idx
+          // require the modelInfo ROLE on the value source: with the 4.0
+          // grouping binding no value source ever carries it, and accepting
+          // any long string would misread a tooltip field as the blob
           if (
-            (modelInfoIndices.size === 0 || modelInfoIndices.has(valueSourceIdx)) &&
+            modelInfoIndices.has(valueSourceIdx) &&
             typeof cell.value === 'string' &&
             cell.value.length > 50
           ) {

@@ -33,22 +33,26 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
     hasColorFilter = false,
     hasTooltipData = false
 
-  // Model Info arrives in its own single-value dataview (slim dataview); the
-  // in-matrix measure check stays as the legacy fallback
+  // Models[Model Info] arrives as the first/top-level matrix rows grouping;
+  // the single-value dataview probe and the in-matrix measure check stay as
+  // legacy fallbacks
   hasModelInfo = options.dataViews.some((dv) => dv.single !== undefined)
 
-  matrixVew.valueSources.forEach((level) => {
+  // no `values` binding is guaranteed any more (tooltipData is optional), so
+  // valueSources/columns can be absent on a perfectly valid minimal binding
+  ;(matrixVew.valueSources || []).forEach((level) => {
     if (!hasModelInfo) hasModelInfo = level.roles['modelInfo'] != undefined
   })
 
   matrixVew.rows.levels.forEach((level) => {
     level.sources.forEach((source) => {
+      if (!hasModelInfo) hasModelInfo = source.roles['modelInfo'] != undefined
       if (!hasApplicationIds) hasApplicationIds = source.roles['applicationIds'] != undefined
       if (!hasColorFilter) hasColorFilter = source.roles['colorBy'] != undefined
     })
   })
 
-  matrixVew.columns.levels.forEach((level) => {
+  ;(matrixVew.columns?.levels || []).forEach((level) => {
     level.sources.forEach((source) => {
       if (!hasTooltipData) hasTooltipData = source.roles['tooltipData'] != undefined
     })
@@ -171,8 +175,9 @@ export async function processMatrixView(
    * click-select/tooltips over a huge isolation are a fair trade for a live UI.
    */
   lightweight = false,
-  /** Model Info from the slim single-value dataview — ONE copy for the whole
-   *  update. Null = legacy report with the blob still bound into the matrix. */
+  /** Model Info from the slim single-value dataview (dormant legacy plumbing;
+   *  see 0464a5c) — consulted only when the blob is not bound as the top-level
+   *  rows grouping. Null = legacy report with the blob bound into the matrix. */
   modelInfoBlob: string | null = null
 ): Promise<SpeckleDataInput> {
   const visualStore = useVisualStore()
@@ -181,15 +186,46 @@ export async function processMatrixView(
     colorByIds = [],
     objectTooltipData = new Map<string, IViewerTooltip>()
 
-  const localMatrixView = matrixView.rows.root.children
+  let localMatrixView = matrixView.rows.root.children
 
   // Safety check for matrix data structure
   if (!localMatrixView || localMatrixView.length === 0) {
     throw new Error('Matrix view has no data rows')
   }
 
+  // Models[Model Info] as the FIRST rows grouping: the blob is the parent
+  // node's own value — one copy per update/segment instead of one per row.
+  // Object traversal (colorBy groups or leaves) starts below that node.
+  const modelInfoIsFirstLevel = matrixView.rows.levels[0]?.sources?.some(
+    (source) => source.roles?.['modelInfo'] != undefined
+  )
+
   let encodedBlob: string
-  if (modelInfoBlob) {
+  if (modelInfoIsFirstLevel) {
+    // the connector's Models table is one row by contract; several distinct
+    // grouping values would silently render every model's objects against the
+    // FIRST payload only (Models is disconnected, so the matrix cross-joins)
+    if (localMatrixView.length !== 1) {
+      throw new Error(
+        `The Models table must contain exactly one Model Info row (found ${localMatrixView.length}). Load Models from a single Speckle.GetTables call.`
+      )
+    }
+    const blobValue = localMatrixView[0].value
+    if (typeof blobValue !== 'string' || blobValue.length === 0) {
+      // a blank grouping node must read as a binding problem, not as a
+      // String(null) blob that decodeModelInfos rejects as corrupt data
+      throw new Error(
+        'The Model Info grouping is empty — bind Models[Model Info] from the Speckle connector'
+      )
+    }
+    encodedBlob = blobValue
+    // alias the single grouping node's children (zero-copy) — no spread here:
+    // spreading 150k+ children as call arguments overflows V8's argument limit
+    localMatrixView = localMatrixView[0].children ?? []
+    if (localMatrixView.length === 0) {
+      throw new Error('Matrix view has no object rows below the Model Info grouping')
+    }
+  } else if (modelInfoBlob) {
     encodedBlob = modelInfoBlob
   } else {
     // legacy: the "Model Info" measure cell carries the blob on every row

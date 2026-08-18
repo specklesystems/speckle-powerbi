@@ -41,6 +41,10 @@ const FETCH_FILTERED_MAX_ROWS = 1000000
  *  SelectionId builder / tooltips) — the builder alone froze the UI at 456k rows. */
 const LIGHT_ROW_THRESHOLD = 30000
 
+/** The one copy of the required-binding guidance — shown by the pre-flight
+ *  recovery gate and the catch-all warning alike so the texts cannot drift. */
+const BIND_GUIDANCE = `Load the "Models" and "Objects" tables from the Speckle connector (4.x), then bind Models[Model Info] to the "Model Info" field and Objects[object_key] (or Objects[Application ID]) to "Application IDs".`
+
 /** Leaf-row count of the matrix (fast — no value parsing), for paging decisions. */
 const countMatrixLeafRows = (matrix: powerbi.DataViewMatrix): number => {
   let count = 0
@@ -187,10 +191,12 @@ export class Visual implements IVisual {
     visualStore.setFormattingSettings(this.formattingSettings)
 
     try {
-      // slim dataview: the matrix is no longer guaranteed to be dataViews[0] —
-      // Model Info travels in its own single-value dataview (one copy instead
-      // of one per row; the per-row blob repetition was the dominant term in
-      // the host's ~150k-row fetchMoreData memory ceiling)
+      // Models[Model Info] travels as the matrix's top-level rows grouping —
+      // one copy per update/segment instead of one per row (the per-row blob
+      // repetition was the dominant term in the host's ~150k-row fetchMoreData
+      // memory ceiling). The single-value dataview probe below is dormant
+      // legacy plumbing (0464a5c: matrix+single crashes Desktop's
+      // QueryGenerator — do not retry that mapping shape).
       const matrixDataView = options.dataViews.find((dv) => dv.matrix !== undefined)
       const matrixView = matrixDataView?.matrix
       if (!matrixView) throw new Error('Data does not contain a matrix data view') // TODO: Could be toast notificiation too!
@@ -210,6 +216,22 @@ export class Visual implements IVisual {
 
       // only react to Data updates; resize/style/viewmode-only updates are no-ops
       if (!(options.type & UpdateType.Data)) {
+        return
+      }
+
+      // precise recovery guidance: rendering needs the Models payload grouping
+      // plus an object identifier — name the exact table and field to bind.
+      // Placed below the resize/Data gates so an unbound field never blocks
+      // resize forwarding or fires host warnings on non-data updates.
+      if (!validationResult.modelInfo || !validationResult.applicationIds) {
+        if (this.pagingActive) {
+          this.pagingActive = false
+          visualStore.clearLoadingProgress()
+        }
+        // the leaf-based signature does not see the grouping level, so an
+        // unbind/rebind of Model Info would otherwise memo-skip the re-render
+        this.lastSettledSignature = ''
+        this.host.displayWarningIcon(`Missing required fields.`, BIND_GUIDANCE)
         return
       }
 
@@ -407,7 +429,7 @@ export class Visual implements IVisual {
       console.warn('Input not valid:', (e as Error).message)
       this.host.displayWarningIcon(
         `Incomplete data input.`,
-        `"Model Info" and "Application IDs" data inputs are mandatory. If your data connector does not output these columns, please update it to Speckle connector 4.x.`
+        `"Model Info" and "Application IDs" data inputs are mandatory. ${BIND_GUIDANCE}`
       )
       visualStore.setFieldInputState({
         modelInfo: false,

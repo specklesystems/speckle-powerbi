@@ -21,13 +21,13 @@
       <div class="flex flex-col justify-center space-y-1">
         <div class="flex flex-row space-x-2">
           <EyeIcon class="w-6"></EyeIcon>
-          <p><b>Model Info</b></p>
+          <p><b>Models[Model Info]</b></p>
           <ArrowRightIcon class="w-4"></ArrowRightIcon>
           <p>View your model</p>
         </div>
         <div class="flex flex-row space-x-2">
           <CursorArrowRippleIcon class="w-6"></CursorArrowRippleIcon>
-          <p><b>Object IDs</b></p>
+          <p><b>Objects[object_key]</b></p>
           <ArrowRightIcon class="w-4"></ArrowRightIcon>
           <p>Highlighting and interactivity</p>
         </div>
