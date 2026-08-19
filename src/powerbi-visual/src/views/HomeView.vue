@@ -113,6 +113,6 @@ function goToForum() {
 }
 
 function goToGuide() {
-  visualStore.host.launchUrl('https://speckle.guide/user/powerbi')
+  visualStore.host.launchUrl('https://docs.speckle.systems/connectors/power-bi/power-bi')
 }
 </script>
