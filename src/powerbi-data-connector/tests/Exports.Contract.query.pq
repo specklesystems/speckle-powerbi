@@ -77,7 +77,7 @@ let
 
         // the eight restored compatibility functions
         Fact("GetVersion arity", 0, RequiredCount(Speckle.GetVersion)),
-        Fact("GetVersion value", "4.0.0", Speckle.GetVersion()),
+        Fact("GetVersion value", "1.0.0", Speckle.GetVersion()),
         Fact("Objects.Collections parameters", {"inputData"}, ParamNames(Speckle.Objects.Collections)),
         Fact("Objects.CompositeStructure parameters", {"objectRecord", "outputAsList"}, ParamNames(Speckle.Objects.CompositeStructure)),
         Fact("Objects.MaterialQuantities parameters", {"objectRecord", "outputAsList"}, ParamNames(Speckle.Objects.MaterialQuantities)),
