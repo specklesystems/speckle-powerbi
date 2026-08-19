@@ -1,7 +1,7 @@
 /**
- * Cheap identity of a data update: row universe + highlight state. Persist-property
- * round-trips re-send identical data every few seconds, so callers can use this
- * signature to avoid reprocessing an already-settled matrix.
+ * Cheap identity of a data update: row universe, highlight state, and tooltip data.
+ * Persist-property round-trips re-send identical data every few seconds, so callers
+ * can use this signature to avoid reprocessing an already-settled matrix.
  */
 export const matrixSignature = (
   matrix: powerbi.DataViewMatrix,
@@ -10,8 +10,28 @@ export const matrixSignature = (
   let rows = 0
   let highlighted = 0
   let highlightedIdHash = 0x811c9dc5
+  let tooltipHash = 0x811c9dc5
+  let tooltipColumns = 0
   let firstId = ''
   let lastId = ''
+  const tooltipValueIndexes: number[] = []
+
+  const hashTooltipString = (value: string): void => {
+    // Include the length so adjacent values cannot produce the same byte stream.
+    tooltipHash = Math.imul(tooltipHash ^ value.length, 0x01000193)
+    for (let index = 0; index < value.length; index++) {
+      tooltipHash = Math.imul(tooltipHash ^ value.charCodeAt(index), 0x01000193)
+    }
+  }
+
+  matrix.valueSources?.forEach((source, index) => {
+    if (!source.roles?.tooltipData) return
+    tooltipColumns++
+    tooltipValueIndexes.push(index)
+    hashTooltipString(String(index))
+    hashTooltipString(source.queryName ?? '')
+    hashTooltipString(source.displayName)
+  })
 
   const hashHighlightedId = (id: string): void => {
     // Include the length so adjacent IDs cannot produce the same byte stream.
@@ -38,6 +58,20 @@ export const matrixSignature = (
           }
         }
       }
+      for (const index of tooltipValueIndexes) {
+        const cell = values?.[index]
+        if (!cell) {
+          hashTooltipString('missing')
+          continue
+        }
+        const value = cell.value
+        if (value === null) {
+          hashTooltipString('null')
+          continue
+        }
+        hashTooltipString(typeof value)
+        hashTooltipString(String(value))
+      }
       return
     }
     for (const child of children) walk(child)
@@ -45,5 +79,6 @@ export const matrixSignature = (
   const root = matrix.rows?.root
   if (root?.children) for (const child of root.children) walk(child)
   const highlightedIds = (highlightedIdHash >>> 0).toString(16).padStart(8, '0')
-  return `${hasActiveFilters}|${rows}|${highlighted}|${highlightedIds}|${firstId}|${lastId}`
+  const tooltipData = (tooltipHash >>> 0).toString(16).padStart(8, '0')
+  return `${hasActiveFilters}|${rows}|${highlighted}|${highlightedIds}|${tooltipColumns}|${tooltipData}|${firstId}|${lastId}`
 }
