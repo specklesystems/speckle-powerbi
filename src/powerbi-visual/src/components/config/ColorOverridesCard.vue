@@ -85,7 +85,8 @@
       <div
         v-else
         v-bind="containerProps"
-        class="max-h-[280px] border-t border-zinc-200"
+        class="border-t border-zinc-200"
+        :style="{ maxHeight: listMaxHeight + 'px', overflowY: 'auto' }"
       >
         <div v-bind="wrapperProps">
           <template v-for="item in list" :key="rowKey(item.data)">
@@ -156,8 +157,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { useVirtualList } from '@vueuse/core'
+import { useVirtualList, useWindowSize } from '@vueuse/core'
 import ColorOverrideRow from './ColorOverrideRow.vue'
+import { useAdvancedEditScale } from '@src/composables/useAdvancedEditScale'
 import { useVisualStore } from '@src/store/visualStore'
 import {
   absentOverrides,
@@ -272,6 +274,17 @@ const { list, containerProps, wrapperProps } = useVirtualList(filteredRows, {
   itemHeight: 40,
   overscan: 8
 })
+
+// Fill the available vertical real estate. The page sits under a CSS zoom, so
+// vh units would overshoot (they resolve against the unzoomed viewport, then
+// get scaled) — divide the real window height by the scale instead, and
+// reserve room for the page padding, card/search headers and the Dev mode card.
+const { height: windowHeight } = useWindowSize()
+const uiScale = useAdvancedEditScale()
+const RESERVED_CHROME = 250
+const listMaxHeight = computed(() =>
+  Math.max(280, Math.round(windowHeight.value / uiScale.value) - RESERVED_CHROME)
+)
 
 const rowKey = (row: Row) => `${row.kind}:${row.valueKey}`
 

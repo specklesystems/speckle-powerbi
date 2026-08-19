@@ -7,9 +7,7 @@
     <!-- m-auto (not items-center on the scroller): centers when the content is
          short, keeps the top reachable when it scrolls -->
     <div class="m-auto flex w-full max-w-[392px] flex-col gap-4">
-      <div class="text-[15px] font-semibold leading-[1.2] text-zinc-900">
-        Speckle configuration
-      </div>
+      <ColorOverridesCard />
 
       <!-- same row anatomy as the empty-state field list: text-xs label,
            text-[11px] hint, px-3 py-[9px] row inside a white bordered card -->
@@ -31,8 +29,6 @@
           />
         </div>
       </div>
-
-      <ColorOverridesCard />
     </div>
   </div>
 </template>
