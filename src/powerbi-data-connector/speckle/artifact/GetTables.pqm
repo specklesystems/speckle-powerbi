@@ -30,9 +30,9 @@
         else
             Record.FieldOrDefault(options, "TableLayout", null),
 
-        // single source of truth for the connector version (keep Speckle.pq [Version]
-        // and Speckle.proj <Version> aligned with this)
-        ConnectorVersion = "4.0.0",
+        // parsed at runtime from Speckle.pq's [Version] attribute (same as the
+        // legacy path) — the one copy patch_version.py stamps at release
+        ConnectorVersion = Extension.LoadFunction("GetVersion.pqm")(),
 
         // the logic for importing functions from other files — this is the single
         // copy; leaf modules receive what they need via the deps record
