@@ -232,7 +232,10 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     plugins: [
       new webpack.DefinePlugin({
         __VUE_OPTIONS_API__: JSON.stringify(true),
-        __VUE_PROD_DEVTOOLS__: JSON.stringify(false)
+        __VUE_PROD_DEVTOOLS__: JSON.stringify(false),
+        // package.json is the version's source of truth (pbiviz.json's copy is
+        // overwritten with it above) — inject it so the UI can't drift
+        __VISUAL_VERSION__: JSON.stringify(packageJsonFile.version)
       }),
       new VueLoaderPlugin(),
       new MiniCssExtractPlugin({
