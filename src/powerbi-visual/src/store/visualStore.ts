@@ -179,13 +179,15 @@ export const useVisualStore = defineStore('visualStore', () => {
     const input = dataInput.value
     if (!viewerEmit.value || !input) return
     const groups = currentColorGroups() ?? []
+    // keep the resetFilters snapshot current even while a highlight narrows
+    // the emitted subset — clearing the filter must restore FRESH colors
+    latestColorBy.value = groups
     if (input.selectedIds.length > 0) {
       viewerEmit.value(
         'colorObjectsByGroup',
         filterColorByIdsForSelection(groups, input.selectedIds)
       )
     } else {
-      latestColorBy.value = groups
       viewerEmit.value('colorObjectsByGroup', groups)
     }
   }
