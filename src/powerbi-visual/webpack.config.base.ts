@@ -118,8 +118,12 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           use: [MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader']
         },
         {
+          // inline as data URIs — the packaged visual ships only visual.js +
+          // visual.css, so referenced asset FILES would 404 in the PBI sandbox.
+          // (native asset/inline, not base64-inline-loader: the loader emitted
+          // broken files for url() refs coming from CSS, e.g. @font-face)
           test: /\.(woff|ttf|ico|woff2|jpg|jpeg|png|webp|svg)$/i,
-          use: ['base64-inline-loader']
+          type: 'asset/inline'
         },
         {
           // Any remaining `?url` imports — emit as files with an absolute URL
