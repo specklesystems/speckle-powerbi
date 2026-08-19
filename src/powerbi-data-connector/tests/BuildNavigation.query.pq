@@ -7,7 +7,7 @@
 // All tables shows every row, invalid values raise a structured error), the
 // model-bound function's type/documentation contract, selection
 // normalization and ordering, the lean relationship-ready result shape
-// (object_key + selected property columns, every Objects row retained),
+// (Object Key + selected property columns, every Objects row retained),
 // and laziness of the fact tables.
 let
     Repr = (v as any) as text => try Text.FromBinary(Json.FromValue(v)) otherwise "<unserializable>",
@@ -39,15 +39,15 @@ let
     Deps = [NavigationTable = NavigationTable, AddProperties = Speckle.AddProperties],
 
     Objects = #table(
-        type table [object_key = Int64.Type, #"Application ID" = text],
+        type table [#"Object Key" = Int64.Type, #"Application ID" = text],
         {{1, "one"}, {2, "two"}, {4294967297, "fed"}}
     ),
     Properties = #table(
-        type table [object_key = Int64.Type, path_key = Int64.Type, Value = any],
+        type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
         {{1, 10, "instance-area"}, {2, 12, "instance-mark"}}
     ),
     ObjectTypes = #table(
-        type table [object_key = Int64.Type, type_key = Int64.Type],
+        type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
         {{1, 100}, {2, 100}, {4294967297, 4294967396}}
     ),
     TypeProperties = #table(
@@ -120,12 +120,12 @@ let
     Shape = (t as table) as record => [
         Columns = Table.ColumnNames(t),
         Rows = Table.ToRows(t),
-        KeyType = Table.Schema(t){[Name = "object_key"]}[TypeName]
+        KeyType = Table.Schema(t){[Name = "Object Key"]}[TypeName]
     ],
-    // the lean base: object_key only, every Objects row in Objects order,
+    // the lean base: Object Key only, every Objects row in Objects order,
     // key type preserved — never the other Objects columns
     ExpectedBase = [
-        Columns = {"object_key"},
+        Columns = {"Object Key"},
         Rows = {{1}, {2}, {4294967297}},
         KeyType = "Int64.Type"
     ],
@@ -138,10 +138,10 @@ let
     // Select All is exactly "invoke with every AllowedValues entry" — no cap
     SelectAllResult = ExpandFn(ParamMeta[Documentation.AllowedValues]),
     // an unknown path named after a removed Objects column must not collide
-    // against the lean base; an unknown path named object_key cannot be made
+    // against the lean base; an unknown path named Object Key cannot be made
     // unique and must keep the structured collision error
     RemovedColumnResult = ExpandFn({"Application ID"}),
-    CollisionResult = try Table.RowCount(ExpandFn({"object_key"})),
+    CollisionResult = try Table.RowCount(ExpandFn({"Object Key"})),
     CollisionError = if not CollisionResult[HasError] then
         [Reason = null, ExistingColumns = {}]
     else
@@ -358,17 +358,17 @@ let
             Table.Column(LazyNav, "Key")
         ),
         Fact(
-            "an omitted selection returns the object_key-only base without reading facts",
+            "an omitted selection returns the Object Key-only base without reading facts",
             ExpectedBase,
             Shape(LazyFn())
         ),
         Fact(
-            "a null selection returns the object_key-only base without reading facts",
+            "a null selection returns the Object Key-only base without reading facts",
             ExpectedBase,
             Shape(LazyFn(null))
         ),
         Fact(
-            "an empty selection returns the object_key-only base without reading facts",
+            "an empty selection returns the Object Key-only base without reading facts",
             ExpectedBase,
             Shape(LazyFn({}))
         ),
@@ -387,7 +387,7 @@ let
         Fact(
             "known selections follow catalogue order and unknown paths trail as all-null columns",
             [
-                Columns = {"object_key", "Area", "Type_Area", "Mark", "unknown"},
+                Columns = {"Object Key", "Area", "Type_Area", "Mark", "unknown"},
                 Rows = {
                     {1, "instance-area", "type-area", null, null},
                     {2, null, "type-area", "instance-mark", null},
@@ -400,19 +400,19 @@ let
             ]
         ),
         Fact(
-            "a selected result keeps the object_key type of the Objects table",
+            "a selected result keeps the Object Key type of the Objects table",
             "Int64.Type",
-            Table.Schema(OrderingResult){[Name = "object_key"]}[TypeName]
+            Table.Schema(OrderingResult){[Name = "Object Key"]}[TypeName]
         ),
         Fact(
             "selections are trimmed and ordinally deduplicated",
-            {"object_key", "Mark"},
+            {"Object Key", "Mark"},
             Table.ColumnNames(TrimDedupResult)
         ),
         Fact(
             "a federated duplicate path is selected once and produces one column across sources",
             [
-                Columns = {"object_key", "Type_Name"},
+                Columns = {"Object Key", "Type_Name"},
                 Values = {"type-name", "type-name", "fed-type-name"}
             ],
             [
@@ -423,7 +423,7 @@ let
         Fact(
             "invoking with every AllowedValues entry emits every property column and preserves all rows",
             [
-                Columns = {"object_key", "Area", "Type_Area", "Type_Name", "Mark", "Slot"},
+                Columns = {"Object Key", "Area", "Type_Area", "Type_Name", "Mark", "Slot"},
                 Rows = {
                     {1, "instance-area", "type-area", "type-name", null, null},
                     {2, null, "type-area", "type-name", "instance-mark", null},
@@ -438,7 +438,7 @@ let
         Fact(
             "a Full path selection names columns with entire dotted paths over the lean base",
             [
-                Columns = {"object_key", "properties.Dimensions.Area", "Type_properties.Dimensions.Area"},
+                Columns = {"Object Key", "properties.Dimensions.Area", "Type_properties.Dimensions.Area"},
                 Rows = {
                     {1, "instance-area", "type-area"},
                     {2, null, "type-area"},
@@ -452,13 +452,13 @@ let
         ),
         Fact(
             "the ColumnNames value matches case-insensitively through the closure",
-            {"object_key", "properties.Instance.Mark"},
+            {"Object Key", "properties.Instance.Mark"},
             Table.ColumnNames(CaseInsensitiveFullPathResult)
         ),
         Fact(
             "a path named after a removed Objects column no longer collides against the lean base",
             [
-                Columns = {"object_key", "Application ID"},
+                Columns = {"Object Key", "Application ID"},
                 Values = {null, null, null}
             ],
             [
@@ -467,10 +467,10 @@ let
             ]
         ),
         Fact(
-            "an unresolvable collision with object_key keeps the structured collision error over the lean base",
+            "an unresolvable collision with Object Key keeps the structured collision error over the lean base",
             [
                 Reason = "Speckle.AddProperties.NameCollision",
-                ExistingColumns = {"object_key"}
+                ExistingColumns = {"Object Key"}
             ],
             CollisionError
         ),

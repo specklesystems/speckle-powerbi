@@ -11,7 +11,7 @@
 
       <div class="text-[15px] font-semibold leading-[1.2] text-zinc-900">
         Add <span class="text-blue-600">Model Info</span> and
-        <span class="text-blue-600">Application IDs</span> to load your model
+        <span class="text-blue-600">Object Keys</span> to load your model
       </div>
 
       <div class="flex flex-col overflow-hidden rounded border border-zinc-200 bg-white">
@@ -78,7 +78,7 @@ const fields = [
     ]
   },
   {
-    name: 'Application IDs',
+    name: 'Object Keys',
     hint: 'Required',
     required: true,
     icon: [

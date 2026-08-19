@@ -61,10 +61,11 @@ To get started with Power BI connector, please take a look at the [documentation
 
 Connecting with `Speckle.GetTables` lists two entries in the Navigator:
 
-- **Objects** — one row per object; feeds the Speckle 3D visual.
+- **Objects** — one row per object; bind `Objects[Object Key]` to the Speckle
+  3D visual's **Object Keys** field (along with **Model Info**).
 - **Properties** — a function bound to the model: it returns a lean
-  table of `object_key` plus the property columns you select, with one row per
-  Objects row — relate it one-to-one to the Objects table on `object_key`. It
+  table of `Object Key` plus the property columns you select, with one row per
+  Objects row — relate it one-to-one to the Objects table on `Object Key`. It
   never modifies the imported Objects query.
 
 Property values are not loaded as separate tables by default. Select the ones
@@ -82,7 +83,7 @@ section controls what the Navigator shows:
 - **All tables** — additionally shows the four supporting tables (Property
   Values, Property Paths, Object Types, Type Properties) so you can load them
   and relate them yourself, e.g. Objects 1-\* Property Values \*-1 Property
-  Paths on `object_key` / `path_key`.
+  Paths on `Object Key` / `path_key`.
 
 The same choice can be written directly in M:
 `Speckle.GetTables(url, [TableLayout = "All tables"])`. The layout only
@@ -99,7 +100,7 @@ The recommended query model uses three queries:
    connection-only.
 3. **Invoked result** — invoking `Properties` creates a separate table
    query; load it into the semantic model and relate it to Objects
-   one-to-one on `object_key` (the connector guarantees a
+   one-to-one on `Object Key` (the connector guarantees a
    relationship-ready key; Power BI may or may not autodetect the
    relationship).
 
@@ -124,7 +125,7 @@ in
 Selection behavior:
 
 - Omitting the argument, passing `null` or passing `{}` returns an
-  `object_key`-only table containing every object.
+  `Object Key`-only table containing every object.
 - Entries are trimmed and duplicates are dropped. Known paths are emitted in
   Property Paths catalog order (not the order you pass them); unknown paths
   follow the known ones.
@@ -132,7 +133,7 @@ Selection behavior:
   as an all-null column, so saved reports keep refreshing.
 - Blank or non-text entries raise a structured invalid-path error.
 - Every Objects row is preserved in Objects order, so the result relates
-  one-to-one to Objects on `object_key`; instance values land in unprefixed
+  one-to-one to Objects on `Object Key`; instance values land in unprefixed
   columns and type values in `Type_`-prefixed columns (see below).
 - An optional second argument, **Column names**, controls how property columns
   are named: `"Shortest"` (the default) uses the shortest unique trailing part

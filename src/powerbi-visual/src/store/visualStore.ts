@@ -409,6 +409,11 @@ export const useVisualStore = defineStore('visualStore', () => {
       return
     }
 
+    // Identity mode travels with EVERY update, not just reloads: rebinding the
+    // same model/version between Object Key and Application ID must switch the
+    // viewer's resolution mode (and dictionary lifecycle) immediately.
+    viewerEmit.value('setIdMode', dataInput.value.idMode)
+
     if (viewerReloadNeeded.value) {
       lastLoadedVersionKey.value = dataInput.value.versionKey
       await viewerEmit.value('loadModels', dataInput.value.modelInfos)

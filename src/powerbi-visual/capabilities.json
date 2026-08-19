@@ -6,7 +6,7 @@
       "name": "modelInfo"
     },
     {
-      "displayName": "Application IDs",
+      "displayName": "Object Keys",
       "kind": "Grouping",
       "name": "applicationIds"
     },

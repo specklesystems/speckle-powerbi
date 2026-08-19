@@ -18,6 +18,7 @@ const input: SpeckleDataInput = {
   ],
   versionKey: 'version-1',
   hasLegacyModels: false,
+  idMode: 'applicationId',
   objectIds: ['object-1'],
   selectedIds: [],
   colorByIds: null,

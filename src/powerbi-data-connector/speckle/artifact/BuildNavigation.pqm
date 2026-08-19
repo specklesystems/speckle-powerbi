@@ -47,17 +47,17 @@
         // ExpandProperties closes over this private five-row navigator, not
         // over the public table it is itself a row of — building the helper
         // source first keeps the public navigation table non-recursive.
-        // Its objects row carries only object_key, so the bound function
-        // returns a lean, relationship-ready table (object_key + selected
+        // Its objects row carries only Object Key, so the bound function
+        // returns a lean, relationship-ready table (Object Key + selected
         // property columns) instead of an enriched copy of Objects, and
-        // collision detection sees only object_key among the base columns.
+        // collision detection sees only Object Key among the base columns.
         // The public helperRows keep the full Objects table for
         // Speckle.AddProperties and Speckle.AddAllProperties.
         helperSource = NavigationTable(
             List.Transform(
                 helperRows,
                 each if [key] = "objects" then
-                    _ & [data = Table.SelectColumns([data], {"object_key"})]
+                    _ & [data = Table.SelectColumns([data], {"Object Key"})]
                 else
                     _
             )
@@ -131,7 +131,7 @@
                     // dialog appends that suffix itself for optional params
                     Properties = type nullable list meta [
                         Documentation.FieldCaption = "Properties",
-                        Documentation.FieldDescription = "Dotted property paths (see the Property Paths table) to return as columns alongside object_key. Instance values land in unprefixed columns and type values in Type_-prefixed columns. Selecting all properties can significantly increase refresh time and table width.",
+                        Documentation.FieldDescription = "Dotted property paths (see the Property Paths table) to return as columns alongside Object Key. Instance values land in unprefixed columns and type values in Type_-prefixed columns. Selecting all properties can significantly increase refresh time and table width.",
                         Documentation.AllowedValues = propertyOptions
                     ],
                     ColumnNames = type nullable text meta [
@@ -144,7 +144,7 @@
             0
         ) meta [
             Documentation.Name = "Properties",
-            Documentation.LongDescription = "Returns a lean table of object_key plus the selected property columns, with one row per Objects row — relate it one-to-one to the Objects table on object_key. An omitted, null or empty selection returns an object_key-only table containing every object. Column names default to the shortest unique trailing part of each dotted path; set Column names to Full path to use entire paths. Selecting all properties can significantly increase refresh time and table width."
+            Documentation.LongDescription = "Returns a lean table of Object Key plus the selected property columns, with one row per Objects row — relate it one-to-one to the Objects table on Object Key. An omitted, null or empty selection returns an Object Key-only table containing every object. Column names default to the shortest unique trailing part of each dotted path; set Column names to Full path to use entire paths. Selecting all properties can significantly increase refresh time and table width."
         ],
         ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type)
     in

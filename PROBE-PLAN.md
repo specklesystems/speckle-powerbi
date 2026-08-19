@@ -42,7 +42,7 @@ Harness lives in the session scratchpad (`probe-harness/`): `harness.html`,
 reuses `ws` from the visual's node_modules).
 
 Service round-trip: `npm run dev`, open the developer-mode report at
-app.powerbi.com, add the Developer Visual, bind Application ID + Model Info,
+app.powerbi.com, add the Developer Visual, bind Object Key + Model Info,
 read the panel (works even with nothing bound — data rows just stay empty).
 
 ## Stage 0 RESULTS (2026-07-06, real Service, sandbox build 13.0.28507.472)

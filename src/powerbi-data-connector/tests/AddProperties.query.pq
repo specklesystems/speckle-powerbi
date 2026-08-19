@@ -22,12 +22,12 @@ let
                 ),
 
     Objects = #table(
-        type table [object_key = Int64.Type, #"Application ID" = text],
+        type table [#"Object Key" = Int64.Type, #"Application ID" = text],
         {{1, "one"}, {2, "two"}, {3, "three"}, {4, "four"}}
     ) meta [TestMarker = "original Objects"],
     Properties = #table(
         type table [
-            object_key = Int64.Type,
+            #"Object Key" = Int64.Type,
             path_key = Int64.Type,
             #"Value Text" = nullable text,
             #"Value Number" = nullable number,
@@ -40,7 +40,7 @@ let
         }
     ),
     ObjectTypes = #table(
-        type table [object_key = Int64.Type, type_key = Int64.Type],
+        type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
         {{1, 100}, {2, 100}, {3, 101}, {99, 100}, {99, 101}}
     ),
     TypeProperties = #table(
@@ -170,7 +170,10 @@ let
         Source,
         {"PROPERTIES.Dimensions.Area", "properties.Unknown.Value"}
     ),
-    NameCollisionResult = try Table.RowCount(Speckle.AddProperties(Source, {"object_key"})),
+    NameCollisionResult = try Table.RowCount(Speckle.AddProperties(Source, {"Object Key"})),
+    // the retired snake_case spelling is no longer a fixed column, so it must
+    // NOT collide — it emits an ordinary (all-null, factless) property column
+    SnakeCaseResult = Speckle.AddProperties(Source, {"object_key"}),
     NameCollisionError = if not NameCollisionResult[HasError] then
         [Reason = null, PropertyPaths = {}, ExistingColumns = {}]
     else
@@ -223,7 +226,7 @@ let
         try EmptyInvalidColumnNamesResult[Error][Reason] otherwise null,
     EmptyFullPathResult = Speckle.AddProperties(EmptySource, {}, "Full path"),
     FullPathBaseCollisionResult = try Table.RowCount(
-        Speckle.AddProperties(Source, {"object_key"}, "Full path")
+        Speckle.AddProperties(Source, {"Object Key"}, "Full path")
     ),
     FullPathBaseCollisionReason = if not FullPathBaseCollisionResult[HasError] then
         null
@@ -252,7 +255,7 @@ let
                 "Object Types",
                 "object-types",
                 #table(
-                    type table [object_key = Int64.Type, type_key = Int64.Type],
+                    type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
                     {{1, 100}, {1, 100}, {2, 100}, {2, 101}, {3, 101}, {99, 100}, {99, 101}}
                 ),
                 "Table",
@@ -282,15 +285,15 @@ let
         try DuplicateObjectTypesUnknownPathResult[Error][Reason] otherwise null,
 
     FederatedObjects = #table(
-        type table [object_key = Int64.Type, #"Application ID" = text],
+        type table [#"Object Key" = Int64.Type, #"Application ID" = text],
         {{1, "model-a"}, {4294967297, "model-b"}}
     ),
     FederatedProperties = #table(
-        type table [object_key = Int64.Type, path_key = Int64.Type, Value = any],
+        type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
         {{1, 10, "first-instance"}}
     ),
     FederatedObjectTypes = #table(
-        type table [object_key = Int64.Type, type_key = Int64.Type],
+        type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
         {{1, 100}, {4294967297, 4294967396}}
     ),
     FederatedTypeProperties = #table(
@@ -316,19 +319,19 @@ let
     DuplicateInstanceSource = #table(
         type table [Name = text, Key = text, Data = table, ItemKind = text, ItemName = text, IsLeaf = logical],
         {
-            {"Objects", "objects", #table(type table [object_key = Int64.Type], {{1}}), "Table", "Table", true},
+            {"Objects", "objects", #table(type table [#"Object Key" = Int64.Type], {{1}}), "Table", "Table", true},
             {
                 "Properties",
                 "properties",
                 #table(
-                    type table [object_key = Int64.Type, path_key = Int64.Type, Value = any],
+                    type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
                     {{1, 10, "first"}, {1, 10, "second"}}
                 ),
                 "Table",
                 "Table",
                 true
             },
-            {"Object Types", "object-types", #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}), "Table", "Table", true},
+            {"Object Types", "object-types", #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}), "Table", "Table", true},
             {"Type Properties", "type-properties", #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {}), "Table", "Table", true},
             {"Property Paths", "paths", Paths, "Table", "Table", true}
         }
@@ -339,9 +342,9 @@ let
     DuplicateTypeSource = #table(
         type table [Name = text, Key = text, Data = table, ItemKind = text, ItemName = text, IsLeaf = logical],
         {
-            {"Objects", "objects", #table(type table [object_key = Int64.Type], {{3}}), "Table", "Table", true},
-            {"Properties", "properties", #table(type table [object_key = Int64.Type, path_key = Int64.Type, Value = any], {}), "Table", "Table", true},
-            {"Object Types", "object-types", #table(type table [object_key = Int64.Type, type_key = Int64.Type], {{3, 101}}), "Table", "Table", true},
+            {"Objects", "objects", #table(type table [#"Object Key" = Int64.Type], {{3}}), "Table", "Table", true},
+            {"Properties", "properties", #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}), "Table", "Table", true},
+            {"Object Types", "object-types", #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {{3, 101}}), "Table", "Table", true},
             {
                 "Type Properties",
                 "type-properties",
@@ -363,7 +366,7 @@ let
     facts = {
         Fact(
             "split columns stay adjacent per path, and a type-only path emits only its prefixed column",
-            {"object_key", "Application ID", "Area", "Type_Area", "Type_TypeName", "Mark"},
+            {"Object Key", "Application ID", "Area", "Type_Area", "Type_TypeName", "Mark"},
             Table.ColumnNames(Result)
         ),
         Fact(
@@ -379,15 +382,15 @@ let
         Fact(
             "an explicit null instance row no longer hides the type value, which stays visible in the prefixed column",
             [Area = null, Type_Area = "type-area"],
-            [Area = Result{[object_key = 2]}[Area], Type_Area = Result{[object_key = 2]}[Type_Area]]
+            [Area = Result{[#"Object Key" = 2]}[Area], Type_Area = Result{[#"Object Key" = 2]}[Type_Area]]
         ),
         Fact(
             "raw Value columns are used for both instance and type facts",
             {"instance-area", "type-only", "instance-only"},
             {
-                Result{[object_key = 1]}[Area],
-                Result{[object_key = 1]}[Type_TypeName],
-                Result{[object_key = 4]}[Mark]
+                Result{[#"Object Key" = 1]}[Area],
+                Result{[#"Object Key" = 1]}[Type_TypeName],
+                Result{[#"Object Key" = 4]}[Mark]
             }
         ),
         Fact(
@@ -401,7 +404,7 @@ let
         Fact(
             "an empty normalized path list returns the exact Objects value without reading other navigation data",
             [
-                Columns = {"object_key", "Application ID"},
+                Columns = {"Object Key", "Application ID"},
                 Rows = {{1, "one"}, {2, "two"}, {3, "three"}, {4, "four"}},
                 Marker = "original Objects"
             ],
@@ -413,13 +416,13 @@ let
         ),
         Fact(
             "paths are trimmed and deduplicated ordinally",
-            {"object_key", "Application ID", "Area", "Type_Area"},
+            {"Object Key", "Application ID", "Area", "Type_Area"},
             Table.ColumnNames(NormalizedResult)
         ),
         Fact(
             "shortest unique suffixes extend leftward over the emitted names and preserve requested order",
             {
-                "object_key",
+                "Object Key",
                 "Application ID",
                 "Geometry.Dimensions.Area",
                 "Type_Quantities.Area",
@@ -431,17 +434,17 @@ let
         ),
         Fact(
             "an unprefixed path and a Type_-prefixed path sharing a resolved suffix do not collide",
-            {"object_key", "Application ID", "Area", "Type_Area"},
+            {"Object Key", "Application ID", "Area", "Type_Area"},
             Table.ColumnNames(NoCrossPrefixCollisionResult)
         ),
         Fact(
             "a genuine path resolving to a literal Type_ name collides with a prefixed name and grows",
-            {"object_key", "Application ID", "Dimensions.Area", "Type_Dimensions.Area", "Odd.Type_Area"},
+            {"Object Key", "Application ID", "Dimensions.Area", "Type_Dimensions.Area", "Odd.Type_Area"},
             Table.ColumnNames(LiteralPrefixCollisionResult)
         ),
         Fact(
             "a complete shorter path stays fixed while an ambiguous longer path extends leftward",
-            {"object_key", "Application ID", "Area", "properties.Area"},
+            {"Object Key", "Application ID", "Area", "properties.Area"},
             Table.ColumnNames(SuffixNamingResult)
         ),
         Fact(
@@ -470,7 +473,7 @@ let
         Fact(
             "unknown and differently-cased paths append null columns",
             [
-                Columns = {"object_key", "Application ID", "Area", "Value"},
+                Columns = {"Object Key", "Application ID", "Area", "Value"},
                 Values = {{null, null}, {null, null}, {null, null}, {null, null}}
             ],
             [
@@ -482,10 +485,21 @@ let
             "unresolvable Objects-column collisions use the new structured error",
             [
                 Reason = "Speckle.AddProperties.NameCollision",
-                PropertyPaths = {"object_key"},
-                ExistingColumns = {"object_key", "Application ID"}
+                PropertyPaths = {"Object Key"},
+                ExistingColumns = {"Object Key", "Application ID"}
             ],
             NameCollisionError
+        ),
+        Fact(
+            "the retired object_key spelling is not a fixed column: it emits an ordinary all-null property column instead of colliding",
+            [
+                Columns = {"Object Key", "Application ID", "object_key"},
+                Values = {null, null, null, null}
+            ],
+            [
+                Columns = Table.ColumnNames(SnakeCaseResult),
+                Values = Table.Column(SnakeCaseResult, "object_key")
+            ]
         ),
         Fact(
             "duplicate Object Types rows for present objects report every offending key while orphan rows are ignored",
@@ -505,7 +519,7 @@ let
         Fact(
             "Full path names every column with the entire dotted path, keeping the Type_ split",
             {
-                "object_key",
+                "Object Key",
                 "Application ID",
                 "properties.Dimensions.Area",
                 "Type_properties.Dimensions.Area",
@@ -523,7 +537,7 @@ let
             "columnNames matches case-insensitively in both modes",
             [
                 FullPath = {
-                    "object_key",
+                    "Object Key",
                     "Application ID",
                     "properties.Dimensions.Area",
                     "Type_properties.Dimensions.Area"
@@ -551,7 +565,7 @@ let
         ),
         Fact(
             "a valid columnNames with an empty selection still returns the exact Objects value",
-            [Columns = {"object_key", "Application ID"}, Marker = "original Objects"],
+            [Columns = {"Object Key", "Application ID"}, Marker = "original Objects"],
             [
                 Columns = Table.ColumnNames(EmptyFullPathResult),
                 Marker = try Value.Metadata(EmptyFullPathResult)[TestMarker] otherwise null

@@ -8,9 +8,11 @@
  * streams geometry waves as ranged reads over the socket. Nothing touches OPFS/duckdb —
  * the exact host this path was built for (opaque-origin sandboxed iframes).
  *
- * Identity: Power BI rows speak applicationId; the renderer + interactions layer speak
- * (modelId = versionId, dense objectIndex). The bridge between them is the per-version
- * objects dictionary read from `{versionId}.eav.objects.parquet` (see objectsDictionary).
+ * Identity: Power BI rows speak the connector's Object Key (canonical, resolved by pure
+ * arithmetic) or applicationId (compatibility); the renderer + interactions layer speak
+ * (modelId = versionId, dense objectIndex). In Application ID mode the bridge is the
+ * per-version objects dictionary read from `{versionId}.eav.objects.parquet` (see
+ * objectsDictionary); in Object Key mode no dictionary is needed.
  *
  * The emitter surface (IViewerEvents) is unchanged so visualStore / ViewerWrapper /
  * ViewerControls keep working untouched.
@@ -26,12 +28,23 @@ import {
   cameraStateOf,
   type CanonicalView
 } from '@src/viewer3/boot'
-import { buildArtifactsUrl, fetchArtifactsPayload } from '@src/viewer3/artifacts'
+import {
+  buildArtifactsUrl,
+  fetchArtifactsPayload,
+  type ArtifactFile
+} from '@src/viewer3/artifacts'
 import { loadRemoteOnly } from '@src/viewer3/remoteGeometry'
 import {
   loadObjectsDictionary,
   type ObjectsDictionary
 } from '@src/viewer3/objectsDictionary'
+import {
+  classifyIdentityMode,
+  describeObjectKeyIssues,
+  KEY_SPACE,
+  validateObjectKeys,
+  type IdMode
+} from '@src/utils/objectIdentity'
 import type { LoadProgress } from '@src/viewer3/loadProgress'
 import { useVisualStore } from '@src/store/visualStore'
 import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
@@ -44,9 +57,6 @@ const RESIDENCY_FRACTION = 0.75
 /** Must match visual.ts FETCH_FILTERED_MAX_ROWS — an id list at this size means even
  *  the fetchMoreData paging budget was exhausted (pathologically large filter result). */
 const DATAVIEW_ROW_CAP = 1000000
-
-/** The connector's federation namespace: object_key = ordinal * 2^32 + object_index. */
-const KEY_SPACE = 4294967296
 
 export interface Hit {
   guid: string
@@ -69,6 +79,7 @@ export interface IViewerEvents {
   resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   setViewMode: (viewMode: number, options?: ViewModeOptions) => void
+  setIdMode: (mode: IdMode | null) => void
   colorObjectsByGroup: (
     colorById: {
       objectIds: string[]
@@ -116,7 +127,7 @@ export class ViewerHandler {
       return this.interactions
         .getSnapshot()
         .selection.map((ref) => {
-          const id = this.applicationIdOf(ref)
+          const id = this.boundIdOf(ref)
           return id ? { id } : null
         })
         .filter((x): x is { id: string } => x !== null)
@@ -127,15 +138,21 @@ export class ViewerHandler {
   private canvas: HTMLCanvasElement | null = null
   /** renderer model id (`bundle_${versionId}`) → applicationId dictionary. */
   private dictionaries = new Map<string, ObjectsDictionary>()
+  /** artifacts payload files per loaded model, so a rebind INTO Application ID
+   *  mode can download the dictionary without reloading the model. */
+  private artifactFilesByModelId = new Map<string, ArtifactFile[]>()
   private loadedModelIds: string[] = []
   /**
    * Identity mode of the bound id column. 'objectKey': the well carries the
-   * connector's dense int (ordinal*2^32 + object_index) — resolution is pure
-   * arithmetic, no dictionary download at all. 'applicationId': GUID strings,
-   * resolved through the eav.objects.parquet dictionary (legacy binding).
+   * connector's dense Object Key (ordinal*2^32 + object_index) — resolution is
+   * pure arithmetic, no dictionary download at all. 'applicationId': GUID
+   * strings, resolved through the eav.objects.parquet dictionary
+   * (compatibility binding). Resolved per data input (metadata-led, see
+   * objectIdentity.ts) and carried in via the setIdMode event; 'unknown' only
+   * before the first classified input arrives.
    */
-  private idMode: 'unknown' | 'objectKey' | 'applicationId' = 'unknown'
-  /** federation ordinal ↔ renderer model id, for object_key arithmetic. */
+  private idMode: 'unknown' | IdMode = 'unknown'
+  /** federation ordinal ↔ renderer model id, for Object Key arithmetic. */
   private ordinalToModelId = new Map<number, string>()
   private modelIdToOrdinal = new Map<string, number>()
   private projectionMode: 'perspective' | 'orthographic' = 'perspective'
@@ -163,6 +180,7 @@ export class ViewerHandler {
     this.emitter.on('resetFilter', this.resetFilter)
     this.emitter.on('setSelection', this.selectObjects)
     this.emitter.on('setViewMode', this.setViewMode)
+    this.emitter.on('setIdMode', this.setIdMode)
     this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
     this.emitter.on('isolateObjects', this.isolateObjects)
     this.emitter.on('unIsolateObjects', this.unIsolateObjects)
@@ -273,18 +291,68 @@ export class ViewerHandler {
 
   // ── id translation ─────────────────────────────────────────────────────────
 
-  /** Lock the id mode on first sight of a bound id (numeric = object_key). */
-  private detectIdMode(sample: string | undefined) {
-    if (this.idMode !== 'unknown' || sample === undefined) return
-    this.idMode = /^\d+$/.test(sample) ? 'objectKey' : 'applicationId'
-    useVisualStore().pushDiagEvent(
-      this.idMode === 'objectKey'
-        ? 'id mode: object_key — arithmetic resolution, no dictionary needed'
+  /**
+   * The resolved identity mode of the current data input, carried with every
+   * viewer update (the store emits it before filters/colors). Rebinding the
+   * same model/version between Object Key and Application ID switches modes
+   * here immediately — the mode is NOT locked to the last model-version load.
+   * Switching INTO Application ID mode downloads any missing dictionaries;
+   * Object Key mode keeps its no-dictionary fast path.
+   */
+  public setIdMode = (mode: IdMode | null) => {
+    if (mode === null || mode === this.idMode) return
+    this.idMode = mode
+    const store = useVisualStore()
+    store.pushDiagEvent(
+      mode === 'objectKey'
+        ? 'id mode: Object Key — arithmetic resolution, no dictionary needed'
         : 'id mode: Application ID — dictionary resolution'
     )
+    if (mode === 'applicationId') {
+      // The filter/color emits accompanying this mode switch resolve against
+      // whatever dictionaries exist RIGHT NOW (missing ones fail open) — once
+      // the downloads land, replay the current input through the same
+      // objectsLoaded lifecycle the model-load path uses.
+      void this.ensureDictionaries().then((loadedAny) => {
+        if (loadedAny) this.emit('objectsLoaded')
+      })
+    }
   }
 
-  private applicationIdOf(ref: ObjectRef): string | null {
+  /** Download dictionaries missing for already-loaded models (a rebind into
+   *  Application ID mode after an Object Key load skipped them). Returns
+   *  whether any dictionary was newly loaded, so the caller knows a replay of
+   *  the current input is needed. */
+  private async ensureDictionaries(): Promise<boolean> {
+    const store = useVisualStore()
+    let loadedAny = false
+    for (const rendererModelId of [...this.loadedModelIds]) {
+      if (this.dictionaries.has(rendererModelId)) continue
+      const files = this.artifactFilesByModelId.get(rendererModelId)
+      if (!files) continue
+      try {
+        const dictionary = await loadObjectsDictionary(files)
+        // a version reload may have swapped models while the fetch was in
+        // flight — never register a dictionary for an unloaded model
+        if (!this.loadedModelIds.includes(rendererModelId)) continue
+        this.dictionaries.set(rendererModelId, dictionary)
+        loadedAny = true
+        store.pushDiagEvent(
+          `objects dictionary for ${rendererModelId}: ` +
+            `${dictionary.toIndex.size} applicationIds mapped (loaded on mode switch)`
+        )
+      } catch (err) {
+        console.error(`objects dictionary failed for ${rendererModelId} on mode switch`, err)
+        store.pushDiagEvent(
+          `objects dictionary FAILED for ${rendererModelId} — selection/coloring degraded`
+        )
+      }
+    }
+    return loadedAny
+  }
+
+  /** ref → the currently bound identity (Object Key text or applicationId). */
+  private boundIdOf(ref: ObjectRef): string | null {
     if (this.idMode === 'objectKey') {
       const ordinal = this.modelIdToOrdinal.get(ref.modelId)
       if (ordinal === undefined) return null
@@ -295,25 +363,29 @@ export class ViewerHandler {
 
   /** bound ids → per-model dense-index groups, across every loaded model. */
   private toGroups(objectIds: string[]): ObjectGroup[] {
-    this.detectIdMode(objectIds[0])
+    if (this.idMode === 'unknown') {
+      // final fallback: no classified input reached us yet (metadata and field
+      // identity unusable) — inspect the first value
+      const fallback = classifyIdentityMode(null, objectIds[0])
+      if (fallback === null) return []
+      this.setIdMode(fallback)
+    }
     if (this.idMode === 'objectKey') {
-      const byModel = new Map<string, number[]>()
-      for (const raw of objectIds) {
-        const key = Number(raw)
-        if (!Number.isFinite(key)) continue
-        const modelId = this.ordinalToModelId.get(Math.floor(key / KEY_SPACE))
-        if (!modelId) continue
-        let indexes = byModel.get(modelId)
-        if (!indexes) {
-          indexes = []
-          byModel.set(modelId, indexes)
-        }
-        indexes.push(key % KEY_SPACE)
+      const { byOrdinal, issues } = validateObjectKeys(
+        objectIds,
+        new Set(this.ordinalToModelId.keys())
+      )
+      const diagnosis = describeObjectKeyIssues(issues, objectIds.length)
+      if (diagnosis) {
+        console.warn(`[viewer3] ${diagnosis}`)
+        useVisualStore().pushDiagEvent(diagnosis)
       }
-      return [...byModel.entries()].map(([modelId, objectIndexes]) => ({
-        modelId,
-        objectIndexes
-      }))
+      const groups: ObjectGroup[] = []
+      for (const [ordinal, objectIndexes] of byOrdinal) {
+        const modelId = this.ordinalToModelId.get(ordinal)
+        if (modelId) groups.push({ modelId, objectIndexes })
+      }
+      return groups
     }
     const groups: ObjectGroup[] = []
     for (const [modelId, dict] of this.dictionaries) {
@@ -556,14 +628,14 @@ export class ViewerHandler {
     for (const rendererModelId of this.loadedModelIds) renderer.removeModel(rendererModelId)
     this.loadedModelIds = []
     this.dictionaries.clear()
+    this.artifactFilesByModelId.clear()
     this.ordinalToModelId.clear()
     this.modelIdToOrdinal.clear()
-    this.idMode = 'unknown'
     // per-load streaming counter: the renderer's totalMB never resets — rebaseline
     this.streamBaselineMB = this.lastStreamTotalMB
 
     // federation ordinal = position in the FULL models list (the connector's
-    // keyOffset uses the same index) — needed for object_key arithmetic
+    // keyOffset uses the same index) — needed for Object Key arithmetic
     models.forEach((m, ordinal) => {
       if (m.pipeline !== 'artifact') return
       const rendererModelId = `bundle_${m.versionId}`
@@ -571,16 +643,18 @@ export class ViewerHandler {
       this.modelIdToOrdinal.set(rendererModelId, ordinal)
     })
 
-    // Peek at the bound ids: numeric object_key binding needs NO dictionary —
-    // skip the eav.objects.parquet download (tens of MB + ~300MB of Map heap on
-    // whale models) entirely.
-    const sampleBoundId = store.dataInput?.objectIds?.[0]
-    const objectKeyBinding =
-      sampleBoundId !== undefined && /^\d+$/.test(String(sampleBoundId))
-    if (objectKeyBinding) {
-      this.idMode = 'objectKey'
-      store.pushDiagEvent('object_key binding detected — skipping dictionary download')
-    }
+    // The identity mode resolved at parse time (metadata-led, see
+    // objectIdentity.ts) rides on the data input. An Object Key binding needs
+    // NO dictionary — skip the eav.objects.parquet download (tens of MB +
+    // ~300MB of Map heap on whale models) entirely; anything else (Application
+    // ID or undecided) keeps the dictionary path.
+    this.idMode = store.dataInput?.idMode ?? 'unknown'
+    const objectKeyBinding = this.idMode === 'objectKey'
+    store.pushDiagEvent(
+      objectKeyBinding
+        ? 'id mode: Object Key — skipping dictionary download'
+        : `id mode: ${this.idMode === 'applicationId' ? 'Application ID' : 'undecided'} — dictionary download enabled`
+    )
 
     // legacy-pipeline models can't be rendered by the artifact loader; the UI
     // explains this (see ViewerWrapper) — only artifact models are loaded
@@ -623,8 +697,12 @@ export class ViewerHandler {
         continue
       }
 
+      // The files list also serves a later rebind INTO Application ID mode
+      // (ensureDictionaries) without reloading the model.
+      this.artifactFilesByModelId.set(`bundle_${model.versionId}`, payload.files)
+
       // The applicationId dictionary rides alongside the paint — both only need the
-      // artifacts payload. Not needed at all under an object_key binding.
+      // artifacts payload. Not needed at all under an Object Key binding.
       const dictionaryPromise = objectKeyBinding ? null : loadObjectsDictionary(payload.files)
 
       store.setLoadingProgress('Streaming geometry', null)
@@ -643,7 +721,7 @@ export class ViewerHandler {
         const msg = err instanceof Error ? err.message : String(err)
         console.error(`[viewer3] remote stream failed for ${model.versionId}`, err)
         store.setLoadingProgress(`Stream failed: ${msg}`, null)
-        void dictionaryPromise.catch(() => undefined)
+        void dictionaryPromise?.catch(() => undefined)
         continue
       }
       // The renderer registers the model under `bundle_${versionId}` (its internal
@@ -752,7 +830,7 @@ export class ViewerHandler {
       const objectIndex = maps?.placementObjectIdx[pick.placementIndex]
       const appId =
         objectIndex !== undefined
-          ? this.applicationIdOf({ modelId: payload.modelId, objectIndex })
+          ? this.boundIdOf({ modelId: payload.modelId, objectIndex })
           : null
       if (appId) {
         hit = {

@@ -11,7 +11,7 @@
     "build": "webpack --config webpack.config.ts",
     "build:dev": "webpack --config webpack.config.dev.ts",
     "dev": "webpack-dev-server --config webpack.config.dev.ts",
-    "test": "ts-node --project test/tsconfig.json test/matrixSignature.test.ts && ts-node --project test/tsconfig.json test/colorOverrides.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/viewerInitialization.test.ts && ts-node --project test/tsconfig.viewer3.json test/modelReadyColorReplay.test.ts"
+    "test": "ts-node --project test/tsconfig.json test/matrixSignature.test.ts && ts-node --project test/tsconfig.json test/colorOverrides.test.ts && ts-node --project test/tsconfig.json test/objectIdentity.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/viewerInitialization.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/idModeLifecycle.test.ts && ts-node --project test/tsconfig.viewer3.json test/modelReadyColorReplay.test.ts"
   },
   "dependencies": {
     "@heroicons/vue": "^2.0.12",

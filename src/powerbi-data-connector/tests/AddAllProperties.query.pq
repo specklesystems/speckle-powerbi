@@ -43,15 +43,15 @@ let
         ),
 
     Objects = #table(
-        type table [object_key = Int64.Type, #"Application ID" = text],
+        type table [#"Object Key" = Int64.Type, #"Application ID" = text],
         {{1, "one"}, {2, "two"}, {3, "three"}}
     ),
     Properties = #table(
-        type table [object_key = Int64.Type, path_key = Int64.Type, Value = any],
+        type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
         {{1, 10, "instance-area"}, {2, 10, null}}
     ),
     ObjectTypes = #table(
-        type table [object_key = Int64.Type, type_key = Int64.Type],
+        type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
         {{1, 100}, {2, 100}}
     ),
     TypeProperties = #table(
@@ -118,9 +118,9 @@ let
         )
     ),
     WideSource = Navigation(
-        #table(type table [object_key = Int64.Type], {{1}}),
-        #table(type table [object_key = Int64.Type, path_key = Int64.Type, Value = any], {}),
-        #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}),
+        #table(type table [#"Object Key" = Int64.Type], {{1}}),
+        #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+        #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
         #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {}),
         WidePaths
     ),
@@ -136,7 +136,7 @@ let
     facts = {
         Fact(
             "every path is appended in path-table order with type-backed paths Type_-prefixed, and prefixed variants sharing a suffix still grow both paths",
-            {"object_key", "Application ID", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"},
+            {"Object Key", "Application ID", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"},
             Table.ColumnNames(Result)
         ),
         Fact(
@@ -149,7 +149,7 @@ let
             Table.ToRows(
                 Table.SelectColumns(
                     Result,
-                    {"object_key", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"}
+                    {"Object Key", "Zeta.Area", "Type_Zeta.Area", "Type_Alpha.Area", "Value"}
                 )
             )
         ),
@@ -169,7 +169,7 @@ let
         Fact(
             "an empty paths table returns the exact Objects value without reading fact tables",
             [
-                Columns = {"object_key", "Application ID"},
+                Columns = {"Object Key", "Application ID"},
                 Rows = {{1, "one"}, {2, "two"}, {3, "three"}},
                 Marker = "empty paths Objects"
             ],
@@ -187,7 +187,7 @@ let
         Fact(
             "columnNames forwards to AddProperties: Full path names every column with the entire dotted path",
             {
-                "object_key",
+                "Object Key",
                 "Application ID",
                 "properties.Zeta.Area",
                 "Type_properties.Zeta.Area",

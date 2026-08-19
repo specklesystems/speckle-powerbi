@@ -80,26 +80,26 @@
         // object that is present in Objects is invalid, even if the rows match.
         bridgeRows = Table.RemoveColumns(
             Table.NestedJoin(
-                Table.SelectColumns(objectTypes, {"object_key", "type_key"}),
-                {"object_key"},
-                Table.SelectColumns(objects, {"object_key"}), {"object_key"},
+                Table.SelectColumns(objectTypes, {"Object Key", "type_key"}),
+                {"Object Key"},
+                Table.SelectColumns(objects, {"Object Key"}), {"Object Key"},
                 "__obj", JoinKind.Inner
             ),
             {"__obj"}
         ),
         duplicateObjectKeys = Table.Column(
             Table.SelectRows(
-                Table.Group(bridgeRows, {"object_key"}, {{"__count", Table.RowCount, Int64.Type}}),
+                Table.Group(bridgeRows, {"Object Key"}, {{"__count", Table.RowCount, Int64.Type}}),
                 each [__count] > 1
             ),
-            "object_key"
+            "Object Key"
         ),
         validatedBridge = if List.IsEmpty(duplicateObjectKeys) then
             bridgeRows
         else
             error Error.Record(
                 "Speckle.AddProperties.InvalidObjectTypes",
-                "Object Types must contain at most one row per object. Repeated object_key values: "
+                "Object Types must contain at most one row per object. Repeated Object Key values: "
                     & Text.Combine(List.Transform(duplicateObjectKeys, each Text.From(_)), ", ")
                     & ".",
                 [ObjectKeys = duplicateObjectKeys]
@@ -124,7 +124,7 @@
                 ),
                 "__wantedPath", {"Property"}, {"__property"}
             ),
-        instanceValues = SelectRequestedPropertyValues(properties, "object_key"),
+        instanceValues = SelectRequestedPropertyValues(properties, "Object Key"),
         requestedTypeValues = SelectRequestedPropertyValues(typeProperties, "type_key"),
         projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
@@ -236,7 +236,7 @@
                 else
                     candidates,
         // "Full path" seeds every depth at its maximum: names cannot grow, so
-        // residual collisions (a literal object_key path, a literal Type_*
+        // residual collisions (a literal Object Key path, a literal Type_*
         // path) fail through the same NameCollision error instead of renaming
         outputNames = ResolveNames(
             if useFullPaths then
@@ -270,20 +270,20 @@
                 RenameToEmittedColumn(instanceValues, instanceColumnNames),
                 RenameToEmittedColumn(projectedTypeValues, typeColumnNames)
             }),
-            {"object_key", "Value", "__property"}
+            {"Object Key", "Value", "__property"}
         ),
         propertyValuesByObject = Table.Group(
             emittedValues,
-            {"object_key"},
-            // Duplicate (object_key, path_key) facts on either side
+            {"Object Key"},
+            // Duplicate (Object Key, path_key) facts on either side
             // intentionally reach record construction and fail rather than
             // being silently selected.
             {{"__props", each Record.FromList([Value], [__property]), type record}}
         ),
         withProperties = Table.ExpandTableColumn(
             Table.NestedJoin(
-                objects, {"object_key"},
-                propertyValuesByObject, {"object_key"},
+                objects, {"Object Key"},
+                propertyValuesByObject, {"Object Key"},
                 "__group", JoinKind.LeftOuter
             ),
             "__group", {"__props"}, {"__props"}

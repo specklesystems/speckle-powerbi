@@ -328,9 +328,9 @@ shared Speckle.GetTables = Value.ReplaceType(
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
         Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. With the default Simplified table layout the Navigator lists two entries:#(lf)
-            - Objects (object_key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
-            - Properties (function) — returns a lean table of object_key plus the selected property columns, one row per Objects row#(lf)
-            Invoke Properties into its own query, load that result and relate it one-to-one to Objects on object_key; keep Properties connection-only.#(lf)
+            - Objects (Object Key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
+            - Properties (function) — returns a lean table of Object Key plus the selected property columns, one row per Objects row#(lf)
+            Invoke Properties into its own query, load that result and relate it one-to-one to Objects on Object Key; keep Properties connection-only.#(lf)
             Selecting all properties can significantly increase refresh time and table width.#(lf)
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
             Column names default to the shortest unique trailing part of each dotted path; the optional Column names setting (Shortest / Full path) switches to entire paths.#(lf)

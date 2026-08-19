@@ -13,6 +13,7 @@ import {
 } from './colorOverrides'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
+import { classifyIdentityMode, IdentityColumnMetadata } from './objectIdentity'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
 import { useUpdateConnector } from '@src/composables/useUpdateConnector'
 import { decodeModelInfos, DecodedModelInfo } from './decodeUserInfo'
@@ -73,6 +74,28 @@ export function validateMatrixView(options: VisualUpdateOptions): FieldInputStat
   }
 }
 
+/**
+ * The bound identity column's metadata from the matrix rows levels — feeds the
+ * metadata-led identity-mode decision (numeric → Object Key arithmetic, text →
+ * Application ID dictionary; see classifyIdentityMode for the precedence).
+ */
+export function getIdentityColumnMetadata(
+  matrixView: powerbi.DataViewMatrix
+): IdentityColumnMetadata | null {
+  for (const level of matrixView.rows.levels) {
+    for (const source of level.sources) {
+      if (source.roles?.['applicationIds']) {
+        return {
+          isNumeric: source.type?.numeric === true,
+          isText: source.type?.text === true,
+          displayName: source.displayName
+        }
+      }
+    }
+  }
+  return null
+}
+
 function processObjectValues(
   objectIdChild: powerbi.DataViewMatrixNode,
   matrixView: powerbi.DataViewMatrix
@@ -125,7 +148,7 @@ function processObjectNode(
   selectionId: powerbi.visuals.ISelectionId
   color?: string
 } {
-  // object_key mode delivers numbers — identity keys are strings everywhere downstream
+  // Object Key mode delivers numbers — identity keys are strings everywhere downstream
   const objId = String(objectIdChild.value)
   // Create selection IDs for each object
   const nodeSelection = host
@@ -253,6 +276,7 @@ export async function processMatrixView(
       modelInfos: [],
       versionKey: '',
       hasLegacyModels: false,
+      idMode: null,
       objectIds: [],
       selectedIds: [],
       colorByIds: null,
@@ -387,6 +411,9 @@ export async function processMatrixView(
     modelInfos,
     versionKey,
     hasLegacyModels,
+    // metadata-led decision; value inspection of the first bound id only as
+    // the final fallback (numeric-looking TEXT Application IDs stay text)
+    idMode: classifyIdentityMode(getIdentityColumnMetadata(matrixView), objectIds[0]),
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,

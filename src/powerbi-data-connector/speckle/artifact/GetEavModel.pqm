@@ -5,11 +5,11 @@
 //
 // Returns a record of tables (record fields are lazy — flat shapes only
 // evaluate when their navigation entry is opened):
-//   Objects           object_key | Application ID                (dimension; feeds the 3D visual)
-//   Properties        object_key | path_key | Value Text | Value Number | Value Bool | Value
+//   Objects           Object Key | Application ID                (dimension; feeds the 3D visual)
+//   Properties        Object Key | path_key | Value Text | Value Number | Value Bool | Value
 //                     (INSTANCE property fact — type params deliberately NOT projected in)
 //   Paths             path_key | Property                        (dimension)
-//   ObjectTypes       object_key | type_key                      (bridge; empty when bundle has no types)
+//   ObjectTypes       Object Key | type_key                      (bridge; empty when bundle has no types)
 //   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
 //
 // Every table carries dense-int keys so model relationships join on ints
@@ -42,7 +42,7 @@
         reservedNames = {
             "Application ID", "Property", "Value", "Model Info", "Source Model",
             "Value Text", "Value Number", "Value Bool",
-            "object_index", "application_id", "object_key", "path_key", "value"
+            "object_index", "application_id", "Object Key", "object_key", "path_key", "value"
         },
         paths = Table.Buffer(
             Table.TransformColumns(
@@ -75,12 +75,12 @@
         // ---- star tables -----------------------------------------------------
         objectsTable = Table.TransformColumnTypes(
             Table.RenameColumns(
-                Table.AddColumn(objects, "object_key", each [object_index] + keyOffset, Int64.Type),
+                Table.AddColumn(objects, "Object Key", each [object_index] + keyOffset, Int64.Type),
                 {{"application_id", "Application ID"}}
             ),
             {{"Application ID", type text}}
         ),
-        ObjectsOut = Table.SelectColumns(objectsTable, {"object_key", "Application ID"}),
+        ObjectsOut = Table.SelectColumns(objectsTable, {"Object Key", "Application ID"}),
 
         PathsOut = Table.TransformColumnTypes(
             Table.SelectColumns(
@@ -129,7 +129,7 @@
                     }
                 ),
 
-        PropertiesOut = ShapeValueFact(fact, "object_key", "object_index"),
+        PropertiesOut = ShapeValueFact(fact, "Object Key", "object_index"),
 
         // ---- the type arm: deduped, tiny, resolved by relationships ----------
         // Object Types bridge (one row per object with a type) + Type Properties
@@ -142,16 +142,16 @@
                 Table.SelectColumns(
                     Table.AddColumn(
                         Table.AddColumn(
-                            objectType, "object_key", each [object_index] + keyOffset, Int64.Type
+                            objectType, "Object Key", each [object_index] + keyOffset, Int64.Type
                         ),
                         "type_key", each [type_index] + keyOffset, Int64.Type
                     ),
-                    {"object_key", "type_key"}
+                    {"Object Key", "type_key"}
                 ),
                 {}
             )
         else
-            #table(type table [object_key = Int64.Type, type_key = Int64.Type], {}),
+            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
 
         TypePropertiesOut = if hasTypes then
             ShapeValueFact(

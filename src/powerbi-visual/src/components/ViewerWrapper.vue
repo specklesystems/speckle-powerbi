@@ -60,7 +60,7 @@
       class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
       :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
-      <strong>Application IDs</strong>
+      <strong>Object Keys</strong>
       field is needed for interactivity with other visuals.
     </div>
 

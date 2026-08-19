@@ -83,17 +83,21 @@ let
             Table.Column(starBothAllTables, "Name")),
         Fact("GetTables(both) exposes Properties as a function", true,
             Value.Is(starExpand, type function)),
-        Fact("Properties(null) returns an object_key-only table with every object",
-            [Columns = {"object_key"}, Rows = Table.RowCount(starObjects)],
+        Fact("Properties(null) returns an Object Key-only table with every object",
+            [Columns = {"Object Key"}, Rows = Table.RowCount(starObjects)],
             [
                 Columns = Table.ColumnNames(starExpand(null)),
                 Rows = Table.RowCount(starExpand(null))
             ]),
-        Fact("Properties returns object_key plus the selected property while preserving all rows", true,
+        Fact("Properties returns Object Key plus the selected property while preserving all rows", true,
             Table.RowCount(starExpanded) = Table.RowCount(starObjects)
-                and List.First(Table.ColumnNames(starExpanded)) = "object_key"
+                and List.First(Table.ColumnNames(starExpanded)) = "Object Key"
                 and not List.Contains(Table.ColumnNames(starExpanded), "Application ID")
+                and not List.Contains(Table.ColumnNames(starExpanded), "object_key")
                 and Table.ColumnCount(starExpanded) >= 2),
+        Fact("Objects carries Object Key with no object_key alias", true,
+            List.ContainsAll(Table.ColumnNames(starObjects), {"Object Key", "Application ID"})
+                and not List.Contains(Table.ColumnNames(starObjects), "object_key")),
 
         // JSON only — force a known table row: the Data column also carries
         // the Properties function, so combining every Data value would

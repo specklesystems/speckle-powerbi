@@ -19,6 +19,12 @@ listing the failed facts.
 - `Legacy.Shapes.query.pq` — the restored legacy data-shaping helpers against
   legacy-shaped inputs (the flat shapes returned by `Speckle.GetByUrl`).
   These helpers are not expected to accept `Speckle.GetTables` output.
+- `GetEavModel.query.pq` — the star-schema shaping seam with an injected
+  `ReadBundleTable`: every keyed table carries the canonical `Object Key`
+  column (Int64, keyOffset-namespaced, row order preserved, no `object_key`
+  alias), raw artifact fields (`object_index`, `application_id`) stay raw,
+  `path_key`/`type_key` are unrenamed, and property paths spelled like either
+  literal key name are suffixed with `" (property)"`.
 - `AddProperties.query.pq` — the unified property enrichment helper against
   in-memory star-schema navigation tables, including source-split columns
   (instance values unprefixed, type values `Type_`-prefixed, instance
@@ -43,7 +49,7 @@ listing the failed facts.
   `Shortest` / `Full path` `AllowedValues`), zero required arity,
   `Properties` documentation, deduplicated
   catalogue-ordered `AllowedValues`, table return type, the lean
-  relationship-ready result (`object_key` plus the selected property columns,
+  relationship-ready result (`Object Key` plus the selected property columns,
   every Objects row retained in order with its key type), empty-selection
   laziness (fact tables are never forced), selection trimming/ordering,
   disappeared-path null columns, collision detection against the lean base

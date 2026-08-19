@@ -238,7 +238,7 @@
 
         // combines per-model tables and assembles the navigation table.
         // Recommended PBI relationships: Objects 1-* Property Values *-1
-        // Property Paths on object_key / path_key.
+        // Property Paths on Object Key / path_key.
         BuildResult = (modelsData as list, addSourceModel as logical) as table =>
             let
                 // delimiter chosen to avoid conflicts with base64 characters

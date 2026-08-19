@@ -417,7 +417,7 @@ export class Visual implements IVisual {
       console.warn('Input not valid:', (e as Error).message)
       this.host.displayWarningIcon(
         `Incomplete data input.`,
-        `"Model Info" and "Application IDs" data inputs are mandatory. If your data connector does not output these columns, please update it to Speckle connector 4.x.`
+        `"Model Info" and "Object Keys" data inputs are mandatory (bind Objects[Object Key]). If your data connector does not output these columns, please update it to Speckle connector 4.x.`
       )
       visualStore.setFieldInputState({
         modelInfo: false,

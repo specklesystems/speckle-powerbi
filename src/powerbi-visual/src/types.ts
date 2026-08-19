@@ -1,5 +1,6 @@
 import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
 import { ColorByCategory } from '@src/utils/colorOverrides'
+import { IdMode } from '@src/utils/objectIdentity'
 
 /** Stable identity of the connected Color By column. */
 export interface ColorByFieldIdentity {
@@ -26,7 +27,14 @@ export interface SpeckleDataInput {
   versionKey: string
   /** true when at least one model came through the legacy (pre-4.0) pipeline */
   hasLegacyModels: boolean
-  /** applicationIds of all data rows */
+  /**
+   * Identity mode of the bound id column, resolved from column metadata (with
+   * name/value fallbacks) at parse time. Carried with every processed input so
+   * the viewer can switch modes on a same-version rebind. Null when
+   * undecidable (no metadata, no recognizable name, no values).
+   */
+  idMode: IdMode | null
+  /** bound identity values (Object Keys or Application IDs) of all data rows */
   objectIds: string[]
   selectedIds: string[]
   colorByIds: { objectIds: string[]; color: string }[] | null
