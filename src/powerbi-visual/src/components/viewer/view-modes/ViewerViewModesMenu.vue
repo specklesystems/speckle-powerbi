@@ -1,6 +1,6 @@
 <!-- eslint-disable vuejs-accessibility/no-static-element-interactions -->
 <template>
-  <div class="absolute left-10 sm:left-[46px] -top-0 bg-foundation rounded-md border border-outline-2 shadow min-w-[180px] z-30">
+  <div class="absolute left-full top-0 ml-2 bg-foundation rounded-lg border border-outline-2 shadow-sm min-w-[180px] z-30">
     <!-- Header -->
     <div class="px-2 py-1.5 border-b border-outline-2">
       <span class="text-body-2xs font-medium text-foreground">View modes</span>

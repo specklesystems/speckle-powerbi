@@ -118,7 +118,11 @@ export class Visual implements IVisual {
         .use(pinia)
         .use(VueTippy, {
           defaultProps: {
-            theme: 'custom'
+            theme: 'custom',
+            // no tippy.css in the bundle, so the default arrow has no styling
+            arrow: false,
+            offset: [0, 8],
+            delay: [300, 0]
           }
         })
         .provide(selectionHandlerKey, this.selectionHandler)

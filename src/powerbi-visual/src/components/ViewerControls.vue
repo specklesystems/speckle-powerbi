@@ -1,21 +1,21 @@
 <template>
-  <div class="space-y-2">
+  <div class="flex items-start">
     <ViewerControlsButtonGroup>
-      <!-- Zoom extend -->
-      <ViewerControlsButtonToggle flat tooltip="Zoom extends" @click="onZoomExtentsClicked">
-        <ArrowsPointingOutIcon class="h-4 w-4 md:h-5 md:w-5" />
+      <!-- Zoom extents -->
+      <ViewerControlsButtonToggle tooltip="Zoom extents" @click="onZoomExtentsClicked">
+        <IconFocus class="h-4 w-4" />
       </ViewerControlsButtonToggle>
-    </ViewerControlsButtonGroup>
-    <ViewerControlsButtonGroup>
+      <!-- -mx-1 bleeds the rule through the pill's padding so it cuts edge to
+           edge; dimmed a notch so it reads as a group break, not the border -->
+      <div class="-mx-1 self-stretch border-t border-outline-2 opacity-60" aria-hidden="true" />
       <!-- View Modes Toggle -->
       <div class="relative">
         <ViewerControlsButtonToggle
-          flat
           tooltip="View modes"
           :active="viewModesOpen"
           @click="toggleActiveControl('viewModes')"
         >
-          <ViewModesIcon class="h-5 w-5" />
+          <ViewModesIcon class="h-4 w-4" />
         </ViewerControlsButtonToggle>
         <!-- View Modes Panel (shown when glasses icon is clicked) -->
         <ViewerViewModesMenu
@@ -31,25 +31,18 @@
         @view-clicked="(view) => $emit('view-clicked', view)"
       />
       <!-- Section box -->
-      <div class="relative">
-        <ViewerControlsButtonToggle
-          flat
-          tooltip="Section box"
-          @click="$emit('update:sectionBox')"
-        >
-          <ScissorsIcon class="h-4 w-4 md:h-5 md:w-5" />
-        </ViewerControlsButtonToggle>
-        <span
-          v-if="sectionBox"
-          class="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary pointer-events-none"
-        />
-      </div>
+      <ViewerControlsButtonToggle
+        tooltip="Section box"
+        :active="sectionBox"
+        @click="$emit('update:sectionBox')"
+      >
+        <IconScissors class="h-4 w-4" />
+      </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowsPointingOutIcon, ScissorsIcon } from '@heroicons/vue/24/solid'
 import { CanonicalView, SpeckleView, ViewMode } from '@src/viewer3/compatTypes'
 import { computed, ref } from 'vue'
 import { useVisualStore } from '@src/store/visualStore'
@@ -59,6 +52,8 @@ import ViewerControlsButtonToggle from './viewer/controls/ViewerControlsButtonTo
 import ViewerCameraMenu from './viewer/camera/ViewerCameraMenu.vue'
 import ViewerViewModesMenu from './viewer/view-modes/ViewerViewModesMenu.vue'
 
+import IconFocus from '../components/global/icon/lucide/Focus.vue'
+import IconScissors from '../components/global/icon/lucide/Scissors.vue'
 import ViewModesIcon from '../components/global/icon/ViewModes.vue'
 import type { ViewModeOptions } from '@src/plugins/viewer'
 

@@ -35,10 +35,21 @@ onMounted(() => {
 </script>
 
 <style>
+/* Self-contained theme (tippy.js/dist/tippy.css is never imported): mirrors
+   frontend-3's tooltip chrome — white chip, 12px text, 1px ring, soft shadow */
 .tippy-box[data-theme~='custom'] {
-  font-size: 10px;
-  padding: 0px 0px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
   border-radius: 4px;
+  box-shadow:
+    0 0 0 1px #dfdfdf,
+    0 1px 2px 0 rgb(0 0 0 / 0.05);
   text-align: center;
+}
+.tippy-box[data-theme~='custom'] .tippy-content {
+  padding: 4px 8px;
 }
 </style>

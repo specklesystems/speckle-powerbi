@@ -1,7 +1,7 @@
 <template>
-  <ViewerMenu v-model:open="open">
+  <ViewerMenu v-model:open="open" tooltip="Camera">
     <template #trigger-icon>
-      <VideoCameraIcon class="w-5 h-5" />
+      <IconVideo class="h-4 w-4" />
     </template>
     <template #title>Camera</template>
     <div class="flex flex-col p-1.5 min-w-[180px] space-y-0.5">
@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { VideoCameraIcon } from '@heroicons/vue/24/outline'
+import IconVideo from '../../global/icon/lucide/Video.vue'
 import type { CanonicalView, SpeckleView } from '@src/viewer3/compatTypes'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerMenu from '../menu/ViewerMenu.vue'
