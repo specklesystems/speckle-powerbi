@@ -139,7 +139,7 @@
     </div>
 
     <div
-      class="absolute z-10 flex items-center text-xs cursor-pointer"
+      class="absolute z-10 flex items-center text-xs cursor-pointer font-inter"
       :class="visualStore.isBrandingHidden ? 'bottom-0 right-0' : 'bottom-2 right-2'"
       @click.stop="goToSpeckleWebsite"
     >
@@ -147,11 +147,10 @@
       <transition name="fade-bottom">
         <div
           v-if="!visualStore.isBrandingHidden"
-          class="flex items-center justify-center font-thin"
+          class="flex items-center justify-center text-zinc-600"
         >
-          <div class="">Powered by</div>
-          <img class="w-4 h-auto mx-1" src="@assets/logo-big.png" />
-          <div class="font-medium">Speckle</div>
+          <div>Powered by</div>
+          <img class="h-5 w-auto ml-1.5" src="@assets/logo-full.svg" alt="Speckle" />
         </div>
       </transition>
       <button

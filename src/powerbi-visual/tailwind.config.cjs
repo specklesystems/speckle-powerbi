@@ -74,9 +74,12 @@ module.exports = {
     extend: {
       colors,
       fontFamily: {
-        // system stack — the PBI sandbox blocks the Inter webfont anyway
-        // (OTS parse errors in the Service console), so don't ship it
+        // default system stack; Inter (weights 400-600, latin) is bundled as a
+        // base64 data URI in style/visual.css — opt in with `font-inter`
+        // (a remote webfont would be blocked by the PBI sandbox)
         sans: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'",
+        inter:
+          "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         mono: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
       }
     }

@@ -1,3 +1,13 @@
+/* Inter is bundled base64-inline (no network fetch — the PBI sandbox blocks
+   webfont requests, which is why the default stack stays Segoe UI). Variable
+   font, latin subset, weights 400-600. Opt in per element via `font-inter`. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 600;
+  src: url('../assets/inter-latin-400-600.woff2') format('woff2');
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

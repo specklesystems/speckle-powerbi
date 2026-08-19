@@ -1,7 +1,7 @@
 <template>
   <div
     id="speckle-home-view"
-    class="flex h-full w-full cursor-default items-center justify-center overflow-auto bg-zinc-50 p-6"
+    class="flex h-full w-full cursor-default items-center justify-center overflow-auto bg-zinc-50 p-6 font-inter"
   >
     <div class="flex w-full max-w-[392px] flex-col gap-4">
       <div class="flex items-center justify-between">
@@ -74,27 +74,3 @@ function goToGuide() {
   visualStore.host.launchUrl('https://speckle.guide/user/powerbi')
 }
 </script>
-
-<style>
-/* Inter is bundled base64-inline (no network fetch — the PBI sandbox blocks
-   webfont requests, which is why the global stack stays Segoe UI). Variable
-   font, latin subset, weights 400-600 — exactly what this view uses. */
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 400 600;
-  src: url('../../assets/inter-latin-400-600.woff2') format('woff2');
-}
-
-#speckle-home-view {
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
-}
-</style>
