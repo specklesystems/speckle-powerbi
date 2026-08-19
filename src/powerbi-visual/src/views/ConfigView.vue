@@ -2,6 +2,7 @@
   <div
     id="speckle-config-view"
     class="absolute inset-0 z-[100] flex h-full w-full cursor-default overflow-auto bg-zinc-50 p-6"
+    :style="{ zoom: uiScale }"
   >
     <!-- m-auto (not items-center on the scroller): centers when the content is
          short, keeps the top reachable when it scrolls -->
@@ -40,8 +41,14 @@
 import FormSwitch from '../components/form/FormSwitch.vue'
 import ColorOverridesCard from '../components/config/ColorOverridesCard.vue'
 import { useVisualStore } from '../store/visualStore'
+import { useAdvancedEditScale } from '../composables/useAdvancedEditScale'
 
 const visualStore = useVisualStore()
+
+// Advanced Edit fills the editor surface 1:1 (no host page-zoom scaling like
+// the report canvas gets) — scale the whole page with the surface size so it
+// stays readable on large/high-DPI monitors.
+const uiScale = useAdvancedEditScale()
 </script>
 
 <style>
