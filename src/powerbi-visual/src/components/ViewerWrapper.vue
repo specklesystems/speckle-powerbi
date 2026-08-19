@@ -107,14 +107,16 @@
          pre-paint — the center shows only a spinner) hands over to the post-paint
          out-of-core streaming ticker. Rate is instantaneous and legitimately 0
          between response waves on slow links — cumulative MB always, rate only
-         when it means something. The WHOLE pill is Dev-mode-gated (status text
-         included); click toggles the diagnostics HUD (Desktop has no reachable
-         console) -->
+         when it means something. Diagnostics ACCESS is Dev-mode-gated: with it
+         off the pill only reports active progress (idle launcher hidden, click
+         does nothing); with it on, click toggles the diagnostics HUD (Desktop
+         has no reachable console) -->
     <div
-      v-if="visualStore.isDevMode"
-      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow cursor-pointer select-none"
-      title="Click for diagnostics"
-      @click.stop="visualStore.toggleDiag()"
+      v-if="visualStore.isDevMode || loadingStatusText"
+      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow select-none"
+      :class="visualStore.isDevMode ? 'cursor-pointer' : 'cursor-default'"
+      :title="visualStore.isDevMode ? 'Click for diagnostics' : undefined"
+      @click.stop="visualStore.isDevMode && visualStore.toggleDiag()"
     >
       <span
         class="inline-block w-2 h-2 rounded-full"
