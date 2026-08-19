@@ -248,6 +248,7 @@ export const createViewerInteractions = (
     | { kind: 'filter'; prev: ModelObjectSets | null; next: ModelObjectSets | null }
     | { kind: 'overlays' } // colour channel or selection changed
     | { kind: 'history'; prev: VisibilityState }
+    | { kind: 'model-ready' } // model maps landed after earlier state commands
 
   let pendingPaints: PaintRequest[] = []
   let schedulerDisposed = false
@@ -268,6 +269,7 @@ export const createViewerInteractions = (
       case 'overlays':
         return true
       case 'history':
+      case 'model-ready':
         return false
     }
   }
@@ -563,6 +565,10 @@ export const createViewerInteractions = (
       ({ artifactId }: { artifactId: string }) => {
         logCommand(`model registered: ${artifactId}`)
         models.add(artifactId)
+        // Color/filter/visibility commands can arrive before model maps exist.
+        // Their declarative state is retained, but the earlier paint is a no-op;
+        // reconcile the complete state as soon as this model becomes paintable.
+        requestPaint({ kind: 'model-ready' })
       }
     ),
     renderer.on(

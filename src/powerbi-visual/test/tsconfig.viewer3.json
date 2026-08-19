@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "ts-node": {
+    "experimentalResolver": true
+  },
+  "include": ["./modelReadyColorReplay.test.ts", "../src/viewer3/objects/**/*.ts"]
+}

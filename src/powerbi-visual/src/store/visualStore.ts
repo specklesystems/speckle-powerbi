@@ -347,11 +347,16 @@ export const useVisualStore = defineStore('visualStore', () => {
       isViewerInitialized.value = true // this is needed to be delay first load at the visual.ts file
 
       // A fresh emitter means a fresh ViewerHandler/renderer with ZERO models.
-      // If we had already loaded a model (visual re-mounted: focus mode, layout
-      // re-render), the store's versionKey bookkeeping still says "loaded" and
-      // would never reload — the blank-canvas bug. Force the reload.
-      if (dataInput.value && lastLoadedVersionKey.value) {
-        pushDiagEvent('viewer re-initialized — forcing model reload')
+      // Replay any valid input that arrived while the renderer was initializing,
+      // as well as the current input after a focus/layout re-mount. Requiring a
+      // lastLoadedVersionKey here drops the first load: that key is only assigned
+      // inside setDataInput after loadModels can be emitted.
+      if (dataInput.value?.modelInfos.length) {
+        pushDiagEvent(
+          lastLoadedVersionKey.value
+            ? 'viewer re-initialized — forcing model reload'
+            : 'viewer initialized — consuming pending model load'
+        )
         viewerReloadNeeded.value = true
         void setDataInput(dataInput.value)
       }
