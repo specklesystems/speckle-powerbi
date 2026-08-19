@@ -10,7 +10,8 @@
     "generate-certs": "mkcert localhost",
     "build": "webpack --config webpack.config.ts",
     "build:dev": "webpack --config webpack.config.dev.ts",
-    "dev": "webpack-dev-server --config webpack.config.dev.ts"
+    "dev": "webpack-dev-server --config webpack.config.dev.ts",
+    "test": "ts-node --project test/tsconfig.json test/matrixSignature.test.ts"
   },
   "dependencies": {
     "@heroicons/vue": "^2.0.12",

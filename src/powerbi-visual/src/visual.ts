@@ -19,6 +19,7 @@ import ITooltipService = powerbi.extensibility.ITooltipService
 
 import { pinia } from './plugins/pinia'
 import { useVisualStore } from './store/visualStore'
+import { matrixSignature } from './utils/matrixSignature'
 
 // VisualUpdateType is a bit-flag enum (powerbi-visuals-api). Defined locally as
 // plain constants: the ambient `powerbi` runtime global is not reliably present
@@ -55,41 +56,6 @@ const countMatrixLeafRows = (matrix: powerbi.DataViewMatrix): number => {
   const root = matrix.rows?.root
   if (root?.children) for (const child of root.children) walk(child)
   return count
-}
-
-/**
- * Cheap identity of a data update: row universe + highlight state. Persist-property
- * round-trips re-send IDENTICAL data every few seconds; without this memo each one
- * re-paged the same 150k rows through five fetch segments, forever. Highlight count
- * is included so a chart click on the same universe still registers as a change.
- */
-const matrixSignature = (matrix: powerbi.DataViewMatrix, hasActiveFilters: boolean): string => {
-  let rows = 0
-  let highlighted = 0
-  let firstId = ''
-  let lastId = ''
-  const walk = (node: powerbi.DataViewMatrixNode): void => {
-    const children = node.children
-    if (!children || children.length === 0) {
-      rows++
-      if (rows === 1) firstId = String(node.value ?? '')
-      lastId = String(node.value ?? '')
-      const values = node.values
-      if (values) {
-        for (const key of Object.keys(values)) {
-          if (values[Number(key)]?.highlight != null) {
-            highlighted++
-            break
-          }
-        }
-      }
-      return
-    }
-    for (const child of children) walk(child)
-  }
-  const root = matrix.rows?.root
-  if (root?.children) for (const child of root.children) walk(child)
-  return `${hasActiveFilters}|${rows}|${highlighted}|${firstId}|${lastId}`
 }
 
 // noinspection JSUnusedGlobalSymbols
