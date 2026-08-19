@@ -1,4 +1,13 @@
 import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
+import { ColorByCategory } from '@src/utils/colorOverrides'
+
+/** Stable identity of the connected Color By column. */
+export interface ColorByFieldIdentity {
+  /** stable per-table/column key — the anchor for persisted color overrides */
+  queryName: string
+  /** current display name (Reset-all dialog, card copy) */
+  displayName: string
+}
 
 export interface IViewerTooltipData {
   displayName: string
@@ -21,6 +30,15 @@ export interface SpeckleDataInput {
   objectIds: string[]
   selectedIds: string[]
   colorByIds: { objectIds: string[]; color: string }[] | null
+  /** identity of the connected Color By column; null when the role is empty */
+  colorByField: ColorByFieldIdentity | null
+  /**
+   * Per-category identity + automatic palette color, in Color-by/data order.
+   * The store resolves effective colors (explicit override or automatic
+   * fallback) from these before emitting to the viewer. Null when Color By is
+   * not connected (colorByIds may still carry conditional-formatting groups).
+   */
+  colorByCategories: ColorByCategory[] | null
   objectTooltipData: Map<string, IViewerTooltip>
   /**
    * True when Power BI reports actual filters applied to this visual via

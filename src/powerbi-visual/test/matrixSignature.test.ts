@@ -111,4 +111,52 @@ assert.notEqual(
   'changing a role-identified tooltip value at a nonzero index must change the signature'
 )
 
+// ── Color-by grouping and conditional-format colors must not be swallowed ────
+
+const matrixWithGroups = (
+  groups: Record<string, string[]>,
+  leafColors: Record<string, string> = {}
+): powerbi.DataViewMatrix =>
+  ({
+    rows: {
+      root: {
+        children: Object.entries(groups).map(([category, ids]) => ({
+          value: category,
+          children: ids.map((id) => ({
+            value: id,
+            objects: leafColors[id]
+              ? { color: { fill: { solid: { color: leafColors[id] } } } }
+              : undefined
+          }))
+        }))
+      }
+    }
+  } as unknown as powerbi.DataViewMatrix)
+
+assert.notEqual(
+  matrixSignature(matrixWithGroups({ A: ['1', '2'], B: ['3'] }), false),
+  matrixSignature(matrixWithGroups({ A: ['1'], B: ['2', '3'] }), false),
+  'moving an object to another Color-by category (same leaf universe) must change the signature'
+)
+assert.notEqual(
+  matrixSignature(matrixWithGroups({ A: ['1', '2'], B: ['3'] }), false),
+  matrixSignature(matrixWithGroups({ A: ['1', '2'], C: ['3'] }), false),
+  'renaming a Color-by category must change the signature'
+)
+assert.equal(
+  matrixSignature(matrixWithGroups({ A: ['1', '2'], B: ['3'] }), false),
+  matrixSignature(matrixWithGroups({ A: ['1', '2'], B: ['3'] }), false),
+  'an identical grouping keeps a stable signature'
+)
+assert.notEqual(
+  matrixSignature(matrixWithGroups({ A: ['1', '2'] }, { '1': '#FF0000' }), false),
+  matrixSignature(matrixWithGroups({ A: ['1', '2'] }, { '1': '#00FF00' }), false),
+  'changing an object-level conditional-format color must change the signature'
+)
+assert.notEqual(
+  matrixSignature(matrixWithGroups({ A: ['1', '2'] }, { '1': '#FF0000' }), false),
+  matrixSignature(matrixWithGroups({ A: ['1', '2'] }), false),
+  'adding an object-level conditional-format color must change the signature'
+)
+
 console.log('matrixSignature regression tests passed')

@@ -92,6 +92,13 @@
         }
       }
     },
+    "colorOverrides": {
+      "properties": {
+        "mappings": {
+          "type": { "text": true }
+        }
+      }
+    },
     "viewMode": {
       "properties": {
         "defaultViewMode": {

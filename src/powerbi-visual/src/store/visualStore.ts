@@ -4,6 +4,16 @@ import { ColorBy, IViewerEvents } from '@src/plugins/viewer'
 import { SpeckleVisualSettingsModel } from '@src/settings/visualSettingsModel'
 import { SpeckleDataInput } from '@src/types'
 import { ReceiveInfo } from '@src/utils/matrixViewUtils'
+import {
+  effectiveColorGroups,
+  emptyOverridesFile,
+  OverridesFile,
+  parseOverridesFile,
+  serializeOverridesFile,
+  withOverride,
+  withoutField,
+  withoutOverride
+} from '@src/utils/colorOverrides'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
@@ -82,6 +92,102 @@ export const useVisualStore = defineStore('visualStore', () => {
         }
       ]
     })
+  }
+
+  // ── Categorical Color-by overrides (Advanced Edit) ─────────────────────────
+  // Sparse per-field mappings, persisted as ONE global JSON text property
+  // (selector: null) — enumerable while values are absent from the data,
+  // preserved independently per Color-by field, and copied with the visual.
+  const colorOverrides = ref<OverridesFile>(emptyOverridesFile())
+  // Same echo-protection as Dev mode: hydrate settles once; after that (or
+  // after any user edit) the persistProperties() metadata echo must not
+  // overwrite optimistic state.
+  const isColorOverridesHydrated = ref<boolean>(false)
+  // Inline persistence failure — the UI must never claim an unpersisted color.
+  const colorOverridesError = ref<string | undefined>()
+
+  const hydrateColorOverrides = (json?: string) => {
+    if (isColorOverridesHydrated.value) return
+    colorOverrides.value = parseOverridesFile(json)
+    isColorOverridesHydrated.value = true
+  }
+
+  /** Optimistic commit: apply, persist immediately, roll back on failure. */
+  const commitColorOverrides = (next: OverridesFile) => {
+    if (next === colorOverrides.value) return
+    const previous = colorOverrides.value
+    colorOverrides.value = next
+    isColorOverridesHydrated.value = true
+    colorOverridesError.value = undefined
+    try {
+      // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+      postFileSaveSkipNeeded.value = true
+      host.value.persistProperties({
+        merge: [
+          {
+            objectName: 'colorOverrides',
+            properties: { mappings: serializeOverridesFile(next) },
+            selector: null
+          }
+        ]
+      })
+    } catch (e) {
+      console.error('Persisting color overrides failed', e)
+      colorOverrides.value = previous
+      colorOverridesError.value =
+        'Saving color overrides failed. The last saved colors were restored.'
+    }
+    emitEffectiveColors()
+  }
+
+  const setColorOverride = (
+    fieldKey: string,
+    fieldDisplayName: string,
+    valueKey: string,
+    label: string,
+    color: string
+  ) =>
+    commitColorOverrides(
+      withOverride(colorOverrides.value, fieldKey, fieldDisplayName, valueKey, label, color)
+    )
+
+  const resetColorOverride = (fieldKey: string, valueKey: string) =>
+    commitColorOverrides(withoutOverride(colorOverrides.value, fieldKey, valueKey))
+
+  const resetAllColorOverrides = (fieldKey: string) =>
+    commitColorOverrides(withoutField(colorOverrides.value, fieldKey))
+
+  /**
+   * The viewer's color channel for the current input: with Color By connected,
+   * per-category effective colors (explicit override or automatic palette);
+   * otherwise the object-level conditional-formatting groups untouched.
+   */
+  const currentColorGroups = (): ColorBy[] | null => {
+    const input = dataInput.value
+    if (!input) return null
+    if (input.colorByCategories && input.colorByField) {
+      return effectiveColorGroups(
+        input.colorByCategories,
+        colorOverrides.value.fields[input.colorByField.queryName]
+      )
+    }
+    return input.colorByIds
+  }
+
+  /** Re-send colors after an override edit, honoring the active highlight state. */
+  const emitEffectiveColors = () => {
+    const input = dataInput.value
+    if (!viewerEmit.value || !input) return
+    const groups = currentColorGroups() ?? []
+    if (input.selectedIds.length > 0) {
+      viewerEmit.value(
+        'colorObjectsByGroup',
+        filterColorByIdsForSelection(groups, input.selectedIds)
+      )
+    } else {
+      latestColorBy.value = groups
+      viewerEmit.value('colorObjectsByGroup', groups)
+    }
   }
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
@@ -318,11 +424,11 @@ export const useVisualStore = defineStore('visualStore', () => {
       viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
 
       // When filtering, only apply colors to the selected/isolated objects
-      const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+      const filteredColorByIds = filterColorByIdsForSelection(currentColorGroups(), dataInput.value.selectedIds)
       viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
     } else {
       isFilterActive.value = false
-      latestColorBy.value = dataInput.value.colorByIds
+      latestColorBy.value = currentColorGroups()
       // Apply the row universe as a filter only when the discriminator says the
       // data is genuinely filtered (jsonFilters, or a complete universe smaller
       // than the model) — a row-capped SAMPLE must never be applied.
@@ -334,7 +440,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         viewerEmit.value('unIsolateObjects')
       }
       // When not filtering, apply all colors including conditional formatting
-      viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+      viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
     }
   }
 
@@ -633,11 +739,11 @@ export const useVisualStore = defineStore('visualStore', () => {
         viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
 
         // When filtering, only apply colors to the selected/isolated objects
-        const filteredColorByIds = filterColorByIdsForSelection(dataInput.value.colorByIds, dataInput.value.selectedIds)
+        const filteredColorByIds = filterColorByIdsForSelection(currentColorGroups(), dataInput.value.selectedIds)
         viewerEmit.value('colorObjectsByGroup', filteredColorByIds)
       } else {
         isFilterActive.value = false
-        latestColorBy.value = dataInput.value.colorByIds
+        latestColorBy.value = currentColorGroups()
         // Same discriminator as setDataInput (see the whale-sample note there)
         if (shouldApplyRowUniverseAsFilter()) {
           isFilterActive.value = true
@@ -648,7 +754,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         }
 
         // Restore color grouping for all objects when not filtering
-        viewerEmit.value('colorObjectsByGroup', dataInput.value.colorByIds)
+        viewerEmit.value('colorObjectsByGroup', latestColorBy.value)
       }
     }
     
@@ -746,6 +852,12 @@ export const useVisualStore = defineStore('visualStore', () => {
     isDevMode,
     hydrateDevMode,
     setDevMode,
+    colorOverrides,
+    colorOverridesError,
+    hydrateColorOverrides,
+    setColorOverride,
+    resetColorOverride,
+    resetAllColorOverrides,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete

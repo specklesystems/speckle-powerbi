@@ -1,9 +1,11 @@
 <template>
   <div
     id="speckle-config-view"
-    class="absolute inset-0 z-[100] flex h-full w-full cursor-default items-center justify-center overflow-auto bg-zinc-50 p-6"
+    class="absolute inset-0 z-[100] flex h-full w-full cursor-default overflow-auto bg-zinc-50 p-6"
   >
-    <div class="flex w-full max-w-[392px] flex-col gap-4">
+    <!-- m-auto (not items-center on the scroller): centers when the content is
+         short, keeps the top reachable when it scrolls -->
+    <div class="m-auto flex w-full max-w-[392px] flex-col gap-4">
       <div class="text-[15px] font-semibold leading-[1.2] text-zinc-900">
         Speckle configuration
       </div>
@@ -28,12 +30,15 @@
           />
         </div>
       </div>
+
+      <ColorOverridesCard />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import FormSwitch from '../components/form/FormSwitch.vue'
+import ColorOverridesCard from '../components/config/ColorOverridesCard.vue'
 import { useVisualStore } from '../store/visualStore'
 
 const visualStore = useVisualStore()

@@ -11,10 +11,21 @@ export const matrixSignature = (
   let highlighted = 0
   let highlightedIdHash = 0x811c9dc5
   let tooltipHash = 0x811c9dc5
+  // Object→category assignment (Color-by parent values + subtree sizes) and
+  // per-leaf conditional-format colors: both change rendering without changing
+  // the leaf-row universe, so they must not be swallowed by the memo.
+  let groupingHash = 0x811c9dc5
   let tooltipColumns = 0
   let firstId = ''
   let lastId = ''
   const tooltipValueIndexes: number[] = []
+
+  const hashGroupingString = (value: string): void => {
+    groupingHash = Math.imul(groupingHash ^ value.length, 0x01000193)
+    for (let index = 0; index < value.length; index++) {
+      groupingHash = Math.imul(groupingHash ^ value.charCodeAt(index), 0x01000193)
+    }
+  }
 
   const hashTooltipString = (value: string): void => {
     // Include the length so adjacent values cannot produce the same byte stream.
@@ -48,6 +59,16 @@ export const matrixSignature = (
       const id = String(node.value ?? '')
       if (rows === 1) firstId = id
       lastId = id
+      // object-level conditional-formatting color, if any
+      const conditionalColor = (
+        node.objects as
+          | { color?: { fill?: { solid?: { color?: string } } } }
+          | undefined
+      )?.color?.fill?.solid?.color
+      if (conditionalColor) {
+        hashGroupingString(id)
+        hashGroupingString(conditionalColor)
+      }
       const values = node.values
       if (values) {
         for (const key of Object.keys(values)) {
@@ -74,11 +95,16 @@ export const matrixSignature = (
       }
       return
     }
+    // grouping node (Color-by parent): raw value + subtree size pin the
+    // object→category assignment
+    hashGroupingString(String(node.value ?? ''))
+    hashGroupingString(String(children.length))
     for (const child of children) walk(child)
   }
   const root = matrix.rows?.root
   if (root?.children) for (const child of root.children) walk(child)
   const highlightedIds = (highlightedIdHash >>> 0).toString(16).padStart(8, '0')
   const tooltipData = (tooltipHash >>> 0).toString(16).padStart(8, '0')
-  return `${hasActiveFilters}|${rows}|${highlighted}|${highlightedIds}|${tooltipColumns}|${tooltipData}|${firstId}|${lastId}`
+  const grouping = (groupingHash >>> 0).toString(16).padStart(8, '0')
+  return `${hasActiveFilters}|${rows}|${highlighted}|${highlightedIds}|${tooltipColumns}|${tooltipData}|${grouping}|${firstId}|${lastId}`
 }

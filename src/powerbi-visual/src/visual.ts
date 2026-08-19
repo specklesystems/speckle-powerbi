@@ -6,7 +6,12 @@ import VueTippy from 'vue-tippy'
 import { selectionHandlerKey, tooltipHandlerKey } from 'src/injectionKeys'
 
 import { SpeckleDataInput } from './types'
-import { processMatrixView, ReceiveInfo, validateMatrixView } from './utils/matrixViewUtils'
+import {
+  processMatrixView,
+  ReceiveInfo,
+  resetPalette,
+  validateMatrixView
+} from './utils/matrixViewUtils'
 import { SpeckleVisualSettingsModel } from './settings/visualSettingsModel'
 
 import TooltipHandler from './handlers/tooltipHandler'
@@ -154,6 +159,10 @@ export class Visual implements IVisual {
       .objects
     if (persistedObjects) {
       visualStore.hydrateDevMode((persistedObjects.config?.devMode as boolean | undefined) ?? false)
+      // Same echo-protection model as Dev mode: hydrate once, then user edits win.
+      visualStore.hydrateColorOverrides(
+        (persistedObjects.colorOverrides?.mappings as string | undefined) ?? undefined
+      )
     }
 
     if (visualStore.commonError) {
@@ -202,9 +211,16 @@ export class Visual implements IVisual {
         visualStore.viewerEmit?.('resize')
       }
 
-      // only react to Data updates; resize/style/viewmode-only updates are no-ops
-      if (!(options.type & UpdateType.Data)) {
+      // React to Data updates and to Style updates (report theme changes: the
+      // automatic Color-by palette must re-derive from the new theme while
+      // explicit overrides stay fixed). Resize/viewmode-only updates are no-ops.
+      const isStyleUpdate = (options.type & UpdateType.Style) !== 0
+      if (!(options.type & UpdateType.Data) && !isStyleUpdate) {
         return
+      }
+      if (isStyleUpdate) {
+        // drop the pinned palette so getColor() reads the new theme's colors
+        resetPalette()
       }
 
       // Segmented-paging fast path: while more segments exist and the budget
@@ -218,7 +234,7 @@ export class Visual implements IVisual {
       // Identical-update memo: persist-property round-trips re-send the same data
       // every few seconds — don't re-page/re-process what we already settled.
       const signature = matrixSignature(matrixView, hasActiveFilters)
-      if (signature === this.lastSettledSignature) {
+      if (!isStyleUpdate && signature === this.lastSettledSignature) {
         return
       }
 

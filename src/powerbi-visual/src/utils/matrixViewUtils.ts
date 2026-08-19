@@ -1,5 +1,16 @@
 import powerbi from 'powerbi-visuals-api'
-import { IViewerTooltip, IViewerTooltipData, SpeckleDataInput } from '../types'
+import {
+  ColorByFieldIdentity,
+  IViewerTooltip,
+  IViewerTooltipData,
+  SpeckleDataInput
+} from '../types'
+import {
+  ColorByCategory,
+  displayLabel,
+  encodeValueKey,
+  RawCategoryValue
+} from './colorOverrides'
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions
 import { FieldInputState, useVisualStore } from '@src/store/visualStore'
 import { getSlugFromHostAppNameAndVersion } from './hostAppSlug'
@@ -135,6 +146,27 @@ function processObjectNode(
   return res
 }
 
+/**
+ * Identity of the connected Color By column, from the matrix data view (NOT
+ * dataViews[0] — the matrix is discovered separately). queryName is the stable
+ * key persisted color overrides anchor to; displayName is current UI copy.
+ */
+export function getColorByField(
+  matrixView: powerbi.DataViewMatrix
+): ColorByFieldIdentity | null {
+  for (const level of matrixView.rows.levels) {
+    for (const source of level.sources) {
+      if (source.roles?.['colorBy']) {
+        return {
+          queryName: source.queryName ?? source.displayName,
+          displayName: source.displayName
+        }
+      }
+    }
+  }
+  return null
+}
+
 export let previousPalette = null
 
 export function resetPalette() {
@@ -180,6 +212,8 @@ export async function processMatrixView(
     selectedIds = [],
     colorByIds = [],
     objectTooltipData = new Map<string, IViewerTooltip>()
+  const colorByField = hasColorFilter ? getColorByField(matrixView) : null
+  const colorByCategories: ColorByCategory[] = []
 
   const localMatrixView = matrixView.rows.root.children
 
@@ -222,6 +256,8 @@ export async function processMatrixView(
       objectIds: [],
       selectedIds: [],
       colorByIds: null,
+      colorByField: null,
+      colorByCategories: null,
       objectTooltipData: new Map(),
       hasActiveFilters: false,
       universeComplete: false
@@ -265,11 +301,21 @@ export async function processMatrixView(
     localMatrixView.forEach((colorObjects) => {
       const value = colorObjects.value as string
       const color = host.colorPalette.getColor(value)
+      // typed category identity + automatic color, in data order — the editor
+      // and the override-resolution step both key off this, never off display
+      // text or list position
+      const category: ColorByCategory = {
+        valueKey: encodeValueKey(colorObjects.value as RawCategoryValue),
+        label: displayLabel(colorObjects.value as RawCategoryValue),
+        autoColor: color.value,
+        objectIds: []
+      }
+      colorByCategories.push(category)
 
       if (lightweight) {
         // ids only: every child belongs to this color group (no highlights in
         // filter mode), no selection ids, no tooltips
-        const colorGroup = { color: color.value, objectIds: [] }
+        const colorGroup = { color: color.value, objectIds: category.objectIds }
         colorObjects.children.forEach((obj) => {
           const id = String(obj.value)
           objectIds.push(id)
@@ -292,6 +338,7 @@ export async function processMatrixView(
         if (processed.shouldSelect) selectedIds.push(processed.id)
         if (processed.shouldColor) {
           colorGroup.objectIds.push(processed.id)
+          category.objectIds.push(processed.id)
         }
         objectTooltipData.set(processed.id, {
           selectionId: processed.selectionId,
@@ -343,6 +390,8 @@ export async function processMatrixView(
     objectIds,
     selectedIds,
     colorByIds: colorByIds.length > 0 ? colorByIds : null,
+    colorByField,
+    colorByCategories: hasColorFilter ? colorByCategories : null,
     objectTooltipData,
     // overwritten by the caller from options.jsonFilters (not visible here)
     hasActiveFilters: false,

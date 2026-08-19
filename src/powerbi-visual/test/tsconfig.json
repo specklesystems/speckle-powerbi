@@ -5,5 +5,9 @@
     "moduleResolution": "node",
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "../src/utils/matrixSignature.ts"]
+  "include": [
+    "./**/*.ts",
+    "../src/utils/matrixSignature.ts",
+    "../src/utils/colorOverrides.ts"
+  ]
 }
