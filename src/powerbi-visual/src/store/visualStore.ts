@@ -35,10 +35,53 @@ export const useVisualStore = defineStore('visualStore', () => {
   const diagStats = ref<string>('')
   const diagEvents = ref<string[]>([])
   const toggleDiag = () => (diagVisible.value = !diagVisible.value)
+  const closeDiag = () => (diagVisible.value = false)
   const setDiagStats = (line: string) => (diagStats.value = line)
   const pushDiagEvent = (msg: string) => {
     const stamp = new Date().toLocaleTimeString(undefined, { hour12: false })
     diagEvents.value = [...diagEvents.value.slice(-39), `${stamp}  ${msg}`]
+  }
+
+  // Advanced Edit configuration page state. isAdvancedEditMode is synced from
+  // options.editMode at the START of every visual update (enter/exit can arrive
+  // as a non-Data update, ahead of all early returns). Dev mode gates ACCESS to
+  // the diagnostics UI only — collection keeps running regardless.
+  const isAdvancedEditMode = ref<boolean>(false)
+  const setAdvancedEditMode = (val: boolean) => {
+    if (val && !isAdvancedEditMode.value) closeDiag()
+    isAdvancedEditMode.value = val
+  }
+
+  const isDevMode = ref<boolean>(false)
+  // Set once the persisted value (or its confirmed absence) has been read, or
+  // the user has toggled — the stale metadata echo of persistProperties() must
+  // never overwrite the optimistic switch value.
+  const isDevModeHydrated = ref<boolean>(false)
+  const hydrateDevMode = (val: boolean) => {
+    if (isDevModeHydrated.value) return
+    isDevMode.value = val
+    isDevModeHydrated.value = true
+  }
+  const setDevMode = (val: boolean) => {
+    isDevMode.value = val
+    isDevModeHydrated.value = true
+    if (!val) closeDiag()
+    writeDevModeToFile(val)
+  }
+  const writeDevModeToFile = (devMode: boolean) => {
+    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
+    postFileSaveSkipNeeded.value = true
+    host.value.persistProperties({
+      merge: [
+        {
+          objectName: 'config',
+          properties: {
+            devMode: devMode
+          },
+          selector: null
+        }
+      ]
+    })
   }
 
   const postFileSaveSkipNeeded = ref<boolean>(false)
@@ -695,8 +738,14 @@ export const useVisualStore = defineStore('visualStore', () => {
     diagStats,
     diagEvents,
     toggleDiag,
+    closeDiag,
     setDiagStats,
     pushDiagEvent,
+    isAdvancedEditMode,
+    setAdvancedEditMode,
+    isDevMode,
+    hydrateDevMode,
+    setDevMode,
     resetFilters,
     downloadLatestVersion,
     handleObjectsLoadedComplete

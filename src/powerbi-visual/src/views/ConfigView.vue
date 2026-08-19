@@ -1,0 +1,56 @@
+<template>
+  <div
+    id="speckle-config-view"
+    class="absolute inset-0 z-[100] flex h-full w-full cursor-default items-center justify-center overflow-auto bg-zinc-50 p-6"
+  >
+    <div class="flex w-full max-w-[392px] flex-col gap-4">
+      <div class="text-[15px] font-semibold leading-[1.2] text-zinc-900">
+        Speckle configuration
+      </div>
+
+      <!-- same row anatomy as the empty-state field list: text-xs label,
+           text-[11px] hint, px-3 py-[9px] row inside a white bordered card -->
+      <div class="flex flex-col overflow-hidden rounded border border-zinc-200 bg-white">
+        <div class="flex items-center gap-2.5 px-3 py-[9px]">
+          <div class="flex flex-1 flex-col gap-0.5">
+            <label for="devMode" class="cursor-pointer text-xs font-medium leading-[1.2] text-zinc-900">
+              Dev mode
+            </label>
+            <span class="text-[11px] leading-[1.2] text-zinc-400">
+              Show Speckle diagnostics in the viewer.
+            </span>
+          </div>
+          <FormSwitch
+            name="devMode"
+            :show-label="false"
+            :model-value="visualStore.isDevMode"
+            @update:model-value="visualStore.setDevMode"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import FormSwitch from '../components/form/FormSwitch.vue'
+import { useVisualStore } from '../store/visualStore'
+
+const visualStore = useVisualStore()
+</script>
+
+<style>
+/* Inter itself is @font-face'd once in HomeView (base64-inline, always in the
+   bundle) — only the stack is repeated here. */
+#speckle-config-view {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+</style>

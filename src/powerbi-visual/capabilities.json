@@ -85,6 +85,13 @@
         }
       }
     },
+    "config": {
+      "properties": {
+        "devMode": {
+          "type": { "bool": true }
+        }
+      }
+    },
     "viewMode": {
       "properties": {
         "defaultViewMode": {

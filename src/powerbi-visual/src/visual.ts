@@ -32,6 +32,12 @@ const UpdateType = {
   ResizeEnd: 1 << 5
 } as const
 
+// powerbi.EditMode.Advanced — same ambient-enum hazard as UpdateType above,
+// so a local constant. `options.editMode` is optional: an absent value must
+// read as NOT advanced, or exit transitions that omit it leave the
+// configuration page sticky.
+const EDIT_MODE_ADVANCED = 1
+
 // fetchMoreData paging budgets (windowed dataReductionAlgorithm, 30k/segment):
 // with a real filter active, page until the full result is in so isolation is
 // exact (456k-object categories on whale models); without filters, stop at the
@@ -132,6 +138,24 @@ export class Visual implements IVisual {
 
   private async updateInternal(options: VisualUpdateOptions) {
     const visualStore = useVisualStore()
+
+    // Advanced Edit enter/exit can arrive as a non-Data update and the host is
+    // not guaranteed to send another one — sync BEFORE every early return below.
+    visualStore.setAdvancedEditMode(options.editMode === EDIT_MODE_ADVANCED)
+
+    // Hydrate the persisted Advanced Edit config. Deliberately NOT part of the
+    // formatting model (would surface in the Format pane) and not behind
+    // validateMatrixView — configuration must work without a valid matrix.
+    // hydrateDevMode is initialization-aware: it no-ops once the value settled,
+    // so persistProperties() metadata echoes can't undo an optimistic toggle.
+    // Settle only once the host actually delivered persisted objects — early
+    // updates can carry metadata without them (see the restore gate below).
+    const persistedObjects = options.dataViews?.find((dv) => dv.metadata?.objects)?.metadata
+      .objects
+    if (persistedObjects) {
+      visualStore.hydrateDevMode((persistedObjects.config?.devMode as boolean | undefined) ?? false)
+    }
+
     if (visualStore.commonError) {
       visualStore.setCommonError(undefined)
       visualStore.setViewerReadyToLoad(false)
