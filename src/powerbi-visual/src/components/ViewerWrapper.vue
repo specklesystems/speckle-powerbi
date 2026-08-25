@@ -88,10 +88,8 @@
     <transition name="slide-left">
       <ViewerControls
         v-show="!visualStore.isNavbarHidden"
-        :section-box="sectionBoxEnabled"
         :views="views"
         class="fixed top-11 left-2 z-30"
-        @update:section-box="onSectionBoxToggle"
         @view-clicked="(view) => viewerHandler.setView(view)"
         @view-mode-clicked="(viewMode, options) => viewerHandler.setViewMode(viewMode, options)"
       />
@@ -135,11 +133,6 @@
       </div>
       <div v-if="visualStore.diagEvents.length === 0" class="text-gray-400">no events yet</div>
       <div v-for="(line, i) in visualStore.diagEvents" :key="i">{{ line }}</div>
-    </div>
-
-    <div v-if="sectionBoxVisible" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex gap-2">
-      <FormButton size="sm" color="outline" @click="onSectionBoxReset">Reset</FormButton>
-      <FormButton size="sm" @click="onSectionBoxDone">Done</FormButton>
     </div>
 
     <div
@@ -199,10 +192,6 @@ const tooltipHandler = inject(tooltipHandlerKey)
 let viewerHandler: ViewerHandler = null
 
 const container = ref<HTMLElement>()
-type SectionBoxState = 'inactive' | 'editing' | 'applied'
-const sectionBoxState = ref<SectionBoxState>('inactive')
-const sectionBoxEnabled = computed(() => sectionBoxState.value !== 'inactive')
-const sectionBoxVisible = computed(() => sectionBoxState.value === 'editing')
 const views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
@@ -222,41 +211,6 @@ const hasLegacyModels = computed(() => visualStore.dataInput?.hasLegacyModels ??
 
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
 
-function disableSectionBox() {
-  sectionBoxState.value = 'inactive'
-  viewerHandler.toggleSectionBox(false)
-  visualStore.writeSectionBoxToFile(null)
-  visualStore.setSectionBoxData(null)
-}
-
-function onSectionBoxToggle() {
-  switch (sectionBoxState.value) {
-    case 'inactive':
-      sectionBoxState.value = 'editing'
-      viewerHandler.toggleSectionBox(true)
-      break
-    case 'editing':
-      onSectionBoxDone()
-      break
-    case 'applied':
-      sectionBoxState.value = 'editing'
-      viewerHandler.setSectionBoxVisible(true)
-      break
-  }
-}
-
-function onSectionBoxReset() {
-  disableSectionBox()
-}
-
-function onSectionBoxDone() {
-  sectionBoxState.value = 'applied'
-  viewerHandler.setSectionBoxVisible(false)
-  const boxData = viewerHandler.getSectionBoxData()
-  visualStore.setSectionBoxData(boxData)
-  visualStore.writeSectionBoxToFile(boxData)
-}
-
 onMounted(async () => {
   console.log('Viewer Wrapper mounted')
   viewerHandler = new ViewerHandler()
@@ -264,13 +218,6 @@ onMounted(async () => {
   
   // Set up event listener for object clicks from the FilteredSelectionExtension
   viewerHandler.emitter.on('objectClicked', handleObjectClicked)
-
-  // Sync section box UI state when restored from file
-  viewerHandler.emitter.on('objectsLoaded', () => {
-    if (visualStore.sectionBoxData) {
-      sectionBoxState.value = 'applied'
-    }
-  })
 
   visualStore.setViewerEmitter(viewerHandler.emit)
 })

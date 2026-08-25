@@ -91,8 +91,6 @@ export interface IViewerEvents {
   zoomExtends: () => void
   toggleProjection: () => void
   toggleGhostHidden: (ghost: boolean) => void
-  toggleSectionBox: (enabled: boolean) => void
-  setSectionBoxVisible: (visible: boolean) => void
   loadModels: (models: DecodedModelInfo[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
@@ -190,8 +188,6 @@ export class ViewerHandler {
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
     this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
-    this.emitter.on('toggleSectionBox', this.toggleSectionBox)
-    this.emitter.on('setSectionBoxVisible', this.setSectionBoxVisible)
     this.bridge = createRendererBridge()
     // Interactions exist from construction (they no-op until the renderer binds),
     // so subscriptions registered before init still work.
@@ -455,22 +451,10 @@ export class ViewerHandler {
     )
   }
 
-  // ── section box: not yet ported to viewer 3 (renderer.setClipPlanes exists; the
-  //    interactive gizmo lives in @speckle/viewer-tools' Clipping — follow-up). ────
-
-  public toggleSectionBox = (enabled: boolean) => {
-    if (enabled) console.warn('section box is not yet available on the viewer-3 path')
-  }
-
-  public setSectionBoxVisible = (_visible: boolean) => {
-    /* not yet available on the viewer-3 path */
-  }
-
-  public getSectionBoxData = (): string | null => null
-
-  public applySectionBox = (_boxData: string) => {
-    /* not yet available on the viewer-3 path */
-  }
+  // ── clipping: unimplemented. The viewer-3 port left the old section box as
+  //    warn-only stubs behind a live toolbar button, so the button and its stubs
+  //    were removed. renderer.setClipPlanes exists and the interactive gizmo lives
+  //    in @speckle/viewer-tools' Clipping — build on those, not on the old shape. ──
 
   public setViewMode = (viewMode: number, _options?: ViewModeOptions) => {
     // v2 view modes (pen/arctic/edges) have no viewer-3 equivalent yet.

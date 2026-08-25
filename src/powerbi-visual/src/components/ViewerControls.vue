@@ -30,14 +30,6 @@
         @update:open="(value) => toggleActiveControl(value ? 'camera' : 'none')"
         @view-clicked="(view) => $emit('view-clicked', view)"
       />
-      <!-- Section box -->
-      <ViewerControlsButtonToggle
-        tooltip="Section box"
-        :active="sectionBox"
-        @click="$emit('update:sectionBox')"
-      >
-        <IconScissors class="h-4 w-4" />
-      </ViewerControlsButtonToggle>
     </ViewerControlsButtonGroup>
   </div>
 </template>
@@ -53,21 +45,17 @@ import ViewerCameraMenu from './viewer/camera/ViewerCameraMenu.vue'
 import ViewerViewModesMenu from './viewer/view-modes/ViewerViewModesMenu.vue'
 
 import IconFocus from '../components/global/icon/lucide/Focus.vue'
-import IconScissors from '../components/global/icon/lucide/Scissors.vue'
 import ViewModesIcon from '../components/global/icon/ViewModes.vue'
 import type { ViewModeOptions } from '@src/plugins/viewer'
 
 const visualStore = useVisualStore()
 
 const emits = defineEmits<{
-  (e: 'update:sectionBox', value: boolean): void
   (e: 'view-clicked', view: CanonicalView | SpeckleView): void
   (e: 'clear-palette'): void
   (e: 'view-mode-clicked', viewMode: ViewMode, options: ViewModeOptions): void
 }>()
-withDefaults(defineProps<{ sectionBox: boolean; views: SpeckleView[] }>(), {
-  sectionBox: false
-})
+defineProps<{ views: SpeckleView[] }>()
 
 type ActiveControl =
   | 'none'
@@ -75,7 +63,6 @@ type ActiveControl =
   | 'camera'
   | 'sun'
   | 'projection'
-  | 'sectionBox'
   | 'explode'
   | 'settings'
 
