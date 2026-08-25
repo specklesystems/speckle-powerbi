@@ -55,13 +55,29 @@
       </nav>
     </transition>
 
+    <!-- same row as the Home view's field list, so the prompt reads as the one
+         still-missing item from that checklist rather than a separate warning -->
     <div
       v-if="!isInteractive"
-      class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
+      v-tippy="'Needed for interactivity with other visuals.'"
+      class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 rounded border border-zinc-200 bg-white px-3 py-[9px] shadow cursor-default font-inter transition-all duration-300"
       :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
-      <strong>Object Keys</strong>
-      field is needed for interactivity with other visuals.
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="h-3.5 w-3.5 shrink-0 text-blue-600"
+      >
+        <path
+          d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+        />
+      </svg>
+      <span class="text-xs font-semibold leading-[1.2] text-zinc-900">Object Keys</span>
+      <span class="text-[11px] font-medium leading-[1.2] text-blue-600">Required</span>
     </div>
 
     <div
