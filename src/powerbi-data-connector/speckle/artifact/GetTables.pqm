@@ -63,6 +63,8 @@
         GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
         NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
         AddProperties = Extension.LoadFunction("AddProperties.pqm"),
+        AddRelations = Extension.LoadFunction("AddRelations.pqm"),
+        RelationCatalog = Extension.LoadFunction("RelationCatalog.pqm")(),
         BuildNavigation = Extension.LoadFunction("BuildNavigation.pqm"),
         EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
         MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
@@ -263,21 +265,32 @@
                 propertiesT = CombinePart((mm) => mm[Properties], false),
                 pathsT = CombinePart((mm) => mm[Paths], false),
                 objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
-                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false)
+                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
+                relationsT = CombinePart((mm) => mm[Relations], false),
+                relationTypesT = CombinePart((mm) => mm[RelationTypes], false),
+                nodesT = CombinePart((mm) => mm[Nodes], true),
+                nodeKindsT = CombinePart((mm) => mm[NodeKinds], false)
             in
-                // The default Simplified layout lists Objects and the
-                // model-bound Properties function; tableLayout = "All tables"
-                // unhides the four supporting rows. Hidden or not, all five
-                // rows stay in the table — Speckle.AddProperties and
-                // Speckle.AddAllProperties index all five table keys.
+                // Simplified lists Objects plus the model-bound Properties and
+                // Relations functions. All tables unhides the property and
+                // graph helpers. Every row stays addressable by its key.
                 BuildNavigation(
-                    [NavigationTable = NavigationTable, AddProperties = AddProperties],
+                    [
+                        NavigationTable = NavigationTable,
+                        AddProperties = AddProperties,
+                        AddRelations = AddRelations,
+                        RelationCatalog = RelationCatalog
+                    ],
                     [
                         Objects = objectsT,
                         Properties = propertiesT,
                         Paths = pathsT,
                         ObjectTypes = objectTypesT,
-                        TypeProperties = typePropertiesT
+                        TypeProperties = typePropertiesT,
+                        Relations = relationsT,
+                        RelationTypes = relationTypesT,
+                        Nodes = nodesT,
+                        NodeKinds = nodeKindsT
                     ],
                     tableLayout
                 ),

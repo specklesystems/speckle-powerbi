@@ -21,32 +21,11 @@ let
                     "#(lf)"
                 ),
 
-    // mirrors the real Speckle.GetTables shape, including the Navigator-only
-    // Hidden column; EmptySource below omits it to prove the helper does not
-    // require it
-    Navigation = (
-        objects as table,
-        properties as any,
-        objectTypes as any,
-        typeProperties as any,
-        paths as table
-    ) as table =>
-        #table(
-            type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical, Hidden = logical],
-            {
-                {"Objects", "objects", objects, "Table", "Table", true, false},
-                {"Properties", "properties", properties, "Table", "Table", true, true},
-                {"Object Types", "object-types", objectTypes, "Table", "Table", true, true},
-                {"Type Properties", "type-properties", typeProperties, "Table", "Table", true, true},
-                {"Property Paths", "paths", paths, "Table", "Table", true, false}
-            }
-        ),
-
     Objects = #table(
         type table [#"Object Key" = Int64.Type, #"Application ID" = text],
         {{1, "one"}, {2, "two"}, {3, "three"}}
     ),
-    Properties = #table(
+    PropertyValues = #table(
         type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
         {{1, 10, "instance-area"}, {2, 10, null}}
     ),
@@ -66,28 +45,32 @@ let
             {12, "properties.Empty.Value"}
         }
     ),
-    Source = Navigation(Objects, Properties, ObjectTypes, TypeProperties, Paths),
-    Result = Speckle.AddAllProperties(Source),
+    Result = Speckle.AddAllProperties(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties),
+
+    // Lazy tables whose rows error on enumeration: the typed table parameters
+    // force each argument to a table value, so an empty paths table can no
+    // longer avoid evaluating the arguments entirely — the preserved contract
+    // is that the fact rows are never read.
+    UnreadTable = (message as text, tableType as type) as table =>
+        Table.View(null, [GetType = () => tableType, GetRows = () => error message]),
+    UnreadPropertyValues = UnreadTable(
+        "Property Values must not be read",
+        type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any]
+    ),
+    UnreadObjectTypes = UnreadTable(
+        "Object Types must not be read",
+        type table [#"Object Key" = Int64.Type, type_key = Int64.Type]
+    ),
+    UnreadTypeProperties = UnreadTable(
+        "Type Properties must not be read",
+        type table [type_key = Int64.Type, path_key = Int64.Type, Value = any]
+    ),
 
     EmptyObjects = Objects meta [TestMarker = "empty paths Objects"],
-    EmptySource = #table(
-        type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical],
-        {
-            {"Objects", "objects", EmptyObjects, "Table", "Table", true},
-            {"Properties", "properties", error "Properties must not be read", "Table", "Table", true},
-            {"Object Types", "object-types", error "Object Types must not be read", "Table", "Table", true},
-            {"Type Properties", "type-properties", error "Type Properties must not be read", "Table", "Table", true},
-            {
-                "Property Paths",
-                "paths",
-                #table(type table [path_key = Int64.Type, Property = text], {}),
-                "Table",
-                "Table",
-                true
-            }
-        }
+    EmptyPaths = #table(type table [path_key = Int64.Type, Property = text], {}),
+    EmptyResult = Speckle.AddAllProperties(
+        EmptyObjects, UnreadPropertyValues, EmptyPaths, UnreadObjectTypes, UnreadTypeProperties
     ),
-    EmptyResult = Speckle.AddAllProperties(EmptySource),
 
     InvalidPaths = #table(
         type table [path_key = Int64.Type, Property = any],
@@ -99,7 +82,7 @@ let
         }
     ),
     InvalidResult = try Speckle.AddAllProperties(
-        Navigation(Objects, Properties, ObjectTypes, TypeProperties, InvalidPaths)
+        Objects, PropertyValues, InvalidPaths, ObjectTypes, TypeProperties
     ),
     InvalidError = if not InvalidResult[HasError] then
         [Reason = null, Positions = {}]
@@ -117,21 +100,36 @@ let
             each {_, "properties.Wide.P" & Text.PadStart(Text.From(_), 3, "0")}
         )
     ),
-    WideSource = Navigation(
+    WideResult = Speckle.AddAllProperties(
         #table(type table [#"Object Key" = Int64.Type], {{1}}),
         #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+        WidePaths,
         #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
-        #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {}),
-        WidePaths
+        #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {})
     ),
-    WideResult = Speckle.AddAllProperties(WideSource),
 
-    FullPathResult = Speckle.AddAllProperties(Source, "Full path"),
-    InvalidColumnNamesResult = try Table.RowCount(Speckle.AddAllProperties(Source, "Longest")),
-    InvalidColumnNamesReason = if not InvalidColumnNamesResult[HasError] then
+    FullPathResult = Speckle.AddAllProperties(
+        Objects, PropertyValues, Paths, ObjectTypes, TypeProperties, true
+    ),
+    InvalidUseFullPathsResult = try Table.RowCount(
+        Speckle.AddAllProperties(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties, "Longest")
+    ),
+
+    // the retired single-source convention forwards to AddProperties'
+    // dedicated migration error
+    NavigationShapedSource = #table(
+        type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical],
+        {{"Objects", "objects", Objects, "Table", "Table", true}}
+    ),
+    OldShapeResult = try Table.RowCount(
+        Speckle.AddAllProperties(
+            NavigationShapedSource, PropertyValues, Paths, ObjectTypes, TypeProperties
+        )
+    ),
+    OldShapeReason = if not OldShapeResult[HasError] then
         null
     else
-        try InvalidColumnNamesResult[Error][Reason] otherwise null,
+        try OldShapeResult[Error][Reason] otherwise null,
 
     facts = {
         Fact(
@@ -167,7 +165,7 @@ let
             }
         ),
         Fact(
-            "an empty paths table returns the exact Objects value without reading fact tables",
+            "an empty paths table returns the exact Objects value without reading the fact tables' rows",
             [
                 Columns = {"Object Key", "Application ID"},
                 Rows = {{1, "one"}, {2, "two"}, {3, "three"}},
@@ -185,7 +183,7 @@ let
             InvalidError
         ),
         Fact(
-            "columnNames forwards to AddProperties: Full path names every column with the entire dotted path",
+            "useFullPaths forwards to AddProperties: true names every column with the entire dotted path",
             {
                 "Object Key",
                 "Application ID",
@@ -197,9 +195,14 @@ let
             Table.ColumnNames(FullPathResult)
         ),
         Fact(
-            "an unknown columnNames value forwards to the structured AddProperties error",
-            "Speckle.AddProperties.InvalidColumnNames",
-            InvalidColumnNamesReason
+            "a non-logical useFullPaths value is rejected by the parameter type",
+            true,
+            InvalidUseFullPathsResult[HasError]
+        ),
+        Fact(
+            "passing the navigation table as objects forwards to the dedicated signature-changed error",
+            "Speckle.AddProperties.SignatureChanged",
+            OldShapeReason
         ),
         Fact(
             "a moderately wide property-light model adds every null-only path",

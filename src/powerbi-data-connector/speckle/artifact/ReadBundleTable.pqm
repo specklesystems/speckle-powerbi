@@ -1,8 +1,8 @@
 // Downloads one parquet file from the artifact bundle (matched by filename suffix)
 // and parses it into a table.
 // required = true (default): raise an error when the suffix has no match.
-// required = false: return null when absent (types / object_type / type_eav are
-// optional per the bundle spec).
+// required = false: return null when an optional EAV or envelope table is
+// absent from the bundle.
 (files as list, suffix as text, optional required as nullable logical) as nullable table =>
     let
         isRequired = if required = null then true else required,

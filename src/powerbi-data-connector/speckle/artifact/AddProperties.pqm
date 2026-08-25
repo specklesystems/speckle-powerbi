@@ -1,40 +1,74 @@
-// Adds selected EAV values to the Objects navigation table, split by source:
-// values from the Property Values (instance) fact appear in an unprefixed column,
-// and values from the Type Properties fact, projected per object through the
-// Object Types bridge, appear in a Type_-prefixed column (Area / Type_Area).
-// columnNames picks the column naming mode: "Shortest" (default) uses the
-// shortest unique trailing part of each dotted path, "Full path" the entire
-// path. The Type_ prefix applies in both modes.
-(source as table, propertyPaths as list, optional columnNames as nullable text) as table =>
+// Adds selected EAV values to the passed Objects table, split by source:
+// values from the Property Values (instance) fact appear in an unprefixed
+// column, and values from the Type Properties fact, projected per object
+// through the Object Types bridge, appear in a Type_-prefixed column
+// (Area / Type_Area). The five tables come straight from the caller's model —
+// filtered or transformed copies included — and the joins restrict silently:
+// filtered inputs mean filtered output, and the emitted column set derives
+// from the surviving facts. useFullPaths picks the column naming mode:
+// false (default) uses the shortest unique trailing part of each dotted path,
+// true the entire path. The Type_ prefix applies in both modes.
+(
+    objects as table,
+    propertyValues as table,
+    paths as table,
+    objectTypes as table,
+    typeProperties as table,
+    propertyPaths as list,
+    optional useFullPaths as nullable logical
+) as table =>
     let
-        requiredKeys = {"objects", "properties", "object-types", "type-properties", "paths"},
-        hasNavigationColumns = Table.HasColumns(source, {"Key", "Data"}),
-        availableKeys = if hasNavigationColumns then
-            List.Select(Table.Column(source, "Key"), each Value.Is(_, type text))
-        else
-            {},
-        missingKeys = if hasNavigationColumns then
-            List.Select(
-                requiredKeys,
-                each not List.Contains(availableKeys, _, Comparer.Ordinal)
-            )
-        else
-            requiredKeys,
-        validatedSource = if not hasNavigationColumns or not List.IsEmpty(missingKeys) then
+        // Only the columns the enrichment actually touches are required;
+        // extra columns are tolerated everywhere (users pass transformed
+        // tables, and extra Objects columns feed collision detection below).
+        RequireColumns = (tbl as table, parameterName as text, requiredColumns as list) as table =>
+            let
+                missingColumns = List.Select(
+                    requiredColumns,
+                    each not Table.HasColumns(tbl, {_})
+                )
+            in
+                if List.IsEmpty(missingColumns) then
+                    tbl
+                else
+                    error Error.Record(
+                        "Speckle.AddProperties.MissingColumns",
+                        "The " & parameterName & " table is missing required columns: "
+                            & Text.Combine(missingColumns, ", ") & ".",
+                        [
+                            Parameter = parameterName,
+                            MissingColumns = missingColumns,
+                            RequiredColumns = requiredColumns
+                        ]
+                    ),
+        // A table with Key and Data columns is the Speckle.GetTables
+        // navigation table passed under the retired single-source convention;
+        // that gets a dedicated migration error instead of a missing-column
+        // complaint.
+        validatedObjects = if Table.HasColumns(objects, {"Key", "Data"}) then
             error Error.Record(
-                "Speckle.AddProperties.InvalidNavigationSource",
-                "The source is missing required Speckle navigation entries: "
-                    & Text.Combine(missingKeys, ", ")
-                    & ". Expected: Speckle.AddProperties(Speckle.GetTables(url), propertyPaths).",
-                [MissingKeys = missingKeys, RequiredKeys = requiredKeys]
+                "Speckle.AddProperties.SignatureChanged",
+                "objects looks like the Speckle.GetTables navigation table. The signature changed: "
+                    & "pass the five star-schema tables from the navigator directly. Expected: "
+                    & "Speckle.AddProperties(objects, propertyValues, paths, objectTypes, typeProperties, "
+                    & "propertyPaths, useFullPaths).",
+                [
+                    ExpectedParameters = {
+                        "objects", "propertyValues", "paths", "objectTypes",
+                        "typeProperties", "propertyPaths", "useFullPaths"
+                    }
+                ]
             )
         else
-            source,
-        objects = validatedSource{[Key = "objects"]}[Data],
-        properties = validatedSource{[Key = "properties"]}[Data],
-        objectTypes = validatedSource{[Key = "object-types"]}[Data],
-        typeProperties = validatedSource{[Key = "type-properties"]}[Data],
-        paths = validatedSource{[Key = "paths"]}[Data],
+            RequireColumns(objects, "objects", {"Object Key"}),
+        validatedPropertyValues = RequireColumns(
+            propertyValues, "propertyValues", {"Object Key", "path_key", "Value"}
+        ),
+        validatedPathsTable = RequireColumns(paths, "paths", {"path_key", "Property"}),
+        validatedObjectTypes = RequireColumns(objectTypes, "objectTypes", {"Object Key", "type_key"}),
+        validatedTypeProperties = RequireColumns(
+            typeProperties, "typeProperties", {"type_key", "path_key", "Value"}
+        ),
         invalidPathIndexes = List.Select(
             List.Positions(propertyPaths),
             (i) =>
@@ -57,21 +91,7 @@
             List.Transform(validatedPaths, each Text.Trim(_)),
             Comparer.Ordinal
         ),
-        allowedColumnNames = {"Shortest", "Full path"},
-        useFullPaths = if columnNames = null
-            or Comparer.OrdinalIgnoreCase(columnNames, "Shortest") = 0 then
-            false
-        else if Comparer.OrdinalIgnoreCase(columnNames, "Full path") = 0 then
-            true
-        else
-            error Error.Record(
-                "Speckle.AddProperties.InvalidColumnNames",
-                "columnNames must be one of: "
-                    & Text.Combine(allowedColumnNames, ", ")
-                    & ". Got: " & columnNames & ".",
-                [ColumnNames = columnNames, AllowedValues = allowedColumnNames]
-            ),
-        existingNames = Table.ColumnNames(objects),
+        existingNames = Table.ColumnNames(validatedObjects),
         pathParts = List.Transform(wanted, each Text.Split(_, ".")),
         Candidate = (parts as list, depth as number) as text =>
             Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
@@ -80,9 +100,9 @@
         // object that is present in Objects is invalid, even if the rows match.
         bridgeRows = Table.RemoveColumns(
             Table.NestedJoin(
-                Table.SelectColumns(objectTypes, {"Object Key", "type_key"}),
+                Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
                 {"Object Key"},
-                Table.SelectColumns(objects, {"Object Key"}), {"Object Key"},
+                Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
                 "__obj", JoinKind.Inner
             ),
             {"__obj"}
@@ -109,7 +129,7 @@
         // the large fact scans carry only requested keys and the raw Value.
         wantedPaths = Table.SelectColumns(
             Table.SelectRows(
-                paths,
+                validatedPathsTable,
                 each List.Contains(wanted, [Property], Comparer.Ordinal)
             ),
             {"path_key", "Property"}
@@ -124,8 +144,8 @@
                 ),
                 "__wantedPath", {"Property"}, {"__property"}
             ),
-        instanceValues = SelectRequestedPropertyValues(properties, "Object Key"),
-        requestedTypeValues = SelectRequestedPropertyValues(typeProperties, "type_key"),
+        instanceValues = SelectRequestedPropertyValues(validatedPropertyValues, "Object Key"),
+        requestedTypeValues = SelectRequestedPropertyValues(validatedTypeProperties, "type_key"),
         projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
                 validatedBridge, {"type_key"},
@@ -207,39 +227,59 @@
                     List.Positions(depths),
                     (i) => depths{i} < List.Count(pathParts{i})
                 ),
-                unresolvableConflicts = List.Transform(
+                growableConflicts = List.Transform(
                     List.Positions(conflicts),
-                    (i) =>
-                        (existingConflicts{i} and not canGrow{i})
-                        or List.AnyTrue(
-                            List.Transform(
-                                duplicatedNames{i},
-                                (name) => not List.AnyTrue(
-                                    List.Transform(OwnersOf(name), (j) => canGrow{j})
-                                )
-                            )
-                        )
+                    (i) => conflicts{i} and canGrow{i}
                 ),
                 nextDepths = List.Transform(
                     List.Positions(depths),
                     (i) => if conflicts{i} and canGrow{i} then depths{i} + 1 else depths{i}
-                )
+                ),
+                // Residual clashes — growth exhausted on every conflicted
+                // path — disambiguate with numeric suffixes claimed in request
+                // order: the first claimant keeps the clean name, later ones
+                // count up (.1, .2, …) past occupied names. Both variants of
+                // a path suffix together so its Area/Type_Area pair stays
+                // aligned.
+                suffixedNames = List.Accumulate(
+                    List.Positions(wanted),
+                    [taken = existingNames, names = {}],
+                    (state, i) =>
+                        let
+                            Claim = (suffix as number) as text =>
+                                let
+                                    attempt = if suffix = 0 then
+                                        candidates{i}
+                                    else
+                                        candidates{i} & "." & Text.From(suffix),
+                                    clashes = List.AnyTrue(
+                                        List.Transform(
+                                            EmittedVariants(attempt, i),
+                                            (name) => List.Contains(state[taken], name, Comparer.Ordinal)
+                                        )
+                                    )
+                                in
+                                    if clashes then @Claim(suffix + 1) else attempt,
+                            final = Claim(0)
+                        in
+                            [
+                                taken = state[taken] & EmittedVariants(final, i),
+                                names = state[names] & {final}
+                            ]
+                )[names]
             in
-                if List.AnyTrue(unresolvableConflicts) then
-                    error Error.Record(
-                        "Speckle.AddProperties.NameCollision",
-                        "Requested property columns cannot be made unique against the Objects columns.",
-                        [PropertyPaths = wanted, ExistingColumns = existingNames]
-                    )
-                else if List.AnyTrue(conflicts) then
+                if List.AnyTrue(growableConflicts) then
                     @ResolveNames(nextDepths)
+                else if List.AnyTrue(conflicts) then
+                    suffixedNames
                 else
                     candidates,
-        // "Full path" seeds every depth at its maximum: names cannot grow, so
-        // residual collisions (a literal Object Key path, a literal Type_*
-        // path) fail through the same NameCollision error instead of renaming
+        // useFullPaths = true seeds every depth at its maximum: names cannot
+        // grow, so residual collisions (a literal Object Key path, a literal
+        // Type_* path) go straight to the numeric-suffix pass instead of
+        // renaming by depth
         outputNames = ResolveNames(
-            if useFullPaths then
+            if (useFullPaths ?? false) then
                 List.Transform(pathParts, List.Count)
             else
                 List.Transform(wanted, each 1)
@@ -282,7 +322,7 @@
         ),
         withProperties = Table.ExpandTableColumn(
             Table.NestedJoin(
-                objects, {"Object Key"},
+                validatedObjects, {"Object Key"},
                 propertyValuesByObject, {"Object Key"},
                 "__group", JoinKind.LeftOuter
             ),
@@ -290,9 +330,9 @@
         )
     in
         if List.IsEmpty(wanted) then
-            // observing useFullPaths makes an invalid columnNames fail loudly
-            // even with an empty selection; both branches return the exact
-            // Objects value, metadata included
-            if useFullPaths then objects else objects
+            // an empty selection returns the exact Objects value, metadata
+            // included, without touching the fact tables; the objects
+            // validation (old navigation shape, Object Key) still fires
+            validatedObjects
         else
             Table.ExpandRecordColumn(withProperties, "__props", emittedNames, emittedNames)

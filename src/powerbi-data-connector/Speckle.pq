@@ -316,7 +316,7 @@ shared Speckle.GetTables = Value.ReplaceType(
                 optional TableLayout = (
                     type nullable text meta [
                         Documentation.FieldCaption = "Table layout",
-                        Documentation.FieldDescription = "Default: Simplified. Simplified shows the Objects table and the Properties function; All tables also shows the supporting tables (Property Values, Property Paths, Object Types, Type Properties) so you can build your own relationships.",
+                        Documentation.FieldDescription = "Default: Simplified. Simplified shows Objects plus the Properties and Relations functions. All tables also shows Property Values, Property Paths, Object Types, Type Properties, Relations, Relation Types and Nodes for custom relationships.",
                         Documentation.AllowedValues = {"Simplified", "All tables"}
                     ]
                 )
@@ -327,15 +327,16 @@ shared Speckle.GetTables = Value.ReplaceType(
     ) as table meta [
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
-        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. With the default Simplified table layout the Navigator lists two entries:#(lf)
+        Documentation.LongDescription = "Returns the model data from the version's 4.0 artifact bundle. With the default Simplified table layout the Navigator lists three entries:#(lf)
             - Objects (Object Key, Application ID, Model Info) — feeds the Speckle 4.0 3D visual#(lf)
             - Properties (function) — returns a lean table of Object Key plus the selected property columns, one row per Objects row#(lf)
+            - Relations (function): returns a lean table of Object Key plus selected outgoing relation columns such as ON_LEVEL#(lf)
             Invoke Properties into its own query, load that result and relate it one-to-one to Objects on Object Key; keep Properties connection-only.#(lf)
             Selecting all properties can significantly increase refresh time and table width.#(lf)
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
-            Column names default to the shortest unique trailing part of each dotted path; the optional Column names setting (Shortest / Full path) switches to entire paths.#(lf)
-            Speckle.AddProperties(Source, propertyPaths, columnNames) and Speckle.AddAllProperties(Source, columnNames) remain available for M code.#(lf)
-            The source also carries four supporting tables (Property Values, Property Paths, Object Types, Type Properties) that the function and helpers consume; they are hidden by default, and the Table layout setting under Advanced options (Simplified / All tables; in M: Speckle.GetTables(url, [TableLayout = ""All tables""])) shows them in the Navigator for building your own relationships.#(lf)
+            Column names default to the shortest unique trailing part of each dotted path; the optional Use full paths setting (true/false) switches to entire paths.#(lf)
+            Speckle.AddProperties(objects, propertyValues, paths, objectTypes, typeProperties, propertyPaths, useFullPaths) and Speckle.AddAllProperties(objects, propertyValues, paths, objectTypes, typeProperties, useFullPaths) remain available for M code and accept the five tables as they exist in your model, filtered subsets included.#(lf)
+            The source also carries hidden supporting property and graph tables. The Table layout setting under Advanced options (Simplified / All tables; in M: Speckle.GetTables(url, [TableLayout = ""All tables""])) shows them in the Navigator for building your own relationships.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
@@ -352,42 +353,121 @@ shared Speckle.GetTables = Value.ReplaceType(
 shared Speckle.AddProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddProperties.pqm"),
     type function (
-        source as table,
-        propertyPaths as list,
-        optional columnNames as (type nullable text meta [
-            Documentation.FieldCaption = "Column names",
-            Documentation.FieldDescription = "Default: Shortest. Shortest names each column with the shortest unique trailing part of its dotted path, growing only on collisions; Full path uses the entire dotted path. Type values keep the Type_ prefix in both modes.",
-            Documentation.AllowedValues = {"Shortest", "Full path"}
+        objects as (type table meta [
+            Documentation.FieldCaption = "Objects",
+            Documentation.FieldDescription = "The Objects table (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows."
+        ]),
+        propertyValues as (type table meta [
+            Documentation.FieldCaption = "Property Values",
+            Documentation.FieldDescription = "The Property Values instance fact table (requires Object Key, path_key, Value)."
+        ]),
+        paths as (type table meta [
+            Documentation.FieldCaption = "Property Paths",
+            Documentation.FieldDescription = "The Property Paths dimension table (requires path_key, Property)."
+        ]),
+        objectTypes as (type table meta [
+            Documentation.FieldCaption = "Object Types",
+            Documentation.FieldDescription = "The Object Types bridge table (requires Object Key, type_key)."
+        ]),
+        typeProperties as (type table meta [
+            Documentation.FieldCaption = "Type Properties",
+            Documentation.FieldDescription = "The Type Properties fact table (requires type_key, path_key, Value)."
+        ]),
+        propertyPaths as (type list meta [
+            Documentation.FieldCaption = "Property paths",
+            Documentation.FieldDescription = "Exact dotted property paths (see the Property Paths table) to append as columns."
+        ]),
+        optional useFullPaths as (type nullable logical meta [
+            Documentation.FieldCaption = "Use full paths",
+            Documentation.FieldDescription = "Default: false. False names each column with the shortest unique trailing part of its dotted path, growing only on collisions; true uses the entire dotted path. Type values keep the Type_ prefix in both modes. Names that still clash at full depth are made unique with a numeric suffix (.1, .2, …)."
         ])
     ) as table meta [
         Documentation.Name = "Speckle - Add Properties",
         Documentation.DisplayName = "Speckle - Add Properties",
         Documentation.LongDescription =
-            "Returns the Objects table from Speckle.GetTables with the requested property values appended. "
-            & "Pass exact dotted paths from the Property Paths table. Values are split by source: instance values "
-            & "land in unprefixed columns and type values in Type_-prefixed columns (Area / Type_Area). "
-            & "columnNames controls the emitted column names: Shortest (default) uses the shortest unique "
-            & "trailing part of each dotted path, Full path uses the entire path."
+            "Returns the objects table with the requested property values appended. Pass the five star-schema "
+            & "tables from the Speckle.GetTables navigator (Objects, Property Values, Property Paths, Object Types, "
+            & "Type Properties) as they exist in your model — filtered or transformed copies included. Joins "
+            & "restrict silently: filtered inputs mean filtered output, and the emitted column set derives from "
+            & "the surviving facts. Pass exact dotted paths from the Property Paths table. Values are split by "
+            & "source: instance values land in unprefixed columns and type values in Type_-prefixed columns "
+            & "(Area / Type_Area). useFullPaths controls the emitted column names: false (default) uses the "
+            & "shortest unique trailing part of each dotted path, true uses the entire path."
+    ]
+);
+
+shared Speckle.AddRelations = Value.ReplaceType(
+    Speckle.LoadFunction("AddRelations.pqm"),
+    type function (
+        objects as (type table meta [
+            Documentation.FieldCaption = "Objects",
+            Documentation.FieldDescription = "The Objects table (requires Object Key). Extra columns are kept; a filtered subset restricts output rows."
+        ]),
+        relations as (type table meta [
+            Documentation.FieldCaption = "Relations",
+            Documentation.FieldDescription = "The Relations edge table (requires rel, src, dst and ord)."
+        ]),
+        relationTypes as (type table meta [
+            Documentation.FieldCaption = "Relation Types",
+            Documentation.FieldDescription = "The bundle Relation Types catalog (requires rel or id, plus name, src_ns and dst_ns)."
+        ]),
+        nodes as (type table meta [
+            Documentation.FieldCaption = "Nodes",
+            Documentation.FieldDescription = "The Nodes table (requires Node Key and Name)."
+        ]),
+        relationNames as (type list meta [
+            Documentation.FieldCaption = "Relation names",
+            Documentation.FieldDescription = "Exact relation type names to append as columns, for example ON_LEVEL."
+        ])
+    ) as table meta [
+        Documentation.Name = "Speckle - Add Relations",
+        Documentation.DisplayName = "Speckle - Add Relations",
+        Documentation.LongDescription =
+            "Returns the objects table with selected outgoing, one-hop relations appended. Pass Objects, Relations, "
+            & "Relation Types and Nodes from Speckle.GetTables. Node targets resolve to node names, while object "
+            & "targets remain Object Key values. Multi-valued relations are deduplicated, sorted and joined with "
+            & "a comma and space. A single-valued relation with multiple targets raises a structured error."
     ]
 );
 
 shared Speckle.AddAllProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddAllProperties.pqm"),
     type function (
-        source as table,
-        optional columnNames as (type nullable text meta [
-            Documentation.FieldCaption = "Column names",
-            Documentation.FieldDescription = "Default: Shortest. Shortest names each column with the shortest unique trailing part of its dotted path, growing only on collisions; Full path uses the entire dotted path. Type values keep the Type_ prefix in both modes.",
-            Documentation.AllowedValues = {"Shortest", "Full path"}
+        objects as (type table meta [
+            Documentation.FieldCaption = "Objects",
+            Documentation.FieldDescription = "The Objects table (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows."
+        ]),
+        propertyValues as (type table meta [
+            Documentation.FieldCaption = "Property Values",
+            Documentation.FieldDescription = "The Property Values instance fact table (requires Object Key, path_key, Value)."
+        ]),
+        paths as (type table meta [
+            Documentation.FieldCaption = "Property Paths",
+            Documentation.FieldDescription = "The Property Paths dimension table (requires path_key, Property); every listed path is appended."
+        ]),
+        objectTypes as (type table meta [
+            Documentation.FieldCaption = "Object Types",
+            Documentation.FieldDescription = "The Object Types bridge table (requires Object Key, type_key)."
+        ]),
+        typeProperties as (type table meta [
+            Documentation.FieldCaption = "Type Properties",
+            Documentation.FieldDescription = "The Type Properties fact table (requires type_key, path_key, Value)."
+        ]),
+        optional useFullPaths as (type nullable logical meta [
+            Documentation.FieldCaption = "Use full paths",
+            Documentation.FieldDescription = "Default: false. False names each column with the shortest unique trailing part of its dotted path, growing only on collisions; true uses the entire dotted path. Type values keep the Type_ prefix in both modes. Names that still clash at full depth are made unique with a numeric suffix (.1, .2, …)."
         ])
     ) as table meta [
         Documentation.Name = "Speckle - Add All Properties",
         Documentation.DisplayName = "Speckle - Add All Properties",
         Documentation.LongDescription =
-            "Returns the Objects table from Speckle.GetTables with every property path appended. "
+            "Returns the objects table with every path in the passed Property Paths table appended. Pass the five "
+            & "star-schema tables from the Speckle.GetTables navigator (Objects, Property Values, Property Paths, "
+            & "Object Types, Type Properties) as they exist in your model — filtered or transformed copies "
+            & "included; joins restrict silently and the emitted column set derives from the surviving facts. "
             & "Values are split by source: instance values land in unprefixed columns and type values in "
-            & "Type_-prefixed columns. columnNames controls the emitted column names: Shortest (default) uses "
-            & "the shortest unique trailing part of each dotted path, Full path uses the entire path. "
+            & "Type_-prefixed columns. useFullPaths controls the emitted column names: false (default) uses "
+            & "the shortest unique trailing part of each dotted path, true uses the entire path. "
             & "Intended as a convenience for property-light models; "
             & "models with hundreds or thousands of property paths can produce very wide, slow-to-refresh tables."
     ]

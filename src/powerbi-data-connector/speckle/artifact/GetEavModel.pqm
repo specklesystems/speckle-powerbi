@@ -1,4 +1,5 @@
-// Builds the star-schema tables from a 4.0 artifact bundle's eav parquet files.
+// Builds the star-schema tables from a 4.0 artifact bundle's eav and envelope
+// parquet files.
 // The bundle IS a star schema (fact eav.eav, dims eav.objects/eav.paths); this
 // module preserves it so Power BI model relationships do the joins at query
 // time instead of M at refresh time.
@@ -11,6 +12,10 @@
 //   Paths             path_key | Property                        (dimension)
 //   ObjectTypes       Object Key | type_key                      (bridge; empty when bundle has no types)
 //   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
+//   Relations         Relation Type | rel | src | dst | ord       (outgoing graph edges)
+//   RelationTypes     bundle relation type catalog
+//   Nodes             Node Key | Kind | Name | Elevation | Subtype | Units
+//   NodeKinds         bundle node kind catalog (internal shaping input)
 //
 // Every table carries dense-int keys so model relationships join on ints
 // (fast in VertiPaq, and the name match helps Desktop's autodetect):
@@ -21,7 +26,8 @@
 // (instance values win on the same path) — type names arrive as ordinary rows.
 //
 // keyOffset namespaces the bundle's dense-int keys per federated model
-// (ordinal * 2^32) so object/path indices never collide across models.
+// (ordinal * 2^32) so object/path/node indices and relation endpoints never
+// collide across models.
 //
 // deps carries the shared module functions so this file doesn't re-load them:
 //   deps[ReadBundleTable](files, suffix, required)
@@ -58,6 +64,55 @@
         typeEavRaw = ReadBundleTable(files, ".eav.type_eav.parquet", false),
         typeEav = if typeEavRaw = null then null else Table.Buffer(typeEavRaw),
         hasTypes = objectType <> null and typeEav <> null,
+
+        // ---- optional envelope graph tables --------------------------------
+        // Older bundles have none of these files. Each file feature-detects
+        // independently and falls back to a typed empty table.
+        relationsRaw = ReadBundleTable(files, ".envelope.relations.parquet", false),
+        relationTypesRaw = ReadBundleTable(files, ".envelope.rel_types.parquet", false),
+        nodesRaw = ReadBundleTable(files, ".envelope.nodes.parquet", false),
+        nodeKindsRaw = ReadBundleTable(files, ".envelope.node_kinds.parquet", false),
+
+        relations = if relationsRaw = null then
+            #table(
+                type table [rel = Int64.Type, src = Int64.Type, dst = Int64.Type, ord = nullable number],
+                {}
+            )
+        else
+            Table.SelectColumns(relationsRaw, {"rel", "src", "dst", "ord"}),
+        relationTypes = if relationTypesRaw = null then
+            #table(
+                type table [
+                    rel = Int64.Type,
+                    name = nullable text,
+                    src_ns = nullable text,
+                    dst_ns = nullable text,
+                    status = nullable text,
+                    ord_semantics = nullable text,
+                    description = nullable text
+                ],
+                {}
+            )
+        else
+            relationTypesRaw,
+        nodes = if nodesRaw = null then
+            #table(
+                type table [
+                    id = Int64.Type,
+                    kind = Int64.Type,
+                    name = nullable text,
+                    elevation = nullable number,
+                    subtype = nullable text,
+                    units = nullable text
+                ],
+                {}
+            )
+        else
+            nodesRaw,
+        nodeKinds = if nodeKindsRaw = null then
+            #table(type table [kind = Int64.Type, name = nullable text], {})
+        else
+            nodeKindsRaw,
 
         // ---- fact pipeline ---------------------------------------------------
         // MEMORY + SCALE: never Table.Buffer the fact-sized tables (mashup
@@ -173,12 +228,126 @@
                     Value = any
                 ],
                 {}
+            ),
+
+        // ---- envelope graph -------------------------------------------------
+        // Keep graph facts unbuffered. Only the small catalogs participate in
+        // presentation joins. Relation endpoints and Node Key use the same
+        // per-model offset, while their namespaces remain distinct columns.
+        // Converter-produced catalogs currently use rel/kind as their key
+        // names. The executable SQL spec uses id. Accept both shapes so a
+        // model refresh is not coupled to the catalog generator version.
+        relationTypeKey = if Table.HasColumns(relationTypes, {"id"}) then
+            "id"
+        else if Table.HasColumns(relationTypes, {"rel"}) then
+            "rel"
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidRelationTypes",
+                "Relation Types must contain an id or rel key column.",
+                [Columns = Table.ColumnNames(relationTypes)]
+            ),
+        relationTypeNames = Table.Distinct(
+            Table.RenameColumns(
+                Table.SelectColumns(relationTypes, {relationTypeKey, "name"}),
+                {{relationTypeKey, "__rel"}}
             )
+        ),
+        keyedRelations = Table.TransformColumnTypes(
+            Table.AddColumn(
+                Table.AddColumn(relations, "__src", each [src] + keyOffset, Int64.Type),
+                "__dst", each [dst] + keyOffset, Int64.Type
+            ),
+            {{"rel", Int64.Type}}
+        ),
+        namedRelations = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                keyedRelations,
+                {"rel"},
+                relationTypeNames,
+                {"__rel"},
+                "__relationType",
+                JoinKind.LeftOuter
+            ),
+            "__relationType",
+            {"name"},
+            {"Relation Type"}
+        ),
+        RelationsOut = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.SelectColumns(
+                    namedRelations,
+                    {"Relation Type", "rel", "__src", "__dst", "ord"}
+                ),
+                {{"__src", "src"}, {"__dst", "dst"}}
+            ),
+            {{"Relation Type", type nullable text}}
+        ),
+
+        RelationTypesOut = relationTypes,
+
+        nodeKindKey = if Table.HasColumns(nodeKinds, {"id"}) then
+            "id"
+        else if Table.HasColumns(nodeKinds, {"kind"}) then
+            "kind"
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidNodeKinds",
+                "Node Kinds must contain an id or kind key column.",
+                [Columns = Table.ColumnNames(nodeKinds)]
+            ),
+        nodeKindNames = Table.Distinct(
+            Table.RenameColumns(
+                Table.SelectColumns(nodeKinds, {nodeKindKey, "name"}),
+                {{nodeKindKey, "__kind"}}
+            )
+        ),
+        keyedNodes = Table.AddColumn(nodes, "Node Key", each [id] + keyOffset, Int64.Type),
+        namedNodes = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                keyedNodes,
+                {"kind"},
+                nodeKindNames,
+                {"__kind"},
+                "__nodeKind",
+                JoinKind.LeftOuter
+            ),
+            "__nodeKind",
+            {"name"},
+            {"Kind"}
+        ),
+        NodesOut = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.SelectColumns(
+                    namedNodes,
+                    {"Node Key", "Kind", "name", "elevation", "subtype", "units"}
+                ),
+                {
+                    {"name", "Name"},
+                    {"elevation", "Elevation"},
+                    {"subtype", "Subtype"},
+                    {"units", "Units"}
+                }
+            ),
+            {
+                {"Kind", type nullable text},
+                {"Name", type nullable text},
+                {"Elevation", type nullable number},
+                {"Subtype", type nullable text},
+                {"Units", type nullable text}
+            }
+        ),
+
+        NodeKindsOut = nodeKinds
     in
         [
             Objects = ObjectsOut,
             Properties = PropertiesOut,
             Paths = PathsOut,
             ObjectTypes = ObjectTypesOut,
-            TypeProperties = TypePropertiesOut
+            TypeProperties = TypePropertiesOut,
+            Relations = RelationsOut,
+            RelationTypes = RelationTypesOut,
+            Nodes = NodesOut,
+            NodeKinds = NodeKindsOut
         ]

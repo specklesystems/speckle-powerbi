@@ -73,19 +73,68 @@ let
         ],
         {{0, 0, "type-area", null, null}}
     ),
+    RelationsBundle = #table(
+        type table [rel = Int64.Type, src = Int64.Type, dst = Int64.Type, ord = nullable number],
+        {{7, 0, 10, null}, {20, 1, 2, 3}}
+    ),
+    RelationTypesBundle = #table(
+        type table [
+            rel = Int64.Type,
+            name = text,
+            src_ns = text,
+            dst_ns = text,
+            status = text,
+            ord_semantics = nullable text,
+            description = text
+        ],
+        {
+            {7, "ON_LEVEL", "object", "node", "active", null, "level"},
+            {20, "CONNECTS_TO", "object", "object", "active", "scope", "connection"}
+        }
+    ),
+    NodesBundle = #table(
+        type table [
+            id = Int64.Type,
+            kind = Int64.Type,
+            name = nullable text,
+            elevation = nullable number,
+            subtype = nullable text,
+            units = nullable text,
+            argb = nullable number
+        ],
+        {{10, 5, "Level 1", 3.5, "Building Story", "m", 4278190080}}
+    ),
+    NodeKindsBundle = #table(
+        type table [kind = Int64.Type, name = text, description = text],
+        {{5, "LEVEL", "building level"}}
+    ),
 
-    MakeReader = (withTypes as logical) => (files as list, suffix as text, required as logical) =>
+    MakeReader = (withTypes as logical, withEnvelope as logical) =>
+        (files as list, suffix as text, required as logical) =>
         if suffix = ".eav.objects.parquet" then ObjectsBundle
         else if suffix = ".eav.paths.parquet" then PathsBundle
         else if suffix = ".eav.eav.parquet" then EavBundle
         else if suffix = ".eav.object_type.parquet" then (if withTypes then ObjectTypeBundle else null)
         else if suffix = ".eav.type_eav.parquet" then (if withTypes then TypeEavBundle else null)
+        else if suffix = ".envelope.relations.parquet" then (if withEnvelope then RelationsBundle else null)
+        else if suffix = ".envelope.rel_types.parquet" then (if withEnvelope then RelationTypesBundle else null)
+        else if suffix = ".envelope.nodes.parquet" then (if withEnvelope then NodesBundle else null)
+        else if suffix = ".envelope.node_kinds.parquet" then (if withEnvelope then NodeKindsBundle else null)
         else error "unexpected bundle suffix: " & suffix,
 
-    Model = GetEavModel([ReadBundleTable = MakeReader(true)], {}, 0),
+    SpecKeyReader = (files as list, suffix as text, required as logical) =>
+        if suffix = ".envelope.rel_types.parquet" then
+            Table.RenameColumns(RelationTypesBundle, {{"rel", "id"}})
+        else if suffix = ".envelope.node_kinds.parquet" then
+            Table.RenameColumns(NodeKindsBundle, {{"kind", "id"}})
+        else
+            MakeReader(true, true)(files, suffix, required),
+
+    Model = GetEavModel([ReadBundleTable = MakeReader(true, true)], {}, 0),
+    SpecKeyModel = GetEavModel([ReadBundleTable = SpecKeyReader], {}, 0),
     // second federated model: keyOffset = ordinal 1 * 2^32
-    FederatedModel = GetEavModel([ReadBundleTable = MakeReader(true)], {}, KeySpace),
-    TypelessModel = GetEavModel([ReadBundleTable = MakeReader(false)], {}, 0),
+    FederatedModel = GetEavModel([ReadBundleTable = MakeReader(true, true)], {}, KeySpace),
+    TypelessModel = GetEavModel([ReadBundleTable = MakeReader(false, false)], {}, 0),
 
     KeyTypeName = (t as table) as text => Table.Schema(t){[Name = "Object Key"]}[TypeName],
 
@@ -162,6 +211,60 @@ let
                     Table.SelectColumns(FederatedModel[Properties], {"Object Key", "path_key"})
                 ),
                 Bridge = Table.ToRows(FederatedModel[ObjectTypes])
+            ]
+        ),
+        Fact(
+            "Relations exposes the catalog name and offsets both endpoints",
+            {
+                {"ON_LEVEL", 7, 0, 10, null},
+                {"CONNECTS_TO", 20, 1, 2, 3}
+            },
+            Table.ToRows(Model[Relations])
+        ),
+        Fact(
+            "federation offsets relation endpoints but leaves relation ids local",
+            {
+                {"ON_LEVEL", 7, KeySpace, KeySpace + 10, null},
+                {"CONNECTS_TO", 20, KeySpace + 1, KeySpace + 2, 3}
+            },
+            Table.ToRows(FederatedModel[Relations])
+        ),
+        Fact(
+            "Relation Types preserves the bundle catalog columns and values",
+            Table.ToRows(RelationTypesBundle),
+            Table.ToRows(Model[RelationTypes])
+        ),
+        Fact(
+            "Nodes keeps only BI fields, resolves Kind and offsets Node Key",
+            {
+                {10, "LEVEL", "Level 1", 3.5, "Building Story", "m"}
+            },
+            Table.ToRows(Model[Nodes])
+        ),
+        Fact(
+            "SQL-spec id keys produce the same relation and node shapes",
+            [Relations = Table.ToRows(Model[Relations]), Nodes = Table.ToRows(Model[Nodes])],
+            [Relations = Table.ToRows(SpecKeyModel[Relations]), Nodes = Table.ToRows(SpecKeyModel[Nodes])]
+        ),
+        Fact(
+            "federation offsets Node Key",
+            {KeySpace + 10},
+            Table.Column(FederatedModel[Nodes], "Node Key")
+        ),
+        Fact(
+            "a legacy bundle gets typed empty envelope tables",
+            [
+                Relations = [Columns = {"Relation Type", "rel", "src", "dst", "ord"}, Rows = 0],
+                RelationTypes = [
+                    Columns = {"rel", "name", "src_ns", "dst_ns", "status", "ord_semantics", "description"},
+                    Rows = 0
+                ],
+                Nodes = [Columns = {"Node Key", "Kind", "Name", "Elevation", "Subtype", "Units"}, Rows = 0]
+            ],
+            [
+                Relations = [Columns = Table.ColumnNames(TypelessModel[Relations]), Rows = Table.RowCount(TypelessModel[Relations])],
+                RelationTypes = [Columns = Table.ColumnNames(TypelessModel[RelationTypes]), Rows = Table.RowCount(TypelessModel[RelationTypes])],
+                Nodes = [Columns = Table.ColumnNames(TypelessModel[Nodes]), Rows = Table.RowCount(TypelessModel[Nodes])]
             ]
         )
     }

@@ -1,10 +1,18 @@
-// Adds every property path exposed by the Speckle.GetTables navigation table.
-// AddProperties remains the single implementation of validation, naming, and
-// source-split column emission (instance values unprefixed, type values
-// Type_-prefixed); columnNames is forwarded to it unchanged.
-(source as table, optional columnNames as nullable text) as table =>
-    let
-        paths = source{[Key = "paths"]}[Data],
-        propertyPaths = Table.Column(paths, "Property")
-    in
-        Speckle.AddProperties(source, propertyPaths, columnNames)
+// Adds every property path in the passed Property Paths table. AddProperties
+// remains the single implementation of validation, naming, and source-split
+// column emission (instance values unprefixed, type values Type_-prefixed);
+// useFullPaths is forwarded to it unchanged. The path list is intentionally
+// not deduplicated here — federated models repeat identical path text under
+// per-source path_keys and AddProperties owns the dedup.
+(
+    objects as table,
+    propertyValues as table,
+    paths as table,
+    objectTypes as table,
+    typeProperties as table,
+    optional useFullPaths as nullable logical
+) as table =>
+    Speckle.AddProperties(
+        objects, propertyValues, paths, objectTypes, typeProperties,
+        Table.Column(paths, "Property"), useFullPaths
+    )

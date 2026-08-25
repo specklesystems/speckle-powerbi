@@ -1,14 +1,16 @@
 // Offline contract tests for BuildNavigation.pqm — the composition seam that
-// assembles the public Speckle.GetTables navigator: the five keyed helper rows
-// plus the visible Properties function row. Deep enrichment semantics
+// assembles the public Speckle.GetTables navigator: the existing five keyed
+// property helper rows and Properties function plus the Relations function
+// and three raw graph tables. Deep enrichment semantics
 // (suffix naming, source splits, strict failures) stay covered by
 // AddProperties.query.pq; this suite covers the six-row layout, the
 // Table layout option (Simplified default hides the supporting rows,
 // All tables shows every row, invalid values raise a structured error), the
-// model-bound function's type/documentation contract, selection
-// normalization and ordering, the lean relationship-ready result shape
-// (Object Key + selected property columns, every Objects row retained),
-// and laziness of the fact tables.
+// model-bound function's type/documentation contract — two optional
+// parameters, the nullable-list selection and the nullable-logical
+// UseFullPaths naming toggle — selection normalization and ordering, the lean
+// relationship-ready result shape (Object Key + selected property columns,
+// every Objects row retained), and laziness of the fact tables.
 let
     Repr = (v as any) as text => try Text.FromBinary(Json.FromValue(v)) otherwise "<unserializable>",
     Fact = (description as text, expected as any, actual as any) as record => [
@@ -36,7 +38,12 @@ let
     // composes with) the same way GetTables.pqm does
     BuildNavigation = Speckle.LoadFunction("BuildNavigation.pqm"),
     NavigationTable = Speckle.LoadFunction("NavigationTable.pqm"),
-    Deps = [NavigationTable = NavigationTable, AddProperties = Speckle.AddProperties],
+    Deps = [
+        NavigationTable = NavigationTable,
+        AddProperties = Speckle.AddProperties,
+        AddRelations = Speckle.AddRelations,
+        RelationCatalog = Speckle.LoadFunction("RelationCatalog.pqm")()
+    ],
 
     Objects = #table(
         type table [#"Object Key" = Int64.Type, #"Application ID" = text],
@@ -67,12 +74,43 @@ let
             {4294967306, "properties.Material.Name"}
         }
     ),
+    Relations = #table(
+        type table [
+            #"Relation Type" = nullable text,
+            rel = Int64.Type,
+            src = Int64.Type,
+            dst = Int64.Type,
+            ord = nullable number
+        ],
+        {
+            {"ON_LEVEL", 7, 1, 1000, null},
+            {"CONNECTS_TO", 20, 1, 2, 1},
+            {"OBJECT_HAS_MATERIAL", 12, 1, 3000, null},
+            {"ON_LEVEL", 7, 4294967297, 4294968296, null}
+        }
+    ),
+    RelationTypes = #table(
+        type table [rel = Int64.Type, name = text, src_ns = text, dst_ns = text],
+        {
+            {7, "ON_LEVEL", "object", "node"},
+            {12, "OBJECT_HAS_MATERIAL", "object", "node"},
+            {21, "IN_ROOM", "object", "node"},
+            {20, "CONNECTS_TO", "object", "object"}
+        }
+    ),
+    Nodes = #table(
+        type table [#"Node Key" = Int64.Type, Name = nullable text],
+        {{1000, "Level 1"}, {4294968296, "Federated Level"}}
+    ),
     SourceTables = [
         Objects = Objects,
         Properties = Properties,
         Paths = Paths,
         ObjectTypes = ObjectTypes,
-        TypeProperties = TypeProperties
+        TypeProperties = TypeProperties,
+        Relations = Relations,
+        RelationTypes = RelationTypes,
+        Nodes = Nodes
     ],
     Nav = BuildNavigation(Deps, SourceTables),
     SimplifiedNav = BuildNavigation(Deps, SourceTables, "Simplified"),
@@ -95,28 +133,56 @@ let
     FnType = Value.Type(ExpandFn),
     ParamType = Type.FunctionParameters(FnType)[Properties],
     ParamMeta = Value.Metadata(ParamType),
-    ColumnNamesParamType = Type.FunctionParameters(FnType)[ColumnNames],
-    ColumnNamesParamMeta = Value.Metadata(ColumnNamesParamType),
+    UseFullPathsParamType = Type.FunctionParameters(FnType)[UseFullPaths],
+    UseFullPathsParamMeta = Value.Metadata(UseFullPathsParamType),
     Catalogue = {
         "properties.Dimensions.Area",
         "properties.Material.Name",
         "properties.Instance.Mark",
         "properties.Unused.Slot"
     },
+    RelationsFunctionRow = Nav{[Key = "expand-relations"]},
+    RelationsFn = RelationsFunctionRow[Data],
+    RelationsFnType = Value.Type(RelationsFn),
+    RelationsParamType = Type.FunctionParameters(RelationsFnType)[Relations],
+    RelationsParamMeta = Value.Metadata(RelationsParamType),
 
     // laziness rig: building the navigator and empty invocations must never
-    // force the property fact tables (Paths, the small dimension, is real —
-    // it feeds AllowedValues)
+    // read the property fact tables' rows (Paths, the small dimension, is
+    // real — it feeds AllowedValues). The bound function's typed table
+    // parameters force each argument to a table value, so the fixtures are
+    // lazy views whose row enumeration errors rather than scalar errors.
+    UnreadTable = (message as text, tableType as type) as table =>
+        Table.View(null, [GetType = () => tableType, GetRows = () => error message]),
     LazyTables = [
         Objects = Objects,
-        Properties = error "Properties must not be read",
+        Properties = UnreadTable(
+            "Properties must not be read",
+            type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any]
+        ),
         Paths = Paths,
-        ObjectTypes = error "Object Types must not be read",
-        TypeProperties = error "Type Properties must not be read"
+        ObjectTypes = UnreadTable(
+            "Object Types must not be read",
+            type table [#"Object Key" = Int64.Type, type_key = Int64.Type]
+        ),
+        TypeProperties = UnreadTable(
+            "Type Properties must not be read",
+            type table [type_key = Int64.Type, path_key = Int64.Type, Value = any]
+        ),
+        Relations = UnreadTable(
+            "Relations must not be read",
+            type table [#"Relation Type" = nullable text, rel = Int64.Type, src = Int64.Type, dst = Int64.Type, ord = nullable number]
+        ),
+        RelationTypes = RelationTypes,
+        Nodes = UnreadTable(
+            "Nodes must not be read",
+            type table [#"Node Key" = Int64.Type, Name = nullable text]
+        )
     ],
     LazyNav = BuildNavigation(Deps, LazyTables),
     LazyAllTablesNav = BuildNavigation(Deps, LazyTables, "All tables"),
     LazyFn = LazyNav{[Key = "expand-properties"]}[Data],
+    LazyRelationsFn = LazyNav{[Key = "expand-relations"]}[Data],
     Shape = (t as table) as record => [
         Columns = Table.ColumnNames(t),
         Rows = Table.ToRows(t),
@@ -138,28 +204,19 @@ let
     // Select All is exactly "invoke with every AllowedValues entry" — no cap
     SelectAllResult = ExpandFn(ParamMeta[Documentation.AllowedValues]),
     // an unknown path named after a removed Objects column must not collide
-    // against the lean base; an unknown path named Object Key cannot be made
-    // unique and must keep the structured collision error
+    // against the lean base; an unknown path named Object Key clashes at
+    // full depth and takes a numeric suffix instead of failing
     RemovedColumnResult = ExpandFn({"Application ID"}),
-    CollisionResult = try Table.RowCount(ExpandFn({"Object Key"})),
-    CollisionError = if not CollisionResult[HasError] then
-        [Reason = null, ExistingColumns = {}]
-    else
-        [
-            Reason = try CollisionResult[Error][Reason] otherwise null,
-            ExistingColumns = try CollisionResult[Error][Detail][ExistingColumns] otherwise {}
-        ],
-    // column naming through the closure: Full path names columns with entire
-    // dotted paths, matching case-insensitively; validation stays in
-    // AddProperties and must fire without reading the fact tables
-    FullPathResult = ExpandFn({"properties.Dimensions.Area"}, "Full path"),
-    CaseInsensitiveFullPathResult = ExpandFn({"properties.Instance.Mark"}, "full path"),
-    LazyFullPathEmptyResult = LazyFn({}, "Full path"),
-    LazyInvalidColumnNamesResult = try Table.RowCount(LazyFn({}, "Longest")),
-    LazyInvalidColumnNamesReason = if not LazyInvalidColumnNamesResult[HasError] then
-        null
-    else
-        try LazyInvalidColumnNamesResult[Error][Reason] otherwise null,
+    CollisionSuffixResult = ExpandFn({"Object Key"}),
+    // column naming through the closure: UseFullPaths = true names columns
+    // with entire dotted paths; the parameter type rejects non-logical values
+    // before the fact tables are ever read
+    FullPathResult = ExpandFn({"properties.Dimensions.Area"}, true),
+    ExplicitFalseResult = ExpandFn({"properties.Instance.Mark"}, false),
+    LazyFullPathEmptyResult = LazyFn({}, true),
+    LazyInvalidUseFullPathsResult = try Table.RowCount(LazyFn({}, "Longest")),
+    RelationResult = RelationsFn({"CONNECTS_TO", "ON_LEVEL"}),
+    LazyRelationsResult = LazyRelationsFn({}),
     InvalidResult = try ExpandFn({"   ", 5, "properties.Instance.Mark"}),
     InvalidError = if not InvalidResult[HasError] then
         [Reason = null, Positions = {}]
@@ -172,47 +229,47 @@ let
     facts = {
         // -- navigator layout -------------------------------------------------
         Fact(
-            "the six rows keep the five helper keys and append expand-properties",
-            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
+            "the ten rows preserve the existing six keys and append relation entries",
+            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties", "expand-relations", "relations", "relation-types", "nodes"},
             Table.Column(Nav, "Key")
         ),
         Fact(
             "row names follow the settled order",
-            {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"},
+            {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties", "Relations", "Relations", "Relation Types", "Nodes"},
             Table.Column(Nav, "Name")
         ),
         Fact(
             "keys are unique",
-            6,
+            10,
             List.Count(List.Distinct(Table.Column(Nav, "Key"), Comparer.Ordinal))
         ),
         Fact(
-            "hidden flags leave exactly Objects and Properties visible",
-            {false, true, true, true, true, false},
+            "hidden flags leave Objects and both picker functions visible",
+            {false, true, true, true, true, false, false, true, true, true},
             Table.Column(Nav, "Hidden")
         ),
         Fact(
-            "visible entries appear as Objects, Properties",
-            {"Objects", "Properties"},
+            "visible entries appear as Objects, Properties and Relations",
+            {"Objects", "Properties", "Relations"},
             Table.Column(Table.SelectRows(Nav, each not [Hidden]), "Name")
         ),
 
         // -- Table layout option ------------------------------------------------
         Fact(
             "an explicit Simplified layout matches the default hidden flags",
-            {false, true, true, true, true, false},
+            {false, true, true, true, true, false, false, true, true, true},
             Table.Column(SimplifiedNav, "Hidden")
         ),
         Fact(
             "the All tables layout shows every row",
-            {false, false, false, false, false, false},
+            {false, false, false, false, false, false, false, false, false, false},
             Table.Column(AllTablesNav, "Hidden")
         ),
         Fact(
             "the All tables layout keeps the settled keys and names",
             [
-                Keys = {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
-                Names = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"}
+                Keys = {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties", "expand-relations", "relations", "relation-types", "nodes"},
+                Names = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties", "Relations", "Relations", "Relation Types", "Nodes"}
             ],
             [
                 Keys = Table.Column(AllTablesNav, "Key"),
@@ -221,7 +278,7 @@ let
         ),
         Fact(
             "the layout value matches case-insensitively",
-            {false, false, false, false, false, false},
+            {false, false, false, false, false, false, false, false, false, false},
             Table.Column(CaseInsensitiveLayoutNav, "Hidden")
         ),
         Fact(
@@ -234,23 +291,28 @@ let
         ),
         Fact(
             "the All tables layout does not force the fact tables",
-            {false, false, false, false, false, false},
+            {false, false, false, false, false, false, false, false, false, false},
             Table.Column(LazyAllTablesNav, "Hidden")
         ),
         Fact(
             "every row is a leaf",
-            {true, true, true, true, true, true},
+            {true, true, true, true, true, true, true, true, true, true},
             Table.Column(Nav, "IsLeaf")
         ),
         Fact(
             "table rows keep ItemKind Table and the function row uses Function for both ItemKind and ItemName",
-            {"Table", "Table", "Table", "Table", "Table", "Function"},
+            {"Table", "Table", "Table", "Table", "Table", "Function", "Function", "Table", "Table", "Table"},
             Table.Column(Nav, "ItemKind")
         ),
         Fact(
-            "the function row's ItemName is Function",
+            "the Properties function row's ItemName is Function",
             "Function",
             FunctionRow[ItemName]
+        ),
+        Fact(
+            "the Relations function row uses Function for ItemName",
+            "Function",
+            RelationsFunctionRow[ItemName]
         ),
         Fact(
             "the function row holds a function value",
@@ -284,8 +346,8 @@ let
             Type.Is(Type.FunctionReturn(FnType), type table)
         ),
         Fact(
-            "the machine parameter names are Properties and ColumnNames",
-            {"Properties", "ColumnNames"},
+            "the machine parameter names are Properties and UseFullPaths",
+            {"Properties", "UseFullPaths"},
             Record.FieldNames(Type.FunctionParameters(FnType))
         ),
         Fact(
@@ -325,36 +387,61 @@ let
             )
         ),
         Fact(
-            "the ColumnNames parameter is nullable text",
-            [IsText = true, IsNullable = true],
+            "the UseFullPaths parameter is nullable logical",
+            [IsLogical = true, IsNullable = true],
             [
-                IsText = Type.Is(ColumnNamesParamType, type nullable text),
-                IsNullable = Type.IsNullable(ColumnNamesParamType)
+                IsLogical = Type.Is(UseFullPathsParamType, type nullable logical),
+                IsNullable = Type.IsNullable(UseFullPathsParamType)
             ]
         ),
         Fact(
-            "the ColumnNames caption omits the (optional) suffix the parameter dialog adds itself",
-            "Column names",
-            ColumnNamesParamMeta[Documentation.FieldCaption]
+            "the UseFullPaths caption omits the (optional) suffix the parameter dialog adds itself",
+            "Use full paths",
+            UseFullPathsParamMeta[Documentation.FieldCaption]
         ),
         Fact(
-            "the ColumnNames AllowedValues list the two modes with the Shortest default first",
-            {"Shortest", "Full path"},
-            ColumnNamesParamMeta[Documentation.AllowedValues]
+            "UseFullPaths carries no AllowedValues so it renders as a true/false picker, not a dropdown",
+            false,
+            Record.HasFields(UseFullPathsParamMeta, "Documentation.AllowedValues")
         ),
         Fact(
-            "the ColumnNames description leads with the default",
+            "the UseFullPaths description leads with the default",
             true,
             Text.StartsWith(
-                ColumnNamesParamMeta[Documentation.FieldDescription],
-                "Default: Shortest."
+                UseFullPathsParamMeta[Documentation.FieldDescription],
+                "Default: false."
             )
+        ),
+        Fact(
+            "the Relations function has one optional nullable-list parameter",
+            [Names = {"Relations"}, Required = 0, IsNullableList = true],
+            [
+                Names = Record.FieldNames(Type.FunctionParameters(RelationsFnType)),
+                Required = Type.FunctionRequiredParameters(RelationsFnType),
+                IsNullableList = Type.Is(RelationsParamType, type nullable list)
+            ]
+        ),
+        Fact(
+            "Relations AllowedValues keep catalog order, require a present edge and enforce the allow-list",
+            {"ON_LEVEL", "CONNECTS_TO"},
+            RelationsParamMeta[Documentation.AllowedValues]
+        ),
+        Fact(
+            "the relation picker excludes OBJECT_HAS_MATERIAL and an allow-listed type without edges",
+            false,
+            List.Contains(RelationsParamMeta[Documentation.AllowedValues], "OBJECT_HAS_MATERIAL")
+                or List.Contains(RelationsParamMeta[Documentation.AllowedValues], "IN_ROOM")
+        ),
+        Fact(
+            "the function documentation name is Relations",
+            "Relations",
+            Value.Metadata(RelationsFnType)[Documentation.Name]
         ),
 
         // -- empty selections and laziness ------------------------------------
         Fact(
             "building the navigator does not force the fact tables",
-            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties"},
+            {"objects", "properties", "paths", "object-types", "type-properties", "expand-properties", "expand-relations", "relations", "relation-types", "nodes"},
             Table.Column(LazyNav, "Key")
         ),
         Fact(
@@ -373,14 +460,19 @@ let
             Shape(LazyFn({}))
         ),
         Fact(
-            "an empty selection with Full path returns the base without reading facts",
+            "an empty selection with UseFullPaths = true returns the base without reading facts",
             ExpectedBase,
             Shape(LazyFullPathEmptyResult)
         ),
         Fact(
-            "an invalid ColumnNames raises the structured error without reading facts",
-            "Speckle.AddProperties.InvalidColumnNames",
-            LazyInvalidColumnNamesReason
+            "an empty Relations selection returns the lean base without reading envelope facts",
+            ExpectedBase,
+            Shape(LazyRelationsResult)
+        ),
+        Fact(
+            "a non-logical UseFullPaths is rejected by the parameter type without reading facts",
+            true,
+            LazyInvalidUseFullPathsResult[HasError]
         ),
 
         // -- selection behavior through the closure ----------------------------
@@ -436,7 +528,7 @@ let
             ]
         ),
         Fact(
-            "a Full path selection names columns with entire dotted paths over the lean base",
+            "a UseFullPaths = true selection names columns with entire dotted paths over the lean base",
             [
                 Columns = {"Object Key", "properties.Dimensions.Area", "Type_properties.Dimensions.Area"},
                 Rows = {
@@ -451,9 +543,9 @@ let
             ]
         ),
         Fact(
-            "the ColumnNames value matches case-insensitively through the closure",
-            {"Object Key", "properties.Instance.Mark"},
-            Table.ColumnNames(CaseInsensitiveFullPathResult)
+            "an explicit UseFullPaths = false keeps the default shortest naming through the closure",
+            {"Object Key", "Mark"},
+            Table.ColumnNames(ExplicitFalseResult)
         ),
         Fact(
             "a path named after a removed Objects column no longer collides against the lean base",
@@ -467,17 +559,35 @@ let
             ]
         ),
         Fact(
-            "an unresolvable collision with Object Key keeps the structured collision error over the lean base",
+            "a full-depth clash with Object Key takes a numeric suffix over the lean base",
             [
-                Reason = "Speckle.AddProperties.NameCollision",
-                ExistingColumns = {"Object Key"}
+                Columns = {"Object Key", "Object Key.1"},
+                Values = {null, null, null}
             ],
-            CollisionError
+            [
+                Columns = Table.ColumnNames(CollisionSuffixResult),
+                Values = Table.Column(CollisionSuffixResult, "Object Key.1")
+            ]
         ),
         Fact(
             "blank or non-text entries raise the structured invalid-path error with caller positions",
             [Reason = "Speckle.AddProperties.InvalidPropertyPaths", Positions = {1, 2}],
             InvalidError
+        ),
+        Fact(
+            "the Relations function returns a lean catalog-ordered result across namespaces",
+            [
+                Columns = {"Object Key", "ON_LEVEL", "CONNECTS_TO"},
+                Rows = {
+                    {1, "Level 1", "2"},
+                    {2, null, null},
+                    {4294967297, "Federated Level", null}
+                }
+            ],
+            [
+                Columns = Table.ColumnNames(RelationResult),
+                Rows = Table.ToRows(RelationResult)
+            ]
         )
     }
 in

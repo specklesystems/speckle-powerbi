@@ -1,0 +1,20 @@
+// Curated relation types exposed by the model-bound Relations picker.
+// AddRelations also uses the cardinality annotation for these names. A name
+// outside this list remains callable from M and defaults to multi-valued.
+() as table =>
+    #table(
+        type table [Name = text, Cardinality = text],
+        {
+            {"ON_LEVEL", "single"},
+            {"IN_COLLECTION", "single"},
+            {"IN_MODEL", "single"},
+            {"IN_ROOM", "single"},
+            {"IN_SYSTEM", "multi"},
+            {"IN_GROUP", "multi"},
+            {"IN_ASSEMBLY", "multi"},
+            {"CONNECTS_TO", "multi"},
+            {"HOSTED_ON", "single"},
+            {"SUBELEMENT", "multi"},
+            {"BOUNDS", "multi"}
+        }
+    )

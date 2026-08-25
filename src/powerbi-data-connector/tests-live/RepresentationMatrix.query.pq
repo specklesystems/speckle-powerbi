@@ -45,13 +45,13 @@ let
             if outcome[HasError] then outcome[Error][Reason] else "<no error>",
 
     LegacyColumns = {"Object IDs", "Speckle Type", "Version Object ID", "Model Info", "Application ID", "data"},
-    StarTables = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties"},
-    // With the default Simplified table layout, Objects and the Properties
-    // function surface in the Navigator; the other four rows stay hidden and
-    // feed the property helpers. The advanced option
+    StarTables = {"Objects", "Property Values", "Property Paths", "Object Types", "Type Properties", "Properties", "Relations", "Relations", "Relation Types", "Nodes"},
+    // With the default Simplified table layout, Objects plus the Properties
+    // and Relations functions surface in the Navigator. Supporting rows stay
+    // hidden. The advanced option
     // [TableLayout = "All tables"] unhides them.
-    StarHidden = {false, true, true, true, true, false},
-    StarAllVisible = {false, false, false, false, false, false},
+    StarHidden = {false, true, true, true, true, false, false, true, true, true},
+    StarAllVisible = {false, false, false, false, false, false, false, false, false, false},
     HiddenColumnName = (nav as table) as any =>
         Record.FieldOrDefault(Value.Metadata(Value.Type(nav)), "NavigationTable.HiddenColumn", null),
 
@@ -75,7 +75,7 @@ let
             Table.Column(starBoth, "Name")),
         Fact("GetTables(both) declares the Navigator hidden column", "Hidden",
             HiddenColumnName(starBoth)),
-        Fact("GetTables(both) hides all but Objects and Properties", StarHidden,
+        Fact("GetTables(both) hides all but Objects and the picker functions", StarHidden,
             Table.Column(starBoth, "Hidden")),
         Fact("GetTables(both, All tables) shows every row", StarAllVisible,
             Table.Column(starBothAllTables, "Hidden")),
@@ -112,7 +112,7 @@ let
             ErrorReason(() => Table.RowCount(Speckle.GetByUrl(UrlArtifactOnly)))),
         Fact("GetTables(artifact-only) returns the star-schema navigation table", StarTables,
             Table.Column(starArtifactOnly, "Name")),
-        Fact("GetTables(artifact-only) hides all but Objects and Properties", StarHidden,
+        Fact("GetTables(artifact-only) hides all but Objects and the picker functions", StarHidden,
             Table.Column(starArtifactOnly, "Hidden"))
     }
 in
