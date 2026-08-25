@@ -185,25 +185,15 @@ Selection behavior:
 
 ### Add every object property
 
-The M helpers remain available alongside `Properties` and, unlike it, return
-the full Objects table enriched with property columns. They take the five
-star-schema tables directly — as they exist in your model, filtered or
-transformed copies included — so you can enrich a subset of Objects instead of
-the whole model. For property-light CAD models, create a blank query in Power
-Query and pass the five tables from the `Speckle.GetTables` navigator to the
-convenience helper:
+The M helpers remain available alongside `Properties` and return the full
+Objects table enriched with property columns. Pass the navigation table from
+`Speckle.GetTables` directly. For property-light CAD models, create a blank
+query and call the convenience helper:
 
 ```powerquery-m
 let
     Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
-    Objects = Source{[Key = "objects"]}[Data],
-    PropertyValues = Source{[Key = "properties"]}[Data],
-    PropertyPaths = Source{[Key = "paths"]}[Data],
-    ObjectTypes = Source{[Key = "object-types"]}[Data],
-    TypeProperties = Source{[Key = "type-properties"]}[Data],
-    ObjectsWithProperties = Speckle.AddAllProperties(
-        Objects, PropertyValues, PropertyPaths, ObjectTypes, TypeProperties
-    )
+    ObjectsWithProperties = Speckle.AddAllProperties(Source)
 in
     ObjectsWithProperties
 ```
@@ -214,20 +204,35 @@ stored per object land in an unprefixed column (for example `Area`), while
 values stored on the object's type land in a `Type_`-prefixed column
 (`Type_Area`). A property with both an instance value and a type value produces
 both columns side by side. Paths without a value are retained as null columns.
-The joins restrict silently, so filtered inputs mean filtered output — and the
-output column set derives from the facts that survive your filters, so it can
+The optional Objects override requires only `Object Key`. Its rows and extra
+columns are preserved, and its keys restrict the property fact scans. Joins
+restrict silently. The output column set derives from surviving facts, so it can
 vary with filtering. Property columns use the shortest unique suffix of their
 dotted paths by default, and a name that clashes with a column on the objects
 table you pass (or with another path) even at its full depth is made unique
 with a numeric suffix (`.1`, `.2`, …). Both helpers accept the same optional
-`useFullPaths` argument as the `Properties` function, so
-`Speckle.AddAllProperties(Objects, PropertyValues, PropertyPaths, ObjectTypes, TypeProperties, true)`
+`useFullPaths` argument as the `Properties` function. Pass `null` for the
+Objects override when setting it for the full model, so
+`Speckle.AddAllProperties(Source, null, true)`
 names every column with its entire dotted path.
+
+You can enrich, filter, and enrich the subset again without unpacking the
+supporting tables:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    Tagged = Speckle.AddProperties(Source, {"category"}),
+    Rooms = Table.SelectRows(Tagged, each [category] = "Rooms"),
+    Enriched = Speckle.AddProperties(Source, {"name", "number", "floorFinish"}, Rooms)
+in
+    Enriched
+```
 
 This helper is intended for models with relatively few property paths. BIM
 models can contain hundreds or thousands of paths, producing a very wide table
 and slower refreshes; use
-`Speckle.AddProperties(objects, propertyValues, paths, objectTypes, typeProperties, propertyPaths, useFullPaths)`
+`Speckle.AddProperties(source, propertyPaths, objects, useFullPaths)`
 to select only the properties needed in those cases.
 
 ## Development Setup

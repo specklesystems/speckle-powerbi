@@ -44,8 +44,10 @@
             [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
             [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = not showAllTables]
         },
+        propertySource = NavigationTable(helperRows),
 
-        // ExpandProperties closes over the five source tables directly.
+        // ExpandProperties passes the complete navigation table to the public
+        // helper and supplies the Object Key-only table as its override.
         // Its objects table carries only Object Key, so the bound function
         // returns a lean, relationship-ready table (Object Key + selected
         // property columns) instead of an enriched copy of Objects, and
@@ -111,11 +113,7 @@
             in
                 // UseFullPaths passes through uncoalesced: AddProperties owns
                 // the null-to-false default
-                AddProperties(
-                    helperObjects, tables[Properties], tables[Paths],
-                    tables[ObjectTypes], tables[TypeProperties],
-                    orderedSelection, UseFullPaths
-                ),
+                AddProperties(propertySource, orderedSelection, helperObjects, UseFullPaths),
 
         ExpandProperties.Type = Type.ForFunction(
             [
@@ -244,9 +242,8 @@
             [name = "Relations", key = "relations", data = tables[Relations], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
             [name = "Relation Types", key = "relation-types", data = tables[RelationTypes], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
             [name = "Nodes", key = "nodes", data = tables[Nodes], itemKind = "Table", isLeaf = true, hidden = not showAllTables]
-        }
-    in
-        NavigationTable(
+        },
+        navTable = NavigationTable(
             helperRows
                 & {
                     [
@@ -259,3 +256,5 @@
                 }
                 & relationRows
         )
+    in
+        navTable

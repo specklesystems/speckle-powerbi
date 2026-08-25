@@ -30,21 +30,23 @@ listing the failed facts.
   duplicate-edge and resolved-value deduplication, deterministic ordering,
   federated keys, disappeared selections, structured errors and empty-call
   laziness.
-- `AddProperties.query.pq` — the unified property enrichment helper against
-  the five in-memory star-schema tables passed directly (filtered subsets,
-  extra columns and empty typed fact tables included), including source-split
+- `AddProperties.query.pq` — the unified property enrichment helper against a
+  navigation-shaped Source table, with filtered Objects overrides, chained
+  enrichment, extra navigation rows, empty typed fact tables and an
+  override-only instance-fact semi-join laziness check, including source-split
   columns (instance values unprefixed, type values `Type_`-prefixed, instance
   overrides surfacing both side by side), per-table missing-column and
   old-navigation-shape structured errors, naming over the emitted names, the
   `useFullPaths` bool (`false` default shortest suffixes, `true` entire paths,
   numeric-suffix disambiguation for full-depth collisions, loud errors for
   non-logical values), raw values,
-  malformed facts, Object Types invariants, and federated-key behavior.
+  malformed facts, source-shape validation, Object Types invariants, and
+  federated-key behavior.
 - `AddAllProperties.query.pq` — the convenience wrapper that appends every path
-  in the passed Property Paths table through `Speckle.AddProperties` with the
-  same source-split columns and forwarded `useFullPaths`, including null-only
-  and moderately wide property sets, while preserving empty Objects tables and
-  validation behavior.
+  in Source's Property Paths row through `Speckle.AddProperties`, with Objects
+  overrides, the same source-split columns and forwarded `useFullPaths`,
+  including null-only and moderately wide property sets while preserving empty
+  Objects tables and validation behavior.
 - `BuildNavigation.query.pq` — the navigator composition seam behind
   `Speckle.GetTables`, against tiny synthetic property and graph tables: the
   ten-row layout (visible `Objects`, `Properties` and `Relations`, hidden

@@ -70,11 +70,27 @@ let
             {17, "Type_properties.Dimensions.Area"}
         }
     ),
-    Call = (propertyPaths as list, optional useFullPaths as nullable logical) as table =>
-        Speckle.AddProperties(
-            Objects, PropertyValues, Paths, ObjectTypes, TypeProperties,
-            propertyPaths, useFullPaths
+    MakeSource = (
+        objectsTable as table,
+        propertyValuesTable as table,
+        pathsTable as table,
+        objectTypesTable as table,
+        typePropertiesTable as table,
+        optional extraRows as nullable list
+    ) as table =>
+        #table(
+            type table [Name = text, Key = text, Data = any],
+            {
+                {"Objects", "objects", objectsTable},
+                {"Property Values", "properties", propertyValuesTable},
+                {"Property Paths", "paths", pathsTable},
+                {"Object Types", "object-types", objectTypesTable},
+                {"Type Properties", "type-properties", typePropertiesTable}
+            } & (extraRows ?? {})
         ),
+    Source = MakeSource(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties),
+    Call = (propertyPaths as list, optional useFullPaths as nullable logical) as table =>
+        Speckle.AddProperties(Source, propertyPaths, null, useFullPaths),
 
     // Lazy tables whose rows error on enumeration: the typed table parameters
     // force each argument to a table value, so an empty selection can no
@@ -107,7 +123,11 @@ let
         }
     ),
     EmptyResult = Speckle.AddProperties(
-        Objects, UnreadPropertyValues, UnreadPaths, UnreadObjectTypes, UnreadTypeProperties, {}
+        MakeSource(
+            Objects, UnreadPropertyValues, UnreadPaths,
+            UnreadObjectTypes, UnreadTypeProperties
+        ),
+        {}
     ),
     NormalizedResult = Call({" properties.Dimensions.Area ", "properties.Dimensions.Area"}),
     NamingResult = Call(
@@ -138,20 +158,10 @@ let
             Positions = try InvalidPathResult[Error][Detail][Positions] otherwise {}
         ],
 
-    // the retired single-source convention: passing the Speckle.GetTables
-    // navigation table as objects must raise the dedicated migration error
-    NavigationShapedSource = #table(
-        type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical],
-        {
-            {"Objects", "objects", Objects, "Table", "Table", true},
-            {"Property Paths", "paths", Paths, "Table", "Table", true}
-        }
-    ),
+    // the retired five-table convention: passing Objects as source raises a
+    // direct migration error, including on the empty-selection path
     OldShapeResult = try Table.RowCount(
-        Speckle.AddProperties(
-            NavigationShapedSource, PropertyValues, Paths, ObjectTypes, TypeProperties,
-            {"properties.Dimensions.Area"}
-        )
+        Speckle.AddProperties(Objects, {"properties.Dimensions.Area"})
     ),
     OldShapeError = if not OldShapeResult[HasError] then
         [Reason = null, ShowsCallShape = false]
@@ -160,18 +170,43 @@ let
             Reason = try OldShapeResult[Error][Reason] otherwise null,
             ShowsCallShape = try Text.Contains(
                 OldShapeResult[Error][Message],
-                "pass the five star-schema tables"
+                "pass the Speckle.GetTables navigation table (Source) as the first argument"
             ) otherwise false
         ],
     OldShapeEmptyResult = try Table.RowCount(
-        Speckle.AddProperties(
-            NavigationShapedSource, PropertyValues, Paths, ObjectTypes, TypeProperties, {}
-        )
+        Speckle.AddProperties(Objects, {})
     ),
     OldShapeEmptyReason = if not OldShapeEmptyResult[HasError] then
         null
     else
         try OldShapeEmptyResult[Error][Reason] otherwise null,
+
+    MissingSourceKeysResult = try Table.RowCount(
+        Speckle.AddProperties(
+            Table.SelectRows(
+                Source,
+                each not List.Contains({"properties", "type-properties"}, [Key])
+            ),
+            {"properties.Dimensions.Area"}
+        )
+    ),
+    MissingSourceKeysError = if not MissingSourceKeysResult[HasError] then
+        [Reason = null, MissingKeys = {}]
+    else
+        [
+            Reason = try MissingSourceKeysResult[Error][Reason] otherwise null,
+            MissingKeys = try MissingSourceKeysResult[Error][Detail][MissingKeys] otherwise {}
+        ],
+    ExtraNavigationRowsResult = Speckle.AddProperties(
+        MakeSource(
+            Objects, PropertyValues, Paths, ObjectTypes, TypeProperties,
+            {
+                {"Relations", "relations", #table(type table [src = Int64.Type], {})},
+                {"Properties", "expand-properties", () => #table({}, {})}
+            }
+        ),
+        {"properties.Instance.Mark"}
+    ),
 
     // per-table required-column validation
     MissingColumnsError = (result as record) as record =>
@@ -183,52 +218,60 @@ let
                 Parameter = try result[Error][Detail][Parameter] otherwise null,
                 MissingColumns = try result[Error][Detail][MissingColumns] otherwise {}
             ],
-    MissingObjectsColumnsResult = try Table.RowCount(
-        Speckle.AddProperties(
-            Table.SelectColumns(Objects, {"Application ID"}),
-            PropertyValues, Paths, ObjectTypes, TypeProperties,
-            {"properties.Dimensions.Area"}
-        )
-    ),
+    MissingObjectsColumnsResult = try Table.RowCount(Speckle.AddProperties(
+        Source,
+        {"properties.Dimensions.Area"},
+        Table.SelectColumns(Objects, {"Application ID"})
+    )),
     MissingPropertyValuesColumnsResult = try Table.RowCount(
         Speckle.AddProperties(
-            Objects,
-            Table.SelectColumns(PropertyValues, {"Object Key"}),
-            Paths, ObjectTypes, TypeProperties,
+            MakeSource(
+                Objects,
+                Table.SelectColumns(PropertyValues, {"Object Key"}),
+                Paths, ObjectTypes, TypeProperties
+            ),
             {"properties.Dimensions.Area"}
         )
     ),
     MissingPathsColumnsResult = try Table.RowCount(
         Speckle.AddProperties(
-            Objects, PropertyValues,
-            Table.SelectColumns(Paths, {"path_key"}),
-            ObjectTypes, TypeProperties,
+            MakeSource(
+                Objects, PropertyValues,
+                Table.SelectColumns(Paths, {"path_key"}),
+                ObjectTypes, TypeProperties
+            ),
             {"properties.Dimensions.Area"}
         )
     ),
     MissingObjectTypesColumnsResult = try Table.RowCount(
         Speckle.AddProperties(
-            Objects, PropertyValues, Paths,
-            Table.SelectColumns(ObjectTypes, {"Object Key"}),
-            TypeProperties,
+            MakeSource(
+                Objects, PropertyValues, Paths,
+                Table.SelectColumns(ObjectTypes, {"Object Key"}),
+                TypeProperties
+            ),
             {"properties.Dimensions.Area"}
         )
     ),
     MissingTypePropertiesColumnsResult = try Table.RowCount(
         Speckle.AddProperties(
-            Objects, PropertyValues, Paths, ObjectTypes,
-            Table.SelectColumns(TypeProperties, {"type_key", "path_key"}),
+            MakeSource(
+                Objects, PropertyValues, Paths, ObjectTypes,
+                Table.SelectColumns(TypeProperties, {"type_key", "path_key"})
+            ),
             {"properties.Dimensions.Area"}
         )
     ),
 
     // users pass transformed tables: extra columns are tolerated everywhere
     ExtraColumnsResult = Speckle.AddProperties(
-        Objects,
-        Table.AddColumn(PropertyValues, "Source Model", each "extra"),
-        Table.AddColumn(Paths, "Notes", each "extra"),
-        Table.AddColumn(ObjectTypes, "Extra", each 1),
-        Table.AddColumn(TypeProperties, "Extra", each 1),
+        MakeSource(
+            Objects,
+            Table.AddColumn(PropertyValues, "Source Model", each "extra"),
+            Table.AddColumn(Paths, "Notes", each "extra"),
+            Table.AddColumn(ObjectTypes, "Extra", each 1),
+            Table.AddColumn(TypeProperties, "Extra", each 1)
+        ),
         {
             "properties.Dimensions.Area",
             "properties.Material.TypeName",
@@ -238,28 +281,64 @@ let
     // joins restrict silently: a filtered Objects subset restricts the rows
     // while the column set still derives from the unfiltered surviving facts
     FilteredObjectsResult = Speckle.AddProperties(
-        Table.SelectRows(Objects, each [Object Key] <= 2),
-        PropertyValues, Paths, ObjectTypes, TypeProperties,
+        Source,
         {
             "properties.Dimensions.Area",
             "properties.Material.TypeName",
             "properties.Instance.Mark"
-        }
+        },
+        Table.SelectRows(Objects, each [Object Key] <= 2)
+    ),
+    OverrideWithExtraColumnsResult = Speckle.AddProperties(
+        Source,
+        {"properties.Dimensions.Area"},
+        Table.AddColumn(
+            Table.SelectRows(Objects, each [Object Key] = 1),
+            "Selection",
+            each "room"
+        )
+    ),
+    TaggedObjects = Speckle.AddProperties(
+        Source,
+        {"properties.Dimensions.Area"}
+    ),
+    FilteredTaggedObjects = Table.SelectRows(TaggedObjects, each [Area] = "instance-area"),
+    ChainedResult = Speckle.AddProperties(
+        Source,
+        {"properties.Instance.Mark"},
+        FilteredTaggedObjects
+    ),
+    PoisonPropertyValues = #table(
+        type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
+        {{99, 14, error "out-of-subset instance fact was forced"}}
+    ),
+    SemiJoinResult = try Table.ToRows(
+        Speckle.AddProperties(
+            MakeSource(
+                Objects, PoisonPropertyValues, Paths, ObjectTypes, TypeProperties
+            ),
+            {"properties.Instance.Mark"},
+            Table.SelectRows(Objects, each [Object Key] = 1)
+        )
     ),
     // filtering a fact table changes provenance: a path whose type facts are
     // filtered away becomes factless and emits an unprefixed all-null column
     FilteredFactsResult = Speckle.AddProperties(
-        Objects, PropertyValues, Paths, ObjectTypes,
-        Table.SelectRows(TypeProperties, each [path_key] <> 13),
+        MakeSource(
+            Objects, PropertyValues, Paths, ObjectTypes,
+            Table.SelectRows(TypeProperties, each [path_key] <> 13)
+        ),
         {"properties.Dimensions.Area", "properties.Material.TypeName"}
     ),
     // empty typed fact tables are valid inputs (typeless bundles ship them)
     EmptyFactsResult = Speckle.AddProperties(
-        Objects,
-        #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
-        Paths,
-        #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
-        #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {}),
+        MakeSource(
+            Objects,
+            #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+            Paths,
+            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
+            #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {})
+        ),
         {"properties.Dimensions.Area"}
     ),
 
@@ -268,17 +347,17 @@ let
     // takes a numeric suffix, counting up past occupied names
     CollisionSuffixResult = Call({"Object Key"}),
     SuffixIncrementResult = Speckle.AddProperties(
-        Table.AddColumn(Objects, "Object Key.1", each "occupied"),
-        PropertyValues, Paths, ObjectTypes, TypeProperties,
-        {"Object Key"}
+        Source,
+        {"Object Key"},
+        Table.AddColumn(Objects, "Object Key.1", each "occupied")
     ),
     // an extra column occupying a fact-backed path's full name: the suffixed
     // pair still carries the property values, and both variants suffix
     // together so the Area/Type_Area pair stays aligned
     OccupiedFullPathResult = Speckle.AddProperties(
-        Table.AddColumn(Objects, "properties.Dimensions.Area", each "occupied"),
-        PropertyValues, Paths, ObjectTypes, TypeProperties,
+        Source,
         {"properties.Dimensions.Area"},
+        Table.AddColumn(Objects, "properties.Dimensions.Area", each "occupied"),
         true
     ),
     // the retired snake_case spelling is no longer a fixed column, so it must
@@ -297,8 +376,11 @@ let
     ExplicitNullResult = Call({"properties.Dimensions.Area"}, null),
     InvalidUseFullPathsResult = try Table.RowCount(Call({"properties.Dimensions.Area"}, "Full path")),
     EmptyFullPathResult = Speckle.AddProperties(
-        Objects, UnreadPropertyValues, UnreadPaths, UnreadObjectTypes, UnreadTypeProperties,
-        {}, true
+        MakeSource(
+            Objects, UnreadPropertyValues, UnreadPaths,
+            UnreadObjectTypes, UnreadTypeProperties
+        ),
+        {}, null, true
     ),
     FullPathBaseCollisionResult = Call({"Object Key"}, true),
     // the literal path resolves to exactly the first path's Type_ variant;
@@ -313,7 +395,9 @@ let
     ),
     DuplicateObjectTypesResult = try Table.RowCount(
         Speckle.AddProperties(
-            Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties,
+            MakeSource(
+                Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties
+            ),
             {"properties.Dimensions.Area"}
         )
     ),
@@ -326,7 +410,9 @@ let
         ],
     DuplicateObjectTypesUnknownPathResult = try Text.FromBinary(Json.FromValue(Table.ToRows(
         Speckle.AddProperties(
-            Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties,
+            MakeSource(
+                Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties
+            ),
             {"properties.Unknown.Value"}
         )
     ))),
@@ -356,33 +442,39 @@ let
         {{10, "properties.Identity.Name"}, {4294967306, "properties.Identity.Name"}}
     ),
     FederatedResult = Speckle.AddProperties(
-        FederatedObjects, FederatedPropertyValues, FederatedPaths,
-        FederatedObjectTypes, FederatedTypeProperties,
+        MakeSource(
+            FederatedObjects, FederatedPropertyValues, FederatedPaths,
+            FederatedObjectTypes, FederatedTypeProperties
+        ),
         {"properties.Identity.Name"}
     ),
 
     DuplicateInstanceResult = try Text.FromBinary(Json.FromValue(Table.ToRows(
         Speckle.AddProperties(
-            #table(type table [#"Object Key" = Int64.Type], {{1}}),
-            #table(
-                type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
-                {{1, 10, "first"}, {1, 10, "second"}}
+            MakeSource(
+                #table(type table [#"Object Key" = Int64.Type], {{1}}),
+                #table(
+                    type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any],
+                    {{1, 10, "first"}, {1, 10, "second"}}
+                ),
+                Paths,
+                #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
+                #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {})
             ),
-            Paths,
-            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
-            #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {}),
             {"properties.Dimensions.Area"}
         )
     ))),
     DuplicateTypeResult = try Text.FromBinary(Json.FromValue(Table.ToRows(
         Speckle.AddProperties(
-            #table(type table [#"Object Key" = Int64.Type], {{3}}),
-            #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
-            Paths,
-            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {{3, 101}}),
-            #table(
-                type table [type_key = Int64.Type, path_key = Int64.Type, Value = any],
-                {{101, 11, "first"}, {101, 11, "second"}}
+            MakeSource(
+                #table(type table [#"Object Key" = Int64.Type], {{3}}),
+                #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+                Paths,
+                #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {{3, 101}}),
+                #table(
+                    type table [type_key = Int64.Type, path_key = Int64.Type, Value = any],
+                    {{101, 11, "first"}, {101, 11, "second"}}
+                )
             ),
             {"properties.Quantities.Area"}
         )
@@ -478,7 +570,7 @@ let
             InvalidPathError
         ),
         Fact(
-            "passing the navigation table as objects raises the dedicated signature-changed error",
+            "passing a plain Objects table as source raises the dedicated signature-changed error",
             [Reason = "Speckle.AddProperties.SignatureChanged", ShowsCallShape = true],
             OldShapeError
         ),
@@ -486,6 +578,22 @@ let
             "old-shape detection fires even with an empty selection",
             "Speckle.AddProperties.SignatureChanged",
             OldShapeEmptyReason
+        ),
+        Fact(
+            "a navigation source missing required rows reports the exact missing keys",
+            [
+                Reason = "Speckle.AddProperties.MissingSourceKeys",
+                MissingKeys = {"properties", "type-properties"}
+            ],
+            MissingSourceKeysError
+        ),
+        Fact(
+            "extra navigation rows are ignored because source tables are unpacked by key",
+            [Columns = {"Object Key", "Application ID", "Mark"}, Values = {null, null, null, "instance-only"}],
+            [
+                Columns = Table.ColumnNames(ExtraNavigationRowsResult),
+                Values = Table.Column(ExtraNavigationRowsResult, "Mark")
+            ]
         ),
         Fact(
             "objects without Object Key raises the structured missing-columns error",
@@ -549,6 +657,33 @@ let
             [
                 Columns = Table.ColumnNames(FilteredObjectsResult),
                 Rows = Table.ToRows(FilteredObjectsResult)
+            ]
+        ),
+        Fact(
+            "an Objects override keeps extra columns and restricts the output rows",
+            [
+                Columns = {"Object Key", "Application ID", "Selection", "Area", "Type_Area"},
+                Rows = {{1, "one", "room", "instance-area", "type-area"}}
+            ],
+            [
+                Columns = Table.ColumnNames(OverrideWithExtraColumnsResult),
+                Rows = Table.ToRows(OverrideWithExtraColumnsResult)
+            ]
+        ),
+        Fact(
+            "an enriched filtered table can be passed back as the Objects override",
+            [
+                Columns = {"Object Key", "Application ID", "Area", "Type_Area", "Mark"},
+                Rows = {{1, "one", "instance-area", "type-area", null}}
+            ],
+            [Columns = Table.ColumnNames(ChainedResult), Rows = Table.ToRows(ChainedResult)]
+        ),
+        Fact(
+            "the override semi-join drops an out-of-subset poison fact before grouping",
+            [HasError = false, Rows = {{1, "one", null}}],
+            [
+                HasError = SemiJoinResult[HasError],
+                Rows = if SemiJoinResult[HasError] then {} else SemiJoinResult[Value]
             ]
         ),
         Fact(

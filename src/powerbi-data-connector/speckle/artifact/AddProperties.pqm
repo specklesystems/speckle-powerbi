@@ -1,20 +1,18 @@
-// Adds selected EAV values to the passed Objects table, split by source:
+// Adds selected EAV values to the Objects table in the passed navigation
+// source, or to an optional Objects override, split by source:
 // values from the Property Values (instance) fact appear in an unprefixed
 // column, and values from the Type Properties fact, projected per object
 // through the Object Types bridge, appear in a Type_-prefixed column
-// (Area / Type_Area). The five tables come straight from the caller's model —
-// filtered or transformed copies included — and the joins restrict silently:
-// filtered inputs mean filtered output, and the emitted column set derives
-// from the surviving facts. useFullPaths picks the column naming mode:
+// (Area / Type_Area). The five star-schema tables are unpacked from Source by
+// key. An Objects override may be filtered or carry extra columns; its keys
+// restrict both fact sides without buffering a fact-sized list. useFullPaths
+// picks the column naming mode:
 // false (default) uses the shortest unique trailing part of each dotted path,
 // true the entire path. The Type_ prefix applies in both modes.
 (
-    objects as table,
-    propertyValues as table,
-    paths as table,
-    objectTypes as table,
-    typeProperties as table,
+    source as table,
     propertyPaths as list,
+    optional objects as nullable table,
     optional useFullPaths as nullable logical
 ) as table =>
     let
@@ -41,26 +39,51 @@
                             RequiredColumns = requiredColumns
                         ]
                     ),
-        // A table with Key and Data columns is the Speckle.GetTables
-        // navigation table passed under the retired single-source convention;
-        // that gets a dedicated migration error instead of a missing-column
-        // complaint.
-        validatedObjects = if Table.HasColumns(objects, {"Key", "Data"}) then
+        // A plain Objects table in the first position is the retired public
+        // convention. Give it a direct migration error before checking the
+        // navigation shape.
+        validatedSourceColumns = if Table.HasColumns(source, {"Object Key"})
+            and not Table.HasColumns(source, {"Key", "Data"}) then
             error Error.Record(
                 "Speckle.AddProperties.SignatureChanged",
-                "objects looks like the Speckle.GetTables navigation table. The signature changed: "
-                    & "pass the five star-schema tables from the navigator directly. Expected: "
-                    & "Speckle.AddProperties(objects, propertyValues, paths, objectTypes, typeProperties, "
-                    & "propertyPaths, useFullPaths).",
+                "The signature changed: pass the Speckle.GetTables navigation table (Source) as the first argument. Expected: "
+                    & "Speckle.AddProperties(source, propertyPaths, objects, useFullPaths).",
                 [
                     ExpectedParameters = {
-                        "objects", "propertyValues", "paths", "objectTypes",
-                        "typeProperties", "propertyPaths", "useFullPaths"
+                        "source", "propertyPaths", "objects", "useFullPaths"
                     }
                 ]
             )
         else
-            RequireColumns(objects, "objects", {"Object Key"}),
+            RequireColumns(source, "source", {"Key", "Data"}),
+        requiredSourceKeys = {
+            "objects", "properties", "paths", "object-types", "type-properties"
+        },
+        sourceKeys = Table.Column(validatedSourceColumns, "Key"),
+        missingSourceKeys = List.Select(
+            requiredSourceKeys,
+            each not List.Contains(sourceKeys, _, Comparer.Ordinal)
+        ),
+        validatedSource = if List.IsEmpty(missingSourceKeys) then
+            validatedSourceColumns
+        else
+            error Error.Record(
+                "Speckle.AddProperties.MissingSourceKeys",
+                "The source navigation table is missing required keys: "
+                    & Text.Combine(missingSourceKeys, ", ") & ".",
+                [
+                    MissingKeys = missingSourceKeys,
+                    RequiredKeys = requiredSourceKeys
+                ]
+            ),
+        sourceObjects = validatedSource{[Key = "objects"]}[Data],
+        propertyValues = validatedSource{[Key = "properties"]}[Data],
+        paths = validatedSource{[Key = "paths"]}[Data],
+        objectTypes = validatedSource{[Key = "object-types"]}[Data],
+        typeProperties = validatedSource{[Key = "type-properties"]}[Data],
+        hasObjectsOverride = Value.Is(objects, type table),
+        selectedObjects = if hasObjectsOverride then objects else sourceObjects,
+        validatedObjects = RequireColumns(selectedObjects, "objects", {"Object Key"}),
         validatedPropertyValues = RequireColumns(
             propertyValues, "propertyValues", {"Object Key", "path_key", "Value"}
         ),
@@ -144,7 +167,24 @@
                 ),
                 "__wantedPath", {"Property"}, {"__property"}
             ),
-        instanceValues = SelectRequestedPropertyValues(validatedPropertyValues, "Object Key"),
+        requestedInstanceValues = SelectRequestedPropertyValues(
+            validatedPropertyValues, "Object Key"
+        ),
+        // The full-model path stays unchanged. With an Objects override, a
+        // streaming inner join drops unrelated instance facts before grouping.
+        // Do not replace this with a buffered key list: both inputs may be
+        // fact-sized.
+        instanceValues = if hasObjectsOverride then
+            Table.RemoveColumns(
+                Table.NestedJoin(
+                    requestedInstanceValues, {"Object Key"},
+                    Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
+                    "__obj", JoinKind.Inner
+                ),
+                {"__obj"}
+            )
+        else
+            requestedInstanceValues,
         requestedTypeValues = SelectRequestedPropertyValues(validatedTypeProperties, "type_key"),
         projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
@@ -331,8 +371,8 @@
     in
         if List.IsEmpty(wanted) then
             // an empty selection returns the exact Objects value, metadata
-            // included, without touching the fact tables; the objects
-            // validation (old navigation shape, Object Key) still fires
+            // included, without touching the fact tables; source-shape and
+            // Object Key validation still fire
             validatedObjects
         else
             Table.ExpandRecordColumn(withProperties, "__props", emittedNames, emittedNames)

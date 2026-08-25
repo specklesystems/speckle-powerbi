@@ -45,7 +45,26 @@ let
             {12, "properties.Empty.Value"}
         }
     ),
-    Result = Speckle.AddAllProperties(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties),
+    MakeSource = (
+        objectsTable as table,
+        propertyValuesTable as table,
+        pathsTable as table,
+        objectTypesTable as table,
+        typePropertiesTable as table,
+        optional extraRows as nullable list
+    ) as table =>
+        #table(
+            type table [Name = text, Key = text, Data = any],
+            {
+                {"Objects", "objects", objectsTable},
+                {"Property Values", "properties", propertyValuesTable},
+                {"Property Paths", "paths", pathsTable},
+                {"Object Types", "object-types", objectTypesTable},
+                {"Type Properties", "type-properties", typePropertiesTable}
+            } & (extraRows ?? {})
+        ),
+    Source = MakeSource(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties),
+    Result = Speckle.AddAllProperties(Source),
 
     // Lazy tables whose rows error on enumeration: the typed table parameters
     // force each argument to a table value, so an empty paths table can no
@@ -69,7 +88,10 @@ let
     EmptyObjects = Objects meta [TestMarker = "empty paths Objects"],
     EmptyPaths = #table(type table [path_key = Int64.Type, Property = text], {}),
     EmptyResult = Speckle.AddAllProperties(
-        EmptyObjects, UnreadPropertyValues, EmptyPaths, UnreadObjectTypes, UnreadTypeProperties
+        MakeSource(
+            EmptyObjects, UnreadPropertyValues, EmptyPaths,
+            UnreadObjectTypes, UnreadTypeProperties
+        )
     ),
 
     InvalidPaths = #table(
@@ -82,7 +104,7 @@ let
         }
     ),
     InvalidResult = try Speckle.AddAllProperties(
-        Objects, PropertyValues, InvalidPaths, ObjectTypes, TypeProperties
+        MakeSource(Objects, PropertyValues, InvalidPaths, ObjectTypes, TypeProperties)
     ),
     InvalidError = if not InvalidResult[HasError] then
         [Reason = null, Positions = {}]
@@ -101,35 +123,53 @@ let
         )
     ),
     WideResult = Speckle.AddAllProperties(
-        #table(type table [#"Object Key" = Int64.Type], {{1}}),
-        #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
-        WidePaths,
-        #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
-        #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {})
-    ),
-
-    FullPathResult = Speckle.AddAllProperties(
-        Objects, PropertyValues, Paths, ObjectTypes, TypeProperties, true
-    ),
-    InvalidUseFullPathsResult = try Table.RowCount(
-        Speckle.AddAllProperties(Objects, PropertyValues, Paths, ObjectTypes, TypeProperties, "Longest")
-    ),
-
-    // the retired single-source convention forwards to AddProperties'
-    // dedicated migration error
-    NavigationShapedSource = #table(
-        type table [Name = text, Key = text, Data = any, ItemKind = text, ItemName = text, IsLeaf = logical],
-        {{"Objects", "objects", Objects, "Table", "Table", true}}
-    ),
-    OldShapeResult = try Table.RowCount(
-        Speckle.AddAllProperties(
-            NavigationShapedSource, PropertyValues, Paths, ObjectTypes, TypeProperties
+        MakeSource(
+            #table(type table [#"Object Key" = Int64.Type], {{1}}),
+            #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+            WidePaths,
+            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
+            #table(type table [type_key = Int64.Type, path_key = Int64.Type, Value = any], {})
         )
+    ),
+
+    FullPathResult = Speckle.AddAllProperties(Source, null, true),
+    InvalidUseFullPathsResult = try Table.RowCount(
+        Speckle.AddAllProperties(Source, null, "Longest")
+    ),
+
+    OverrideResult = Speckle.AddAllProperties(
+        Source,
+        Table.AddColumn(
+            Table.SelectRows(Objects, each [Object Key] = 1),
+            "Selection",
+            each "room"
+        )
+    ),
+    ExtraRowsResult = Speckle.AddAllProperties(
+        MakeSource(
+            Objects, PropertyValues, Paths, ObjectTypes, TypeProperties,
+            {{"Relations", "relations", #table(type table [src = Int64.Type], {})}}
+        )
+    ),
+
+    // the retired five-table convention starts with a plain Objects table
+    OldShapeResult = try Table.RowCount(
+        Speckle.AddAllProperties(Objects)
     ),
     OldShapeReason = if not OldShapeResult[HasError] then
         null
     else
         try OldShapeResult[Error][Reason] otherwise null,
+    MissingSourceResult = try Table.RowCount(
+        Speckle.AddAllProperties(Table.SelectRows(Source, each [Key] <> "paths"))
+    ),
+    MissingSourceError = if not MissingSourceResult[HasError] then
+        [Reason = null, MissingKeys = {}]
+    else
+        [
+            Reason = try MissingSourceResult[Error][Reason] otherwise null,
+            MissingKeys = try MissingSourceResult[Error][Detail][MissingKeys] otherwise {}
+        ],
 
     facts = {
         Fact(
@@ -200,9 +240,30 @@ let
             InvalidUseFullPathsResult[HasError]
         ),
         Fact(
-            "passing the navigation table as objects forwards to the dedicated signature-changed error",
+            "passing a plain Objects table as source raises the dedicated signature-changed error",
             "Speckle.AddProperties.SignatureChanged",
             OldShapeReason
+        ),
+        Fact(
+            "a navigation source missing paths reports that exact key",
+            [Reason = "Speckle.AddProperties.MissingSourceKeys", MissingKeys = {"paths"}],
+            MissingSourceError
+        ),
+        Fact(
+            "an Objects override filters rows and keeps extra columns",
+            [
+                Columns = {
+                    "Object Key", "Application ID", "Selection", "Zeta.Area",
+                    "Type_Zeta.Area", "Type_Alpha.Area", "Value"
+                },
+                Rows = {{1, "one", "room", "instance-area", "type-area", "type-quantity", null}}
+            ],
+            [Columns = Table.ColumnNames(OverrideResult), Rows = Table.ToRows(OverrideResult)]
+        ),
+        Fact(
+            "extra navigation rows do not change AddAllProperties output",
+            [Columns = Table.ColumnNames(Result), Rows = Table.ToRows(Result)],
+            [Columns = Table.ColumnNames(ExtraRowsResult), Rows = Table.ToRows(ExtraRowsResult)]
         ),
         Fact(
             "a moderately wide property-light model adds every null-only path",

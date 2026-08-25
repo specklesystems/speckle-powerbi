@@ -335,7 +335,7 @@ shared Speckle.GetTables = Value.ReplaceType(
             Selecting all properties can significantly increase refresh time and table width.#(lf)
             Property values are split by source: instance values in unprefixed columns, type values in Type_-prefixed columns.#(lf)
             Column names default to the shortest unique trailing part of each dotted path; the optional Use full paths setting (true/false) switches to entire paths.#(lf)
-            Speckle.AddProperties(objects, propertyValues, paths, objectTypes, typeProperties, propertyPaths, useFullPaths) and Speckle.AddAllProperties(objects, propertyValues, paths, objectTypes, typeProperties, useFullPaths) remain available for M code and accept the five tables as they exist in your model, filtered subsets included.#(lf)
+            Speckle.AddProperties(source, propertyPaths, objects, useFullPaths) and Speckle.AddAllProperties(source, objects, useFullPaths) remain available for M code. Pass the Speckle.GetTables result as source; an optional Objects override can be a filtered subset with extra columns.#(lf)
             The source also carries hidden supporting property and graph tables. The Table layout setting under Advanced options (Simplified / All tables; in M: Speckle.GetTables(url, [TableLayout = ""All tables""])) shows them in the Navigator for building your own relationships.#(lf)
             Versions published with a pre-4.0 connector have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
             Supports the following URL formats:#(lf)
@@ -353,29 +353,17 @@ shared Speckle.GetTables = Value.ReplaceType(
 shared Speckle.AddProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddProperties.pqm"),
     type function (
-        objects as (type table meta [
-            Documentation.FieldCaption = "Objects",
-            Documentation.FieldDescription = "The Objects table (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows."
-        ]),
-        propertyValues as (type table meta [
-            Documentation.FieldCaption = "Property Values",
-            Documentation.FieldDescription = "The Property Values instance fact table (requires Object Key, path_key, Value)."
-        ]),
-        paths as (type table meta [
-            Documentation.FieldCaption = "Property Paths",
-            Documentation.FieldDescription = "The Property Paths dimension table (requires path_key, Property)."
-        ]),
-        objectTypes as (type table meta [
-            Documentation.FieldCaption = "Object Types",
-            Documentation.FieldDescription = "The Object Types bridge table (requires Object Key, type_key)."
-        ]),
-        typeProperties as (type table meta [
-            Documentation.FieldCaption = "Type Properties",
-            Documentation.FieldDescription = "The Type Properties fact table (requires type_key, path_key, Value)."
+        source as (type table meta [
+            Documentation.FieldCaption = "Source",
+            Documentation.FieldDescription = "The navigation table returned by Speckle.GetTables. The helper reads the objects, properties, paths, object-types and type-properties rows by Key."
         ]),
         propertyPaths as (type list meta [
             Documentation.FieldCaption = "Property paths",
             Documentation.FieldDescription = "Exact dotted property paths (see the Property Paths table) to append as columns."
+        ]),
+        optional objects as (type nullable table meta [
+            Documentation.FieldCaption = "Objects",
+            Documentation.FieldDescription = "Optional Objects override (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows and fact scans."
         ]),
         optional useFullPaths as (type nullable logical meta [
             Documentation.FieldCaption = "Use full paths",
@@ -385,11 +373,11 @@ shared Speckle.AddProperties = Value.ReplaceType(
         Documentation.Name = "Speckle - Add Properties",
         Documentation.DisplayName = "Speckle - Add Properties",
         Documentation.LongDescription =
-            "Returns the objects table with the requested property values appended. Pass the five star-schema "
-            & "tables from the Speckle.GetTables navigator (Objects, Property Values, Property Paths, Object Types, "
-            & "Type Properties) as they exist in your model — filtered or transformed copies included. Joins "
-            & "restrict silently: filtered inputs mean filtered output, and the emitted column set derives from "
-            & "the surviving facts. Pass exact dotted paths from the Property Paths table. Values are split by "
+            "Returns the source Objects table with the requested property values appended. Pass the navigation "
+            & "table returned by Speckle.GetTables as source. An optional Objects override may be filtered and may "
+            & "carry extra columns; it controls the output rows and restricts the fact joins by Object Key. Joins "
+            & "restrict silently, and the emitted column set derives from the surviving facts. Pass exact dotted "
+            & "paths from the Property Paths table. Values are split by "
             & "source: instance values land in unprefixed columns and type values in Type_-prefixed columns "
             & "(Area / Type_Area). useFullPaths controls the emitted column names: false (default) uses the "
             & "shortest unique trailing part of each dotted path, true uses the entire path."
@@ -433,25 +421,13 @@ shared Speckle.AddRelations = Value.ReplaceType(
 shared Speckle.AddAllProperties = Value.ReplaceType(
     Speckle.LoadFunction("AddAllProperties.pqm"),
     type function (
-        objects as (type table meta [
+        source as (type table meta [
+            Documentation.FieldCaption = "Source",
+            Documentation.FieldDescription = "The navigation table returned by Speckle.GetTables. Every path from its paths row is appended."
+        ]),
+        optional objects as (type nullable table meta [
             Documentation.FieldCaption = "Objects",
-            Documentation.FieldDescription = "The Objects table (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows."
-        ]),
-        propertyValues as (type table meta [
-            Documentation.FieldCaption = "Property Values",
-            Documentation.FieldDescription = "The Property Values instance fact table (requires Object Key, path_key, Value)."
-        ]),
-        paths as (type table meta [
-            Documentation.FieldCaption = "Property Paths",
-            Documentation.FieldDescription = "The Property Paths dimension table (requires path_key, Property); every listed path is appended."
-        ]),
-        objectTypes as (type table meta [
-            Documentation.FieldCaption = "Object Types",
-            Documentation.FieldDescription = "The Object Types bridge table (requires Object Key, type_key)."
-        ]),
-        typeProperties as (type table meta [
-            Documentation.FieldCaption = "Type Properties",
-            Documentation.FieldDescription = "The Type Properties fact table (requires type_key, path_key, Value)."
+            Documentation.FieldDescription = "Optional Objects override (requires Object Key). Extra columns are kept; a filtered subset restricts the output rows and fact scans."
         ]),
         optional useFullPaths as (type nullable logical meta [
             Documentation.FieldCaption = "Use full paths",
@@ -461,10 +437,10 @@ shared Speckle.AddAllProperties = Value.ReplaceType(
         Documentation.Name = "Speckle - Add All Properties",
         Documentation.DisplayName = "Speckle - Add All Properties",
         Documentation.LongDescription =
-            "Returns the objects table with every path in the passed Property Paths table appended. Pass the five "
-            & "star-schema tables from the Speckle.GetTables navigator (Objects, Property Values, Property Paths, "
-            & "Object Types, Type Properties) as they exist in your model — filtered or transformed copies "
-            & "included; joins restrict silently and the emitted column set derives from the surviving facts. "
+            "Returns the source Objects table with every path in the source Property Paths table appended. Pass "
+            & "the navigation table returned by Speckle.GetTables as source. An optional Objects override may be "
+            & "filtered and may carry extra columns; it controls output rows and restricts fact joins by Object Key. "
+            & "Joins restrict silently and the emitted column set derives from the surviving facts. "
             & "Values are split by source: instance values land in unprefixed columns and type values in "
             & "Type_-prefixed columns. useFullPaths controls the emitted column names: false (default) uses "
             & "the shortest unique trailing part of each dotted path, true uses the entire path. "
