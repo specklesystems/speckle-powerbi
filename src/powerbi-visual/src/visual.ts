@@ -332,11 +332,12 @@ export class Visual implements IVisual {
                 ])
               }
 
-              const sectionBoxData = matrixDataView.metadata.objects.sectionBox?.boxData
-              if (sectionBoxData) {
-                console.log('Stored section box is found')
-                visualStore.setSectionBoxData(sectionBoxData as string)
-              }
+              // capabilities.json still declares objects.sectionBox.boxData, but nothing
+              // reads or writes it: the section box was removed when the viewer-3 port
+              // left it unimplemented. The declaration is kept so the box strings older
+              // reports already persisted stay inert rather than becoming undeclared
+              // metadata. Do not resurrect this reader — a future clipping feature would
+              // use viewer-tools' Clipping, which cannot consume the viewer-2 format.
 
               const camera = matrixDataView.metadata.objects.camera
 

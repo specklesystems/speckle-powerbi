@@ -45,13 +45,6 @@ export const ToolShortcuts = {
     key: 'P',
     action: 'ToggleProjection'
   },
-  ToggleSectionBox: {
-    name: 'Section',
-    description: 'Toggle section box',
-    modifiers: [ModifierKeys.Shift],
-    key: 'B',
-    action: 'ToggleSectionBox'
-  },
   ZoomExtentsOrSelection: {
     name: 'Fit',
     description: 'Zoom to fit selection or entire model',
