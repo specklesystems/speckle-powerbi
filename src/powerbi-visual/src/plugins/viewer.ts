@@ -413,11 +413,15 @@ export class ViewerHandler {
   }
 
   /** The renderer re-measures only on window resize, which the PBI sandbox doesn't
-   *  reliably fire — the host forwards its resize updates here. */
+   *  reliably fire — the host forwards its resize updates here.
+   *
+   *  Do NOT touch canvas.width/height here: the renderer's resize() compares them
+   *  against clientWidth*dpr to decide whether to rebuild its render targets
+   *  (depth/color/WBOIT/AO). Pre-setting them makes that check see "no change",
+   *  so the swapchain grows but the targets stay at the old size — black
+   *  artifacts in the newly exposed region after enlarging the visual. */
   public resizeViewer = () => {
-    if (!this.renderer || !this.canvas) return
-    this.canvas.width = Math.max(1, this.canvas.clientWidth * devicePixelRatio)
-    this.canvas.height = Math.max(1, this.canvas.clientHeight * devicePixelRatio)
+    if (!this.renderer) return
     this.renderer.requestResize()
     this.renderer.requestRender()
   }
