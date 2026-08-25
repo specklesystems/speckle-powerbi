@@ -280,13 +280,6 @@ export class Visual implements IVisual {
             console.log('🔍 Checking for other saved settings:')
 
             if (!visualStore.isViewerObjectsLoaded && matrixDataView.metadata.objects) {
-              const defaultViewMode = matrixDataView.metadata.objects.viewMode?.defaultViewMode
-              if (defaultViewMode) {
-                console.log(`Default View Mode: ${defaultViewMode as string}`)
-
-                visualStore.setDefaultViewModeInFile(defaultViewMode as string)
-              }
-
               const brandingHidden = matrixDataView.metadata.objects.workspace?.brandingHidden
               if (brandingHidden !== undefined) {
                 console.log(`Branding Hidden: ${brandingHidden as boolean}`)
@@ -299,24 +292,6 @@ export class Visual implements IVisual {
                 console.log(`Navbar Hidden: ${navbarHidden as boolean}`)
 
                 visualStore.setNavbarHidden(navbarHidden as boolean)
-              }
-
-              // Load edges settings
-              const viewModeSettings = matrixDataView.metadata.objects.viewMode
-              if (viewModeSettings) {
-                if ('edgesEnabled' in viewModeSettings) {
-                  console.log(`Edges Enabled: ${viewModeSettings.edgesEnabled as boolean}`)
-                  visualStore.setEdgesEnabled(viewModeSettings.edgesEnabled as boolean)
-                }
-                if ('edgesWeight' in viewModeSettings) {
-                  console.log(`Edges Weight: ${viewModeSettings.edgesWeight as number}`)
-                  visualStore.setEdgesWeight(viewModeSettings.edgesWeight as number)
-                }
-                if ('edgesColor' in viewModeSettings) {
-                  const colorVal = viewModeSettings.edgesColor as number
-                  console.log(`Edges Color: ${colorVal}`)
-                  visualStore.setEdgesColor(colorVal === -1 ? 'auto' : colorVal)
-                }
               }
 
               const cameraPositionData = matrixDataView.metadata.objects.cameraPosition

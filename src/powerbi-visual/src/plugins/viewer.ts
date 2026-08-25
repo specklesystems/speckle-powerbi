@@ -64,7 +64,8 @@ export interface Hit {
   point: { x: number; y: number; z: number }
 }
 
-/** Kept for API compatibility with the v2 handler (ViewerControls passes these through). */
+/** Shape the v2 handler took. No caller since the toolbar's View modes menu was
+ *  removed — retained as the contract `setViewMode` will be re-wired against. */
 export interface ViewModeOptions {
   edges?: boolean
   outlineThickness?: number
@@ -78,7 +79,6 @@ export interface IViewerEvents {
   setSelection: (objectIds: string[]) => void
   resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
   filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
-  setViewMode: (viewMode: number, options?: ViewModeOptions) => void
   setIdMode: (mode: IdMode | null) => void
   colorObjectsByGroup: (
     colorById: {
@@ -177,7 +177,6 @@ export class ViewerHandler {
     this.emitter.on('filterSelection', this.filterSelection)
     this.emitter.on('resetFilter', this.resetFilter)
     this.emitter.on('setSelection', this.selectObjects)
-    this.emitter.on('setViewMode', this.setViewMode)
     this.emitter.on('setIdMode', this.setIdMode)
     this.emitter.on('colorObjectsByGroup', this.colorObjectsByGroup)
     this.emitter.on('isolateObjects', this.isolateObjects)
@@ -456,9 +455,15 @@ export class ViewerHandler {
   //    were removed. renderer.setClipPlanes exists and the interactive gizmo lives
   //    in @speckle/viewer-tools' Clipping — build on those, not on the old shape. ──
 
-  public setViewMode = (viewMode: number, _options?: ViewModeOptions) => {
-    // v2 view modes (pen/arctic/edges) have no viewer-3 equivalent yet.
-    if (viewMode) console.warn('view modes are not yet available on the viewer-3 path')
+  /**
+   * Deliberately unreachable — the View modes toolbar menu was removed because
+   * v2's view modes (rendered/shaded/arctic/solid/pen + edges) have no viewer-3
+   * equivalent yet, so it only ever persisted a choice the renderer ignored.
+   * This is the reattachment point: implement it against viewer-3, then rebuild
+   * the UI on top. Do not delete as dead code.
+   */
+  public setViewMode = (_viewMode: number, _options?: ViewModeOptions) => {
+    /* not yet available on the viewer-3 path */
   }
 
   // ── selection / visibility / colors (all applicationId-keyed) ──────────────
