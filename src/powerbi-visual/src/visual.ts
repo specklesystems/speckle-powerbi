@@ -328,15 +328,13 @@ export class Visual implements IVisual {
                 )
               }
 
-              if (camera && 'isGhost' in camera) {
-                console.log(
-                  `Is ghost?: ${matrixDataView.metadata.objects.camera?.isGhost as boolean}`
-                )
-
-                visualStore.setIsGhost(
-                  matrixDataView.metadata.objects.camera?.isGhost as boolean
-                )
-              }
+              // camera.isGhost is likewise still declared but no longer read: the
+              // "Ghost filtered objects" toggle drove a viewer-3 stub that only
+              // console-warned, so it ticked state the renderer never honoured.
+              // Same reasoning as sectionBox above — the declaration keeps the
+              // booleans older reports persisted inert. When ghosting is built it
+              // reinterprets the filter channel at paint time (see VisibilityView
+              // in viewer3/objects/state.ts), not via a persisted camera flag.
 
               if (camera && 'zoomOnFilter' in camera) {
                 console.log(

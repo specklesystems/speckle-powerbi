@@ -77,8 +77,8 @@ export interface IViewerEvents {
   ping: (message: string) => void
   resize: () => void
   setSelection: (objectIds: string[]) => void
-  resetFilter: (objectIds: string[], ghost: boolean, zoom: boolean) => void
-  filterSelection: (objectIds: string[], ghost: boolean, zoom: boolean) => void
+  resetFilter: (objectIds: string[], zoom: boolean) => void
+  filterSelection: (objectIds: string[], zoom: boolean) => void
   setIdMode: (mode: IdMode | null) => void
   colorObjectsByGroup: (
     colorById: {
@@ -90,7 +90,6 @@ export interface IViewerEvents {
   unIsolateObjects: () => void
   zoomExtends: () => void
   toggleProjection: () => void
-  toggleGhostHidden: (ghost: boolean) => void
   loadModels: (models: DecodedModelInfo[]) => void
   objectsLoaded: () => void
   objectClicked: (hit: Hit | null, isMultiSelect: boolean, mouseEvent?: PointerEvent) => void
@@ -186,7 +185,6 @@ export class ViewerHandler {
     this.emitter.on('loadModels', this.loadModels)
     this.emitter.on('objectsLoaded', this.handleObjectsLoaded)
     this.emitter.on('toggleProjection', this.toggleProjection)
-    this.emitter.on('toggleGhostHidden', this.toggleGhostHidden)
     this.bridge = createRendererBridge()
     // Interactions exist from construction (they no-op until the renderer binds),
     // so subscriptions registered before init still work.
@@ -526,16 +524,17 @@ export class ViewerHandler {
     if (ms > 100) useVisualStore().pushDiagEvent(`${label} painted in ${(ms / 1000).toFixed(1)}s`)
   }
 
-  /** PBI cross-filter highlight: the view shows exactly these objects. `ghost` has no
-   *  viewer-3 equivalent yet (filtered-out objects hide instead of ghosting). */
-  public filterSelection = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
+  /** PBI cross-filter highlight: the view shows exactly these objects. Filtered-out
+   *  objects HIDE — ghosting them is a paint-layer concern, see the seam note on
+   *  VisibilityView in viewer3/objects/state.ts. */
+  public filterSelection = (objectIds: string[], zoom: boolean = true) => {
     if (!this.interactions || !objectIds) return
     const groups = this.resolveFilterGroups(objectIds, 'filterSelection')
     this.timedPaint('filterSelection', () => this.interactions.setFilter(groups))
     if (zoom) this.zoomObjects(objectIds)
   }
 
-  public resetFilter = (objectIds: string[], _ghost: boolean, zoom: boolean = true) => {
+  public resetFilter = (objectIds: string[], zoom: boolean = true) => {
     if (!this.interactions || !objectIds) return
     // Always apply what the data view sent — even when it hit the row cap
     // (truncated big-category filters show a partial-but-visible result; a no-op
@@ -570,11 +569,6 @@ export class ViewerHandler {
   public isolateObjects = (objectIds: string[]) => {
     if (!this.interactions) return
     this.interactions.setIsolation(this.toGroups(objectIds))
-  }
-
-  public toggleGhostHidden = (_ghost: boolean) => {
-    // Ghosting is not available on the viewer-3 path yet; filtered objects hide.
-    console.warn('ghost mode is not yet available on the viewer-3 path')
   }
 
   public unIsolateObjects = () => {

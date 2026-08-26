@@ -15,11 +15,6 @@
         :active="visualStore.isZoomOnFilterActive"
         @click="toggleZoomOnFilter"
       />
-      <ViewerMenuItem
-        label="Ghost filtered objects"
-        :active="visualStore.isGhostActive"
-        @click="toggleGhostHidden"
-      />
 
       <div class="w-full border-b border-outline-2 my-1"></div>
 
@@ -84,12 +79,6 @@ const toggleProjection = () => {
   visualStore.viewerEmit('toggleProjection')
   visualStore.setIsOrthoProjection(!visualStore.isOrthoProjection)
   visualStore.writeIsOrthoToFile()
-}
-
-const toggleGhostHidden = () => {
-  visualStore.setIsGhost(!visualStore.isGhostActive)
-  visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
-  visualStore.writeIsGhostToFile()
 }
 
 const toggleZoomOnFilter = () => {

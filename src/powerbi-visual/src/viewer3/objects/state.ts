@@ -32,6 +32,10 @@ export interface VisibilityState {
  * purpose — this is the ghosting seam: a future ghost mode reinterprets
  * `filter` at the paint layer only (ghost material instead of hide), with no
  * change to state, snapshot, or API.
+ *
+ * The old "Ghost filtered objects" toolbar toggle was removed rather than left
+ * pointing here: it pumped a boolean through the viewer emitter into a stub,
+ * which is the wrong shape for a paint-layer reinterpretation. Reattach here.
  */
 export interface VisibilityView {
   manual: VisibilityState

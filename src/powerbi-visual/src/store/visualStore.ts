@@ -198,7 +198,6 @@ export const useVisualStore = defineStore('visualStore', () => {
   const isFilterActive = ref<boolean>(false)
   const isBrandingHidden = ref<boolean>(false)
   const isOrthoProjection = ref<boolean>(false)
-  const isGhostActive = ref<boolean>(true)
   const isNavbarHidden = ref<boolean>(false)
   const isZoomOnFilterActive = ref<boolean>(true)
 
@@ -426,7 +425,7 @@ export const useVisualStore = defineStore('visualStore', () => {
             `chart clicks are a sampled preview on huge models; use a SLICER for exact isolation`
         )
       }
-      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+      viewerEmit.value('filterSelection', dataInput.value.selectedIds, isZoomOnFilterActive.value)
 
       // When filtering, only apply colors to the selected/isolated objects
       const filteredColorByIds = filterColorByIdsForSelection(currentColorGroups(), dataInput.value.selectedIds)
@@ -439,7 +438,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       // than the model) — a row-capped SAMPLE must never be applied.
       if (shouldApplyRowUniverseAsFilter()) {
         isFilterActive.value = true
-        viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
+        viewerEmit.value('resetFilter', dataInput.value.objectIds, isZoomOnFilterActive.value)
       } else {
         // No active filters - show all objects without any filtering
         viewerEmit.value('unIsolateObjects')
@@ -491,22 +490,6 @@ export const useVisualStore = defineStore('visualStore', () => {
           objectName: 'camera',
           properties: {
             isOrtho: isOrthoProjection.value
-          },
-          selector: null
-        }
-      ]
-    })
-  }
-
-  const writeIsGhostToFile = () => {
-    // NOTE: need skipping the update function, it resets the viewer state unneccessarily.
-    postFileSaveSkipNeeded.value = true
-    host.value.persistProperties({
-      merge: [
-        {
-          objectName: 'camera',
-          properties: {
-            isGhost: isGhostActive.value
           },
           selector: null
         }
@@ -631,10 +614,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     isOrthoProjection.value = val
   }
 
-  const setIsGhost = (val: boolean) => {
-    isGhostActive.value = val
-  }
-
   const setIsZoomOnFilterActive = (val: boolean) => {
     isZoomOnFilterActive.value = val
   }
@@ -675,7 +654,7 @@ export const useVisualStore = defineStore('visualStore', () => {
       // Restore selection filters if they exist
       if (dataInput.value.selectedIds.length > 0) {
         isFilterActive.value = true
-        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isGhostActive.value, isZoomOnFilterActive.value)
+        viewerEmit.value('filterSelection', dataInput.value.selectedIds, isZoomOnFilterActive.value)
 
         // When filtering, only apply colors to the selected/isolated objects
         const filteredColorByIds = filterColorByIdsForSelection(currentColorGroups(), dataInput.value.selectedIds)
@@ -686,7 +665,7 @@ export const useVisualStore = defineStore('visualStore', () => {
         // Same discriminator as setDataInput (see the whale-sample note there)
         if (shouldApplyRowUniverseAsFilter()) {
           isFilterActive.value = true
-          viewerEmit.value('resetFilter', dataInput.value.objectIds, isGhostActive.value, isZoomOnFilterActive.value)
+          viewerEmit.value('resetFilter', dataInput.value.objectIds, isZoomOnFilterActive.value)
         } else {
           // No active filters - show all objects without any filtering
           viewerEmit.value('unIsolateObjects')
@@ -723,7 +702,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     formattingSettings,
     isBrandingHidden,
     isOrthoProjection,
-    isGhostActive,
     isNavbarHidden,
     isZoomOnFilterActive,
     latestAvailableVersion,
@@ -733,7 +711,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     setCommonError,
     setLatestAvailableVersion,
     setIsOrthoProjection,
-    setIsGhost,
     setIsZoomOnFilterActive,
     setFormattingSettings,
     setBrandingHidden,
@@ -746,7 +723,6 @@ export const useVisualStore = defineStore('visualStore', () => {
     setReceiveInfo,
     setViewerReloadNeeded,
     writeCameraViewToFile,
-    writeIsGhostToFile,
     writeZoomOnFilterToFile,
     writeIsOrthoToFile,
     writeCameraPositionToFile,
