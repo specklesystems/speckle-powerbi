@@ -60,7 +60,7 @@
     <div
       v-if="!isInteractive"
       v-tippy="'Needed for interactivity with other visuals.'"
-      class="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 rounded border border-zinc-200 bg-white px-3 py-[9px] shadow cursor-default font-inter transition-all duration-300"
+      class="absolute left-1/2 -translate-x-1/2 z-20 flex w-[280px] max-w-[calc(100%-1rem)] items-center gap-2.5 rounded border border-zinc-200 bg-white px-3 py-[9px] shadow cursor-default font-inter transition-all duration-300"
       :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
       <svg
@@ -76,8 +76,9 @@
           d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
         />
       </svg>
-      <span class="text-xs font-semibold leading-[1.2] text-zinc-900">Object Keys</span>
-      <span class="text-[11px] font-medium leading-[1.2] text-blue-600">Required</span>
+      <!-- flex-1 pushes "Required" to the right edge, same as the Home row -->
+      <span class="flex-1 text-xs font-semibold leading-[1.2] text-zinc-900">Object Keys</span>
+      <span class="shrink-0 text-[11px] font-medium leading-[1.2] text-blue-600">Required</span>
     </div>
 
     <div
@@ -101,16 +102,20 @@
       </button>
     </div>
 
-    <transition name="slide-left">
-      <ViewerControls
-        v-show="!visualStore.isNavbarHidden"
-        :views="views"
-        class="fixed top-11 left-2 z-30"
-        @view-clicked="(view) => viewerHandler.setView(view)"
-      />
-    </transition>
+    <!-- centering lives on the wrapper so the transition's transform doesn't
+         fight the -translate-x-1/2 that holds the toolbar on the midline -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
+      <transition name="slide-up">
+        <ViewerControls
+          v-show="!visualStore.isNavbarHidden"
+          :views="views"
+          @view-clicked="(view) => viewerHandler.setView(view)"
+        />
+      </transition>
+    </div>
 
-    <div v-if="visualStore.isFilterActive" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
+    <!-- sits above the bottom-center toolbar rather than on top of it -->
+    <div v-if="visualStore.isFilterActive" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-50">
       <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
         Reset filters
       </FormButton>
@@ -313,14 +318,14 @@ async function onCanvasAuxClick(ev: MouseEvent) {
   transform: translateY(0);
 }
 
-.slide-left-enter-active,
-.slide-left-leave-active {
+.slide-up-enter-active,
+.slide-up-leave-active {
   transition: all 0.3s ease;
 }
-.slide-left-enter-from,
-.slide-left-leave-to {
+.slide-up-enter-from,
+.slide-up-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateY(20px);
 }
 
 .fade-bottom-enter-active,

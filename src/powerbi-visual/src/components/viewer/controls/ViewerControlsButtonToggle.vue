@@ -1,6 +1,6 @@
 <template>
   <button
-    v-tippy="{ content: tooltip ?? '', placement: 'right', onShow: () => !!tooltip }"
+    v-tippy="{ content: tooltip ?? '', placement: 'top', onShow: () => !!tooltip }"
     type="button"
     class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     :class="

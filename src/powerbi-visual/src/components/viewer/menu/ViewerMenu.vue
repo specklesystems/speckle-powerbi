@@ -6,7 +6,7 @@
     <div
       v-if="open"
       ref="menuContent"
-      class="absolute left-full top-0 ml-2 bg-foundation rounded-lg border border-outline-2 flex flex-col overflow-hidden shadow-sm"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-foundation rounded-lg border border-outline-2 flex flex-col overflow-hidden shadow-sm"
     >
       <div
         v-if="$slots.title"

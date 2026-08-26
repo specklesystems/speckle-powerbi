@@ -1,13 +1,13 @@
 <template>
-  <div class="flex items-start">
+  <div class="flex items-center">
     <ViewerControlsButtonGroup>
       <!-- Zoom extents -->
       <ViewerControlsButtonToggle tooltip="Zoom extents" @click="onZoomExtentsClicked">
         <IconFocus class="h-4 w-4" />
       </ViewerControlsButtonToggle>
-      <!-- -mx-1 bleeds the rule through the pill's padding so it cuts edge to
+      <!-- -my-1 bleeds the rule through the pill's padding so it cuts edge to
            edge; dimmed a notch so it reads as a group break, not the border -->
-      <div class="-mx-1 self-stretch border-t border-outline-2 opacity-60" aria-hidden="true" />
+      <div class="-my-1 self-stretch border-l border-outline-2 opacity-60" aria-hidden="true" />
       <!-- Camera -->
       <ViewerCameraMenu
         :open="cameraOpen"
