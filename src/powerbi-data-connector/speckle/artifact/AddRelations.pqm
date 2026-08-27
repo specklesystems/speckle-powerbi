@@ -1,0 +1,322 @@
+// Adds selected outgoing, one-hop bundle relations to the passed Objects
+// table. Relation endpoint namespaces come from the bundle's Relation Types
+// table. Node targets resolve to node names; object targets remain Object Key
+// values. Curated single-valued relations fail when an object has more than
+// one distinct edge. Curated multi-valued relations, and relation names used
+// directly from M outside the navigator allow-list, return comma-joined text.
+(
+    objects as table,
+    relations as table,
+    relationTypes as table,
+    nodes as table,
+    relationNames as list
+) as table =>
+    let
+        RequireColumns = (tbl as table, parameterName as text, requiredColumns as list) as table =>
+            let
+                missingColumns = List.Select(
+                    requiredColumns,
+                    each not Table.HasColumns(tbl, {_})
+                )
+            in
+                if List.IsEmpty(missingColumns) then
+                    tbl
+                else
+                    error Error.Record(
+                        "Speckle.AddRelations.MissingColumns",
+                        "The " & parameterName & " table is missing required columns: "
+                            & Text.Combine(missingColumns, ", ") & ".",
+                        [
+                            Parameter = parameterName,
+                            MissingColumns = missingColumns,
+                            RequiredColumns = requiredColumns
+                        ]
+                    ),
+
+        validatedObjects = RequireColumns(objects, "objects", {"Object Key"}),
+        invalidNameIndexes = List.Select(
+            List.Positions(relationNames),
+            (i) =>
+                let
+                    value = relationNames{i}
+                in
+                    if Value.Is(value, type text) then Text.Trim(value) = "" else true
+        ),
+        validatedNames = if List.IsEmpty(invalidNameIndexes) then
+            relationNames
+        else
+            error Error.Record(
+                "Speckle.AddRelations.InvalidRelationNames",
+                "relationNames contains invalid items at positions "
+                    & Text.Combine(
+                        List.Transform(invalidNameIndexes, each Text.From(_ + 1)),
+                        ", "
+                    )
+                    & ". Each item must be non-empty text.",
+                [Positions = List.Transform(invalidNameIndexes, each _ + 1)]
+            ),
+        wanted = List.Distinct(
+            List.Transform(validatedNames, each Text.Trim(_)),
+            Comparer.Ordinal
+        ),
+
+        // These bindings remain unevaluated for an empty selection. That is
+        // intentional: an Object Key-only invocation must not scan envelope
+        // facts or require their columns.
+        validatedRelations = RequireColumns(relations, "relations", {"rel", "src", "dst", "ord"}),
+        validatedRelationTypes = RequireColumns(
+            relationTypes,
+            "relationTypes",
+            {"name", "src_ns", "dst_ns"}
+        ),
+        relationTypeKey = if Table.HasColumns(validatedRelationTypes, {"id"}) then
+            "id"
+        else if Table.HasColumns(validatedRelationTypes, {"rel"}) then
+            "rel"
+        else
+            error Error.Record(
+                "Speckle.AddRelations.MissingColumns",
+                "The relationTypes table must contain an id or rel key column.",
+                [
+                    Parameter = "relationTypes",
+                    MissingColumns = {"id or rel"},
+                    RequiredColumns = {"id or rel", "name", "src_ns", "dst_ns"}
+                ]
+            ),
+        validatedNodes = RequireColumns(nodes, "nodes", {"Node Key", "Name"}),
+        curatedCatalog = Speckle.LoadFunction("RelationCatalog.pqm")(),
+        catalogOrder = List.Distinct(
+            Table.Column(validatedRelationTypes, "name"),
+            Comparer.Ordinal
+        ),
+        knownNames = List.Select(
+            catalogOrder,
+            each List.Contains(wanted, _, Comparer.Ordinal)
+        ),
+        disappearedNames = List.Select(
+            wanted,
+            each not List.Contains(catalogOrder, _, Comparer.Ordinal)
+        ),
+        orderedWanted = if List.IsEmpty(wanted) then {} else knownNames & disappearedNames,
+        objectKeys = Table.Distinct(Table.SelectColumns(validatedObjects, {"Object Key"})),
+
+        AddOneRelation = (state as table, relationName as text) as table =>
+            let
+                catalogRows = Table.Distinct(
+                    Table.RenameColumns(
+                        Table.SelectRows(
+                            Table.SelectColumns(
+                                validatedRelationTypes,
+                                {relationTypeKey, "name", "src_ns", "dst_ns"}
+                            ),
+                            each [name] = relationName
+                        ),
+                        {{relationTypeKey, "__rel"}}
+                    )
+                ),
+                hasCatalogRows = not Table.IsEmpty(catalogRows),
+                namespacePairs = if hasCatalogRows then
+                    Table.Distinct(Table.SelectColumns(catalogRows, {"src_ns", "dst_ns"}))
+                else
+                    #table(type table [src_ns = text, dst_ns = text], {}),
+                unsupportedPairs = Table.SelectRows(
+                    namespacePairs,
+                    each [src_ns] <> "object"
+                        or not List.Contains({"node", "object"}, [dst_ns], Comparer.Ordinal)
+                ),
+                catalogIsValid = if not Table.IsEmpty(unsupportedPairs) then
+                    error Error.Record(
+                        "Speckle.AddRelations.UnsupportedNamespace",
+                        "Relation " & relationName
+                            & " must be object to node or object to object.",
+                        [
+                            RelationName = relationName,
+                            Namespaces = Table.ToRecords(namespacePairs)
+                        ]
+                    )
+                else if Table.RowCount(namespacePairs) > 1 then
+                    error Error.Record(
+                        "Speckle.AddRelations.InconsistentCatalog",
+                        "Relation " & relationName
+                            & " has inconsistent endpoint namespaces in Relation Types.",
+                        [
+                            RelationName = relationName,
+                            Namespaces = Table.ToRecords(namespacePairs)
+                        ]
+                    )
+                else
+                    true,
+                destinationNamespace = if catalogIsValid and hasCatalogRows then
+                    namespacePairs{0}[dst_ns]
+                else
+                    null,
+                cardinalityRows = Table.SelectRows(
+                    curatedCatalog,
+                    each [Name] = relationName
+                ),
+                cardinality = if Table.IsEmpty(cardinalityRows) then
+                    "multi"
+                else
+                    cardinalityRows{0}[Cardinality],
+                relationIds = List.Buffer(Table.Column(catalogRows, "__rel")),
+                requestedEdges = if hasCatalogRows then
+                    Table.SelectRows(
+                        Table.SelectColumns(validatedRelations, {"rel", "src", "dst", "ord"}),
+                        each List.Contains(relationIds, [rel])
+                    )
+                else
+                    #table(
+                        type table [
+                            rel = Int64.Type,
+                            src = Int64.Type,
+                            dst = Int64.Type,
+                            ord = nullable number
+                        ],
+                        {}
+                    ),
+                edgesForObjects = Table.RemoveColumns(
+                    Table.NestedJoin(
+                        requestedEdges,
+                        {"src"},
+                        objectKeys,
+                        {"Object Key"},
+                        "__object",
+                        JoinKind.Inner
+                    ),
+                    {"__object"}
+                ),
+                dedupedEdges = Table.Group(
+                    edgesForObjects,
+                    {"rel", "src", "dst"},
+                    {
+                        {
+                            "ord",
+                            each List.Min(List.RemoveNulls([ord]), null),
+                            type nullable number
+                        }
+                    }
+                ),
+                violatingObjects = if cardinality = "single" then
+                    Table.SelectRows(
+                        Table.Group(
+                            dedupedEdges,
+                            {"src"},
+                            {{"Edge Count", each Table.RowCount(_), Int64.Type}}
+                        ),
+                        each [Edge Count] > 1
+                    )
+                else
+                    #table(type table [src = Int64.Type, #"Edge Count" = Int64.Type], {}),
+                checkedEdges = if not Table.IsEmpty(violatingObjects) then
+                    error Error.Record(
+                        "Speckle.AddRelations.CardinalityViolation",
+                        "Relation " & relationName
+                            & " is single-valued but at least one object has multiple distinct targets.",
+                        [
+                            RelationName = relationName,
+                            Objects = Table.ToRecords(violatingObjects)
+                        ]
+                    )
+                else
+                    dedupedEdges,
+                resolvedEdges = if destinationNamespace = "node" then
+                    Table.ExpandTableColumn(
+                        Table.NestedJoin(
+                            checkedEdges,
+                            {"dst"},
+                            Table.SelectColumns(validatedNodes, {"Node Key", "Name"}),
+                            {"Node Key"},
+                            "__node",
+                            JoinKind.LeftOuter
+                        ),
+                        "__node",
+                        {"Name"},
+                        {"__value"}
+                    )
+                else if destinationNamespace = "object" then
+                    Table.AddColumn(checkedEdges, "__value", each [dst], Int64.Type)
+                else
+                    #table(
+                        type table [
+                            rel = Int64.Type,
+                            src = Int64.Type,
+                            dst = Int64.Type,
+                            ord = nullable number,
+                            __value = any
+                        ],
+                        {}
+                    ),
+                nonNullValues = Table.SelectRows(resolvedEdges, each [__value] <> null),
+                valuesByObject = if not hasCatalogRows then
+                    #table(type table [src = Int64.Type, __value = any], {})
+                else if cardinality = "single" then
+                    Table.Group(
+                        nonNullValues,
+                        {"src"},
+                        {
+                            {
+                                "__value",
+                                each List.First([__value]),
+                                if destinationNamespace = "node" then type nullable text else Int64.Type
+                            }
+                        }
+                    )
+                else
+                    let
+                        textValues = Table.TransformColumns(
+                            nonNullValues,
+                            {{"__value", each Text.From(_, "en-US"), type text}}
+                        ),
+                        distinctValues = Table.Group(
+                            textValues,
+                            {"src", "__value"},
+                            {
+                                {
+                                    "__ord",
+                                    each List.Min(List.RemoveNulls([ord]), null),
+                                    type nullable number
+                                }
+                            }
+                        )
+                    in
+                        Table.Group(
+                            distinctValues,
+                            {"src"},
+                            {
+                                {
+                                    "__value",
+                                    each Text.Combine(
+                                        Table.Column(
+                                            Table.Sort(
+                                                _,
+                                                {{"__ord", Order.Ascending}, {"__value", Order.Ascending}}
+                                            ),
+                                            "__value"
+                                        ),
+                                        ", "
+                                    ),
+                                    type nullable text
+                                }
+                            }
+                        ),
+                withNestedValue = Table.NestedJoin(
+                    state,
+                    {"Object Key"},
+                    valuesByObject,
+                    {"src"},
+                    "__relation",
+                    JoinKind.LeftOuter
+                )
+            in
+                if catalogIsValid then
+                    Table.ExpandTableColumn(
+                        withNestedValue,
+                        "__relation",
+                        {"__value"},
+                        {relationName}
+                    )
+                else
+                    state,
+        withRelations = List.Accumulate(orderedWanted, validatedObjects, AddOneRelation)
+    in
+        if List.IsEmpty(wanted) then validatedObjects else withRelations

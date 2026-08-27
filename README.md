@@ -57,6 +57,184 @@ For more on how to use the visual, [check our docs](https://docs.speckle.systems
 
 To get started with Power BI connector, please take a look at the [documentation](https://docs.speckle.systems/connectors/power-bi) and extensive [tutorials](https://www.youtube.com/@SpeckleSystems) published. 
 
+### Load model tables
+
+Connecting with `Speckle.GetTables` lists three entries in the Navigator:
+
+- **Objects** — one row per object; bind `Objects[Object Key]` to the Speckle
+  3D visual's **Object Keys** field (along with **Model Info**).
+- **Properties** — a function bound to the model: it returns a lean
+  table of `Object Key` plus the property columns you select, with one row per
+  Objects row — relate it one-to-one to the Objects table on `Object Key`. It
+  never modifies the imported Objects query.
+- **Relations** is a function bound to the model. It returns `Object Key` plus
+  the outgoing relation columns you select, with one row per Objects row. Use
+  it for graph-backed fields such as `ON_LEVEL`, then relate the result
+  one-to-one to Objects on `Object Key`.
+
+Property and graph facts are not loaded as separate tables by default. Select
+the fields you need with `Properties` and `Relations`. The underlying source
+keeps hidden supporting tables that the functions read, and advanced M code
+can still address them by key.
+
+For advanced users who prefer to build their own relationships, the **Table
+layout** setting under the connect dialog's collapsible **Advanced options**
+section controls what the Navigator shows:
+
+- **Simplified** is the default. It shows Objects plus
+  the `Properties` and `Relations` functions.
+- **All tables** also shows Property Values, Property Paths, Object Types,
+  Type Properties, Relations, Relation Types and Nodes. You can load them and
+  build your own relationships.
+
+The same choice can be written directly in M:
+`Speckle.GetTables(url, [TableLayout = "All tables"])`. The layout only
+changes Navigator visibility. The underlying tables, keys and both functions
+are identical in both layouts.
+
+### Select graph-backed fields with Relations
+
+Use the `Relations` function when a field is stored as a bundle relation rather
+than an object property. For example, Revit levels arrive through `ON_LEVEL`.
+The invocation produces a separate relationship-ready table:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    Relations = Source{[Key = "expand-relations"]}[Data],
+    ObjectRelations = Relations({"ON_LEVEL", "IN_ROOM"})
+in
+    ObjectRelations
+```
+
+Node targets resolve to their node name. Object targets remain `Object Key`
+values so they can relate back to Objects. Multi-valued relations are
+deduplicated, sorted by the bundle `ord` value and target value, then joined
+with `", "`. Objects without a selected relation get `null`.
+
+The picker only lists these curated relation types when the current bundle has
+at least one matching edge: `ON_LEVEL`, `IN_COLLECTION`, `IN_MODEL`, `IN_ROOM`,
+`IN_SYSTEM`, `IN_GROUP`, `IN_ASSEMBLY`, `CONNECTS_TO`, `HOSTED_ON`,
+`SUBELEMENT` and `BOUNDS`. Saved selections that disappear in a later version
+remain as all-null columns. An omitted, null or empty selection returns only
+`Object Key` without reading the envelope fact tables.
+
+For custom graph work, switch to **All tables** to load the raw Relations,
+Relation Types and Nodes tables. Nodes includes `Elevation`, which is useful
+for sorting level names. The public helper accepts the same four tables:
+
+```powerquery-m
+Speckle.AddRelations(Objects, Relations, RelationTypes, Nodes, {"ON_LEVEL"})
+```
+
+Bundles without envelope parquet files still load. Their relation picker is
+empty, and invoking it returns `Object Key` plus any explicitly requested
+all-null columns.
+
+### Select properties with Properties
+
+The recommended query model uses three queries:
+
+1. **Objects** — the raw table; load it if the 3D visual needs it, otherwise
+   loading is optional.
+2. **Properties** — the function query; functions are inherently
+   connection-only.
+3. **Invoked result** — invoking `Properties` creates a separate table
+   query; load it into the semantic model and relate it to Objects
+   one-to-one on `Object Key` (the connector guarantees a
+   relationship-ready key; Power BI may or may not autodetect the
+   relationship).
+
+In the invocation dialog, pick the properties to append from the dropdown
+(the values come from the hidden Property Paths catalog, listed once each — in
+federated models a path shared by several source models appears once and
+applies across all of them, with `Source Model` providing row provenance).
+Invoking with **Select All** works and has no width cap, but appending every
+property can significantly increase refresh time and table width.
+
+The same call can be written directly in M:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    Properties = Source{[Key = "expand-properties"]}[Data],
+    ObjectProperties = Properties({"properties.Dimensions.Area", "properties.Material.Name"})
+in
+    ObjectProperties
+```
+
+Selection behavior:
+
+- Omitting the argument, passing `null` or passing `{}` returns an
+  `Object Key`-only table containing every object.
+- Entries are trimmed and duplicates are dropped. Known paths are emitted in
+  Property Paths catalog order (not the order you pass them); unknown paths
+  follow the known ones.
+- A well-formed path that disappears in a later model version keeps its column
+  as an all-null column, so saved reports keep refreshing.
+- Blank or non-text entries raise a structured invalid-path error.
+- Every Objects row is preserved in Objects order, so the result relates
+  one-to-one to Objects on `Object Key`; instance values land in unprefixed
+  columns and type values in `Type_`-prefixed columns (see below).
+- An optional second argument, **Use full paths** (`true`/`false`), controls
+  how property columns are named: `false` (the default) uses the shortest
+  unique trailing part of each dotted path, `true` uses the entire path — for
+  example `Properties({"properties.Dimensions.Area"}, true)`. The `Type_`
+  prefix applies in both modes, and names that still clash at full depth are
+  made unique with a numeric suffix (`.1`, `.2`, …).
+
+### Add every object property
+
+The M helpers remain available alongside `Properties` and return the full
+Objects table enriched with property columns. Pass the navigation table from
+`Speckle.GetTables` directly. For property-light CAD models, create a blank
+query and call the convenience helper:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    ObjectsWithProperties = Speckle.AddAllProperties(Source)
+in
+    ObjectsWithProperties
+```
+
+The result is the objects table with every path from the Property Paths table
+appended, split by source so provenance stays visible in the field list: values
+stored per object land in an unprefixed column (for example `Area`), while
+values stored on the object's type land in a `Type_`-prefixed column
+(`Type_Area`). A property with both an instance value and a type value produces
+both columns side by side. Paths without a value are retained as null columns.
+The optional Objects override requires only `Object Key`. Its rows and extra
+columns are preserved, and its keys restrict the property fact scans. Joins
+restrict silently. The output column set derives from surviving facts, so it can
+vary with filtering. Property columns use the shortest unique suffix of their
+dotted paths by default, and a name that clashes with a column on the objects
+table you pass (or with another path) even at its full depth is made unique
+with a numeric suffix (`.1`, `.2`, …). Both helpers accept the same optional
+`useFullPaths` argument as the `Properties` function. Pass `null` for the
+Objects override when setting it for the full model, so
+`Speckle.AddAllProperties(Source, null, true)`
+names every column with its entire dotted path.
+
+You can enrich, filter, and enrich the subset again without unpacking the
+supporting tables:
+
+```powerquery-m
+let
+    Source = Speckle.GetTables("https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID"),
+    Tagged = Speckle.AddProperties(Source, {"category"}),
+    Rooms = Table.SelectRows(Tagged, each [category] = "Rooms"),
+    Enriched = Speckle.AddProperties(Source, {"name", "number", "floorFinish"}, Rooms)
+in
+    Enriched
+```
+
+This helper is intended for models with relatively few property paths. BIM
+models can contain hundreds or thousands of paths, producing a very wide table
+and slower refreshes; use
+`Speckle.AddProperties(source, propertyPaths, objects, useFullPaths)`
+to select only the properties needed in those cases.
+
 ## Development Setup
 
 ### For local development of the 3D Visual

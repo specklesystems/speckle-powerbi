@@ -4,7 +4,6 @@ import path from 'path'
 // api configuration
 import powerbi from 'powerbi-visuals-api'
 import ExtraWatchWebpackPlugin from 'extra-watch-webpack-plugin'
-import { BundleAnalyzerPlugin as Visualizer } from 'webpack-bundle-analyzer'
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
 import { PowerBICustomVisualsWebpackPlugin } from 'powerbi-visuals-webpack-plugin'
 import webpack from 'webpack'
@@ -37,27 +36,6 @@ const capabilitiesFile = require(path.join(__dirname, capabilitiesPath))
 // string resources
 const resourcesFolder = path.join('.', 'stringResources')
 const localizationFolders = fs.existsSync(resourcesFolder) && fs.readdirSync(resourcesFolder)
-const statsLocation = '../../webpack.statistics.html'
-
-// babel options to support IE11
-const babelOptions = {
-  presets: [
-    [
-      '@babel/preset-env',
-      {
-        targets: {
-          ie: '11'
-        },
-        useBuiltIns: 'entry',
-        corejs: 3,
-        modules: false
-      }
-    ]
-  ],
-  plugins: [],
-  sourceType: 'unambiguous', // tell to babel that the project can contain different module types, not only es2015 modules
-  cacheDirectory: path.join('.tmp', 'babelCache') // path for cache files
-}
 
 export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
   const isProd = params.mode === 'prod'
@@ -87,11 +65,26 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     },
     optimization: {
       concatenateModules: false,
+      // a Power BI visual must be ONE js file: the pbiviz manifest embeds a
+      // single asset, so a stray emitted chunk would be picked instead of the
+      // visual ("Visual does not have a plugin")
+      splitChunks: false,
+      runtimeChunk: false,
       minimize: isProd // enable minimization for create *.pbiviz file less than 2 Mb, can be disabled for dev mode
     },
-    devtool: isProd ? false : 'inline-source-map',
+    // external map file — inline-source-map balloons visual.js to ~29MB, which
+    // the Service dev-visual host fails to transfer into the sandbox (masked
+    // as the "reading 'name'" sendError crash)
+    devtool: isProd ? false : 'source-map',
     mode: isProd ? 'production' : 'development',
     module: {
+      parser: {
+        javascript: {
+          // inline all dynamic import() chunks into the main bundle — a Power
+          // BI visual must be ONE js file
+          dynamicImportMode: 'eager'
+        }
+      },
       rules: [
         {
           test: /\.vue$/,
@@ -102,18 +95,12 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             amd: false
           }
         },
+        // No babel anywhere: the viewer-3 visual requires WebGPU, i.e. modern
+        // Chromium — ts-loader's es2020 output runs as-is (the old babel/IE11/
+        // core-js layer was removed with the rewrite).
         {
           test: /(\.ts)x|\.ts$/,
           use: [
-            {
-              loader: 'babel-loader',
-              options: {
-                presets: [
-                  // '@babel/react',
-                  '@babel/env'
-                ]
-              }
-            },
             {
               loader: 'ts-loader',
               options: {
@@ -127,43 +114,66 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           include: /.tmp|powerbi-visuals-|src|precompile\\visualPlugin.ts/
         },
         {
-          test: /(\.js)x|\.js$/,
-          use: [
-            {
-              loader: 'babel-loader',
-              options: babelOptions
-            }
-          ],
-          exclude: [/node_modules/]
-        },
-        {
-          test: /\.json$/,
-          loader: 'json-loader',
-          type: 'javascript/auto'
-        },
-        {
           test: /\.(css|scss)?$/,
           use: [MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader']
         },
         {
+          // inline as data URIs — the packaged visual ships only visual.js +
+          // visual.css, so referenced asset FILES would 404 in the PBI sandbox.
+          // (native asset/inline, not base64-inline-loader: the loader emitted
+          // broken files for url() refs coming from CSS, e.g. @font-face)
           test: /\.(woff|ttf|ico|woff2|jpg|jpeg|png|webp|svg)$/i,
-          use: ['base64-inline-loader']
+          type: 'asset/inline'
+        },
+        {
+          // Any remaining `?url` imports — emit as files with an absolute URL
+          // (publicPath), fetched cross-origin with CORS. The 33-37MB duckdb
+          // wasm that motivated this rule is gone with the viewer-3 rewrite
+          // (the remote geometry stream needs no duckdb); kept for future assets.
+          resourceQuery: /url/,
+          type: 'asset/resource'
         }
       ]
     },
     resolve: {
       extensions: ['.tsx', '.ts', '.jsx', '.js', '.css'],
+      // the vendored ts-sdk sources use ESM-style `./x.js` specifiers for `.ts`
+      // files (tshy convention); teach webpack the same mapping tsc's
+      // moduleResolution:bundler applies
+      extensionAlias: {
+        '.js': ['.ts', '.js']
+      },
       alias: {
         src: path.resolve(__dirname, 'src/'),
         assets: path.resolve(__dirname, 'assets/')
+        // (the viewer-3 rewrite removed the `three` + duckdb-wasm aliases: the
+        // WebGPU renderer bundles threejs-math and spawns no duckdb workers)
       },
       plugins: [new TsconfigPathsPlugin()],
       mainFields: ['module', 'browser', 'main']
     },
     output: {
-      publicPath: '/assets',
+      // dev must be ABSOLUTE: inside the PBI sandbox the visual runs on a
+      // foreign origin (app.powerbi.com / sources:///), so relative asset URLs
+      // (wasm, fonts, chunks) resolve against the wrong base. The dev server
+      // sends access-control-allow-origin: * so cross-origin fetches work.
+      publicPath: isProd ? '/assets/' : 'https://localhost:8080/assets/',
       path: path.join(__dirname, '/.tmp', 'drop'),
-      library: +powerbiApi.version.replace(/\./g, '') >= 320 ? pbivizFile.visual.guid : undefined,
+      // the PBI packaging plugin embeds the LAST *.js asset it iterates as the
+      // visual's code — a worker chunk named *.js gets picked INSTEAD of
+      // visual.js and the visual dies with the masked undefined-plugin crash.
+      // Emit non-entry chunks (the duckdb worker) as .mjs: correct MIME for the
+      // dev server, invisible to the plugin's extension check.
+      chunkFilename: '[name].mjs',
+      // the library global must match the guid the SERVED pbiviz.json
+      // advertises — in dev mode the PBI plugin renames it to <guid>_DEBUG,
+      // and the Service host resolves the visual via window[<guid>].default
+      library:
+        +powerbiApi.version.replace(/\./g, '') >= 320
+          ? isProd
+            ? pbivizFile.visual.guid
+            : `${pbivizFile.visual.guid}_DEBUG`
+          : undefined,
       libraryTarget: +powerbiApi.version.replace(/\./g, '') >= 320 ? 'var' : undefined
     },
     ...(isProd
@@ -222,17 +232,15 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
     plugins: [
       new webpack.DefinePlugin({
         __VUE_OPTIONS_API__: JSON.stringify(true),
-        __VUE_PROD_DEVTOOLS__: JSON.stringify(false)
+        __VUE_PROD_DEVTOOLS__: JSON.stringify(false),
+        // package.json is the version's source of truth (pbiviz.json's copy is
+        // overwritten with it above) — inject it so the UI can't drift
+        __VISUAL_VERSION__: JSON.stringify(packageJsonFile.version)
       }),
       new VueLoaderPlugin(),
       new MiniCssExtractPlugin({
         filename: 'visual.css',
         chunkFilename: '[id].css'
-      }),
-      new Visualizer({
-        reportFilename: statsLocation,
-        openAnalyzer: false,
-        analyzerMode: `static`
       }),
       // visual plugin regenerates with the visual source, but it does not require relaunching dev server
       new webpack.WatchIgnorePlugin({
@@ -248,18 +256,28 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
           localizationFolders.map((localization) =>
             path.join(resourcesFolder, localization, 'resources.resjson')
           ),
-        apiVersion: powerbiApi.version,
+        // advertise pbiviz.json's apiVersion, NOT the installed package's —
+        // declaring an api version the sandbox host doesn't ship an adapter
+        // for kills the visual in the handshake before our code runs
+        apiVersion: pbivizFile.apiVersion,
         capabilitiesSchema: powerbiApi.schemas.capabilities,
         pbivizSchema: powerbiApi.schemas.pbiviz,
         stringResourcesSchema: powerbiApi.schemas.stringResources,
         dependenciesSchema: powerbiApi.schemas.dependencies,
-        devMode: false,
+        // dev builds must register as <guid>_DEBUG — the Developer Visual host
+        // looks the plugin up under that name; with devMode:false it finds
+        // undefined and dies with "Cannot read properties of undefined ('name')"
+        devMode: !isProd,
         generatePbiviz: isProd,
         generateResources: true,
         minifyJS: isProd,
         minify: isProd,
         modules: true,
-        visualSourceLocation: '../../src/visual',
+        // PROBE=1 builds the sandbox diagnostic probe (src/probe/probeVisual)
+        // instead of the real visual — a full capability report + minimal
+        // render/selection harness for debugging the Service sandbox
+        visualSourceLocation:
+          process.env.PROBE === '1' ? '../../src/probe/probeVisual' : '../../src/visual',
         pluginLocation: pluginLocation,
         packageOutPath: path.join(__dirname, 'dist')
       }),

@@ -1,6 +1,6 @@
 import { formattingSettings as fs } from 'powerbi-visuals-utils-formattingmodel'
 import ValidatorType = powerbi.visuals.ValidatorType
-import { SunLightConfiguration } from '@speckle/viewer'
+import { SunLightConfiguration } from '@src/viewer3/compatTypes'
 
 export class LightingSettings extends fs.SimpleCard {
   name = 'lighting'

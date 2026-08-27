@@ -3,12 +3,12 @@
     {
       "displayName": "Model Info",
       "kind": "Measure",
-      "name": "rootObjectId"
+      "name": "modelInfo"
     },
     {
-      "displayName": "Object IDs",
+      "displayName": "Object Keys",
       "kind": "Grouping",
-      "name": "objectIds"
+      "name": "applicationIds"
     },
     {
       "displayName": "Object Data (Tooltip)",
@@ -26,8 +26,8 @@
       "matrix": {
         "rows": {
           "dataReductionAlgorithm": {
-            "top": {
-              "count": 150000
+            "window": {
+              "count": 30000
             }
           },
           "select": [
@@ -38,7 +38,7 @@
             },
             {
               "for": {
-                "in": "objectIds"
+                "in": "applicationIds"
               }
             }
           ]
@@ -47,7 +47,7 @@
           "select": [
             {
               "for": {
-                "in": "rootObjectId"
+                "in": "modelInfo"
               }
             },
             {
@@ -61,8 +61,8 @@
       "conditions": [
         {
           "colorBy": { "max": 1 },
-          "objectIds": { "max": 1 },
-          "rootObjectId": { "max": 1 }
+          "applicationIds": { "max": 1 },
+          "modelInfo": { "max": 1 }
         }
       ]
     }
@@ -82,6 +82,20 @@
       "properties": {
         "brandingHidden": {
           "type": { "bool": true }
+        }
+      }
+    },
+    "config": {
+      "properties": {
+        "devMode": {
+          "type": { "bool": true }
+        }
+      }
+    },
+    "colorOverrides": {
+      "properties": {
+        "mappings": {
+          "type": { "text": true }
         }
       }
     },
@@ -249,6 +263,7 @@
   "sorting": {
     "default": {}
   },
+  "advancedEditModeSupport": 2,
   "supportsEmptyDataView": true,
   "supportsHighlight": true,
   "supportsKeyboardFocus": true,

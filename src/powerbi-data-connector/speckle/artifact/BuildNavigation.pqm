@@ -1,0 +1,260 @@
+// Composes the public Speckle.GetTables navigation table (ENG-9165) from the
+// already-combined star-schema and envelope tables. With the default
+// Simplified layout the Navigator shows Objects plus the model-bound
+// Properties and Relations functions. Supporting tables stay addressable by
+// key, and the All tables layout unhides them for custom model relationships.
+//
+// deps:        [NavigationTable = ..., AddProperties = ..., AddRelations = ...,
+//               RelationCatalog = ...]
+// tables:      [Objects = ..., Properties = ..., Paths = ..., ObjectTypes = ...,
+//               TypeProperties = ..., Relations = ..., RelationTypes = ...,
+//               Nodes = ...]
+// tableLayout: null | "Simplified" | "All tables" (case-insensitive)
+(deps as record, tables as record, optional tableLayout as nullable text) as table =>
+    let
+        NavigationTable = deps[NavigationTable],
+        AddProperties = deps[AddProperties],
+        AddRelations = deps[AddRelations],
+        relationCatalog = deps[RelationCatalog],
+
+        // Table layout — the Speckle.GetTables advanced option. Named after
+        // the public export so the structured error reads correctly there.
+        allowedTableLayouts = {"Simplified", "All tables"},
+        showAllTables = if tableLayout = null
+            or Comparer.OrdinalIgnoreCase(tableLayout, "Simplified") = 0 then
+            false
+        else if Comparer.OrdinalIgnoreCase(tableLayout, "All tables") = 0 then
+            true
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidTableLayout",
+                "TableLayout must be one of: "
+                    & Text.Combine(allowedTableLayouts, ", ")
+                    & ". Got: " & tableLayout & ".",
+                [TableLayout = tableLayout, AllowedValues = allowedTableLayouts]
+            ),
+
+        // The five existing keyed star-schema rows stay in their established
+        // order. Keys are the stable API; Property Values keeps its historical
+        // "properties" key.
+        helperRows = {
+            [name = "Objects", key = "objects", data = tables[Objects], itemKind = "Table", isLeaf = true],
+            [name = "Property Values", key = "properties", data = tables[Properties], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Property Paths", key = "paths", data = tables[Paths], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Object Types", key = "object-types", data = tables[ObjectTypes], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Type Properties", key = "type-properties", data = tables[TypeProperties], itemKind = "Table", isLeaf = true, hidden = not showAllTables]
+        },
+        propertySource = NavigationTable(helperRows),
+
+        // ExpandProperties passes the complete navigation table to the public
+        // helper and supplies the Object Key-only table as its override.
+        // Its objects table carries only Object Key, so the bound function
+        // returns a lean, relationship-ready table (Object Key + selected
+        // property columns) instead of an enriched copy of Objects, and
+        // collision detection sees only Object Key among the base columns.
+        // The public helperRows keep the full Objects table for the Navigator.
+        helperObjects = Table.SelectColumns(tables[Objects], {"Object Key"}),
+
+        // the selector catalogue: Property Paths values deduplicated in
+        // first-appearance order. Federated models repeat identical path text
+        // under per-source keys; the selector lists each path once and a
+        // selection applies across all sources.
+        propertyOptions = List.Buffer(
+            List.Distinct(Table.Column(tables[Paths], "Property"), Comparer.Ordinal)
+        ),
+
+        ExpandProperties.Impl = (
+            optional Properties as nullable list,
+            optional UseFullPaths as nullable logical
+        ) as table =>
+            let
+                selected = Properties ?? {},
+                hasInvalidSelection = List.AnyTrue(
+                    List.Transform(
+                        selected,
+                        each if Value.Is(_, type text) then Text.Trim(_) = "" else true
+                    )
+                ),
+                orderedSelection = if hasInvalidSelection then
+                    // hand the raw list through so AddProperties raises its
+                    // structured invalid-path error with the caller's
+                    // original one-based positions
+                    selected
+                else if List.IsEmpty(selected) then
+                    {}
+                else
+                    let
+                        normalized = List.Distinct(
+                            List.Transform(selected, each Text.Trim(_)),
+                            Comparer.Ordinal
+                        ),
+                        selectedLookup = Record.FromList(
+                            List.Repeat({true}, List.Count(normalized)),
+                            normalized
+                        ),
+                        availableLookup = Record.FromList(
+                            List.Repeat({true}, List.Count(propertyOptions)),
+                            propertyOptions
+                        ),
+                        // known selections follow the catalogue order shown in
+                        // the selector, not caller order; paths missing from
+                        // this model version trail behind them and surface
+                        // downstream as all-null columns
+                        known = List.Select(
+                            propertyOptions,
+                            each Record.HasFields(selectedLookup, _)
+                        ),
+                        disappeared = List.Select(
+                            normalized,
+                            each not Record.HasFields(availableLookup, _)
+                        )
+                    in
+                        known & disappeared
+            in
+                // UseFullPaths passes through uncoalesced: AddProperties owns
+                // the null-to-false default
+                AddProperties(propertySource, orderedSelection, helperObjects, UseFullPaths),
+
+        ExpandProperties.Type = Type.ForFunction(
+            [
+                ReturnType = type table,
+                Parameters = [
+                    // no "(optional)" in captions: the Power BI parameter
+                    // dialog appends that suffix itself for optional params
+                    Properties = type nullable list meta [
+                        Documentation.FieldCaption = "Properties",
+                        Documentation.FieldDescription = "Dotted property paths (see the Property Paths table) to return as columns alongside Object Key. Instance values land in unprefixed columns and type values in Type_-prefixed columns. Selecting all properties can significantly increase refresh time and table width.",
+                        Documentation.AllowedValues = propertyOptions
+                    ],
+                    UseFullPaths = type nullable logical meta [
+                        Documentation.FieldCaption = "Use full paths",
+                        Documentation.FieldDescription = "Default: false. False names each column with the shortest unique trailing part of its dotted path, growing only on collisions; true uses the entire dotted path. Type values keep the Type_ prefix in both modes. Names that still clash at full depth are made unique with a numeric suffix (.1, .2, …)."
+                    ]
+                ]
+            ],
+            0
+        ) meta [
+            Documentation.Name = "Properties",
+            Documentation.LongDescription = "Returns a lean table of Object Key plus the selected property columns, with one row per Objects row — relate it one-to-one to the Objects table on Object Key. An omitted, null or empty selection returns an Object Key-only table containing every object. Column names default to the shortest unique trailing part of each dotted path; set Use full paths to true to use entire paths. Selecting all properties can significantly increase refresh time and table width."
+        ],
+        ExpandProperties.Value = Value.ReplaceType(ExpandProperties.Impl, ExpandProperties.Type),
+        // Only curated relation names with at least one edge appear in the
+        // picker. The join keeps the bundle catalog's row order. The final
+        // list is bounded by the eleven-row curated catalog and is safe to
+        // buffer; the Relations fact table itself is never buffered.
+        curatedRelationNames = List.Buffer(Table.Column(relationCatalog, "Name")),
+        presentRelationIds = Table.Distinct(Table.SelectColumns(tables[Relations], {"rel"})),
+        relationTypeKey = if Table.HasColumns(tables[RelationTypes], {"id"}) then
+            "id"
+        else if Table.HasColumns(tables[RelationTypes], {"rel"}) then
+            "rel"
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidRelationTypes",
+                "Relation Types must contain an id or rel key column.",
+                [Columns = Table.ColumnNames(tables[RelationTypes])]
+            ),
+        presentRelationTypeRows = Table.RemoveColumns(
+            Table.NestedJoin(
+                Table.RenameColumns(
+                    Table.SelectColumns(tables[RelationTypes], {relationTypeKey, "name"}),
+                    {{relationTypeKey, "__rel"}}
+                ),
+                {"__rel"},
+                presentRelationIds,
+                {"rel"},
+                "__present",
+                JoinKind.Inner
+            ),
+            {"__present"}
+        ),
+        relationOptions = List.Buffer(
+            List.Select(
+                List.Distinct(Table.Column(presentRelationTypeRows, "name"), Comparer.Ordinal),
+                each List.Contains(curatedRelationNames, _, Comparer.Ordinal)
+            )
+        ),
+
+        Relations.Impl = (optional Relations as nullable list) as table =>
+            let
+                selected = Relations ?? {},
+                hasInvalidSelection = List.AnyTrue(
+                    List.Transform(
+                        selected,
+                        each if Value.Is(_, type text) then Text.Trim(_) = "" else true
+                    )
+                ),
+                orderedSelection = if hasInvalidSelection then
+                    selected
+                else if List.IsEmpty(selected) then
+                    {}
+                else
+                    let
+                        normalized = List.Distinct(
+                            List.Transform(selected, each Text.Trim(_)),
+                            Comparer.Ordinal
+                        ),
+                        relationTypeOrder = List.Distinct(
+                            Table.Column(tables[RelationTypes], "name"),
+                            Comparer.Ordinal
+                        ),
+                        known = List.Select(
+                            relationTypeOrder,
+                            each List.Contains(normalized, _, Comparer.Ordinal)
+                        ),
+                        disappeared = List.Select(
+                            normalized,
+                            each not List.Contains(relationTypeOrder, _, Comparer.Ordinal)
+                        )
+                    in
+                        known & disappeared
+            in
+                AddRelations(
+                    helperObjects,
+                    tables[Relations],
+                    tables[RelationTypes],
+                    tables[Nodes],
+                    orderedSelection
+                ),
+
+        Relations.Type = Type.ForFunction(
+            [
+                ReturnType = type table,
+                Parameters = [
+                    Relations = type nullable list meta [
+                        Documentation.FieldCaption = "Relations",
+                        Documentation.FieldDescription = "Outgoing relation types to resolve as columns alongside Object Key. Node targets use their name; object targets use Object Key. Multi-valued relations are joined with a comma and space.",
+                        Documentation.AllowedValues = relationOptions
+                    ]
+                ]
+            ],
+            0
+        ) meta [
+            Documentation.Name = "Relations",
+            Documentation.LongDescription = "Returns a lean table of Object Key plus the selected outgoing relation columns, with one row per Objects row. Relate it one-to-one to Objects on Object Key. An omitted, null or empty selection returns an Object Key-only table."
+        ],
+        Relations.Value = Value.ReplaceType(Relations.Impl, Relations.Type),
+
+        // Append new rows after the existing six-entry contract. The raw graph
+        // tables are hidden in Simplified mode and visible in All tables.
+        relationRows = {
+            [name = "Relations", key = "expand-relations", data = Relations.Value, itemKind = "Function", isLeaf = true],
+            [name = "Relations", key = "relations", data = tables[Relations], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Relation Types", key = "relation-types", data = tables[RelationTypes], itemKind = "Table", isLeaf = true, hidden = not showAllTables],
+            [name = "Nodes", key = "nodes", data = tables[Nodes], itemKind = "Table", isLeaf = true, hidden = not showAllTables]
+        },
+        navTable = NavigationTable(
+            helperRows
+                & {
+                    [
+                        name = "Properties",
+                        key = "expand-properties",
+                        data = ExpandProperties.Value,
+                        itemKind = "Function",
+                        isLeaf = true
+                    ]
+                }
+                & relationRows
+        )
+    in
+        navTable

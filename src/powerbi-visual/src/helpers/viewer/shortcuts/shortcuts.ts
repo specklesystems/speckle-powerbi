@@ -1,4 +1,4 @@
-import { ViewMode } from '@speckle/viewer'
+import { ViewMode } from '@src/viewer3/compatTypes'
 
 export enum ModifierKeys {
   CtrlOrCmd = 'cmd-or-ctrl',
@@ -44,13 +44,6 @@ export const ToolShortcuts = {
     modifiers: [ModifierKeys.Shift],
     key: 'P',
     action: 'ToggleProjection'
-  },
-  ToggleSectionBox: {
-    name: 'Section',
-    description: 'Toggle section box',
-    modifiers: [ModifierKeys.Shift],
-    key: 'B',
-    action: 'ToggleSectionBox'
   },
   ZoomExtentsOrSelection: {
     name: 'Fit',

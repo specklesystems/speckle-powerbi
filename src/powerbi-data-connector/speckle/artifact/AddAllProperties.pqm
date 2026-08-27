@@ -1,0 +1,63 @@
+// Adds every property path from the Property Paths row in the passed
+// navigation source. AddProperties remains the single implementation of table
+// validation, naming, source-split emission, and Objects override handling.
+// The path list is intentionally not deduplicated here: federated models
+// repeat path text under per-source path_keys and AddProperties owns dedup.
+(
+    source as table,
+    optional objects as nullable table,
+    optional useFullPaths as nullable logical
+) as table =>
+    let
+        isRetiredObjectsShape = Table.HasColumns(source, {"Object Key"})
+            and not Table.HasColumns(source, {"Key", "Data"}),
+        validatedSourceColumns = if isRetiredObjectsShape then
+            error Error.Record(
+                "Speckle.AddProperties.SignatureChanged",
+                "The signature changed: pass the Speckle.GetTables navigation table (Source) as the first argument. Expected: "
+                    & "Speckle.AddAllProperties(source, objects, useFullPaths).",
+                [ExpectedParameters = {"source", "objects", "useFullPaths"}]
+            )
+        else if Table.HasColumns(source, {"Key", "Data"}) then
+            source
+        else
+            error Error.Record(
+                "Speckle.AddProperties.MissingColumns",
+                "The source table is missing required columns: "
+                    & Text.Combine(
+                        List.Select({"Key", "Data"}, each not Table.HasColumns(source, {_})),
+                        ", "
+                    ) & ".",
+                [
+                    Parameter = "source",
+                    MissingColumns = List.Select(
+                        {"Key", "Data"}, each not Table.HasColumns(source, {_})
+                    ),
+                    RequiredColumns = {"Key", "Data"}
+                ]
+            ),
+        requiredSourceKeys = {
+            "objects", "properties", "paths", "object-types", "type-properties"
+        },
+        sourceKeys = Table.Column(validatedSourceColumns, "Key"),
+        missingSourceKeys = List.Select(
+            requiredSourceKeys,
+            each not List.Contains(sourceKeys, _, Comparer.Ordinal)
+        ),
+        validatedSource = if List.IsEmpty(missingSourceKeys) then
+            validatedSourceColumns
+        else
+            error Error.Record(
+                "Speckle.AddProperties.MissingSourceKeys",
+                "The source navigation table is missing required keys: "
+                    & Text.Combine(missingSourceKeys, ", ") & ".",
+                [
+                    MissingKeys = missingSourceKeys,
+                    RequiredKeys = requiredSourceKeys
+                ]
+            ),
+        paths = validatedSource{[Key = "paths"]}[Data]
+    in
+        Speckle.AddProperties(
+            validatedSource, Table.Column(paths, "Property"), objects, useFullPaths
+        )

@@ -1,4 +1,4 @@
-import type { ViewMode } from '@speckle/viewer'
+import type { ViewMode } from '@src/viewer3/compatTypes'
 import type { ModifierKeys, ViewerShortcuts } from './shortcuts'
 
 export type BaseShortcut = {

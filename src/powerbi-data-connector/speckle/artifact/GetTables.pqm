@@ -1,0 +1,330 @@
+// ARTIFACT PATH — the 4.0 star-schema pipeline behind Speckle.GetTables
+// (ENG-9165). Reads artifact bundles only: versions without a bundle are NOT
+// adapted from their JSON representation; they error towards Speckle.GetByUrl.
+// Returns the star-schema navigation table.
+(url as text, optional options as nullable record) as table =>
+    let
+        // Advanced options record from the connect dialog. TableLayout is the
+        // only known option; unknown fields fail loudly rather than being
+        // silently ignored. The layout text itself is validated in
+        // BuildNavigation.pqm.
+        knownOptions = {"TableLayout"},
+        unknownOptions = if options = null then
+            {}
+        else
+            List.Select(
+                Record.FieldNames(options),
+                each not List.Contains(knownOptions, _, Comparer.Ordinal)
+            ),
+        tableLayout = if not List.IsEmpty(unknownOptions) then
+            error Error.Record(
+                "Speckle.GetTables.InvalidOptions",
+                "options contains unknown fields: "
+                    & Text.Combine(unknownOptions, ", ")
+                    & ". Supported options: "
+                    & Text.Combine(knownOptions, ", ") & ".",
+                [UnknownOptions = unknownOptions, SupportedOptions = knownOptions]
+            )
+        else if options = null then
+            null
+        else
+            Record.FieldOrDefault(options, "TableLayout", null),
+
+        // parsed at runtime from Speckle.pq's [Version] attribute (same as the
+        // legacy path) — the one copy patch_version.py stamps at release
+        ConnectorVersion = Extension.LoadFunction("GetVersion.pqm")(),
+
+        // the logic for importing functions from other files — this is the single
+        // copy; leaf modules receive what they need via the deps record
+        Extension.LoadFunction = (fileName as text) =>
+            let
+                binary = Extension.Contents(fileName),
+                asText = Text.FromBinary(binary)
+            in
+                try
+                    Expression.Evaluate(asText, #shared)
+                catch (e) =>
+                    error
+                        [
+                            Reason = "Extension.LoadFunction Failure",
+                            Message.Format = "Loading '#{0}' failed - '#{1}': '#{2}'",
+                            Message.Parameters = {fileName, e[Reason], e[Message]},
+                            Detail = [File = fileName, Error = e]
+                        ],
+
+        Parser = Extension.LoadFunction("Parser.pqm"),
+        CheckPermissions = Extension.LoadFunction("CheckPermissions.pqm"),
+        GetUser = Extension.LoadFunction("GetUser.pqm"),
+        GetWorkspace = Extension.LoadFunction("GetWorkspace.pqm"),
+        ExchangeToken = Extension.LoadFunction("ExchangeToken.pqm"),
+        GetModel = Extension.LoadFunction("GetModel.pqm"),
+        FetchArtifacts = Extension.LoadFunction("FetchArtifacts.pqm"),
+        ReadBundleTable = Extension.LoadFunction("ReadBundleTable.pqm"),
+        GetEavModel = Extension.LoadFunction("GetEavModel.pqm"),
+        NavigationTable = Extension.LoadFunction("NavigationTable.pqm"),
+        AddProperties = Extension.LoadFunction("AddProperties.pqm"),
+        AddRelations = Extension.LoadFunction("AddRelations.pqm"),
+        RelationCatalog = Extension.LoadFunction("RelationCatalog.pqm")(),
+        BuildNavigation = Extension.LoadFunction("BuildNavigation.pqm"),
+        EncodeUserInfo = Extension.LoadFunction("EncodeUserInfo.pqm"),
+        MarkReceived = Extension.LoadFunction("MarkReceived.pqm"),
+        ProjectModels = Extension.LoadFunction("Project.Models.pqm"),
+
+        deps = [ReadBundleTable = ReadBundleTable],
+
+        // federated models namespace their dense-int keys as ordinal * 2^32 + index
+        KeySpace = 4294967296,
+
+        // M is lazy: a side-effecting call only executes if its result is observed.
+        // Observe(sideEffect, value) evaluates sideEffect and returns value.
+        Observe = (sideEffect as any, value as any) as any =>
+            if sideEffect = null then value else value,
+
+        ProjectWideModelLimit = 10000,
+
+        // parse the URL to determine load shape
+        parsedUrl = Parser(url),
+
+        expandedResourceIdString = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine(ProjectModels(parsedUrl[baseUrl], parsedUrl[projectId], ProjectWideModelLimit), ",")
+        else
+            parsedUrl[resourceIdString],
+
+        effectiveUrl = if parsedUrl[isProjectWideModelLoad] then
+            Text.Combine({
+                parsedUrl[baseUrl],
+                "/projects/",
+                parsedUrl[projectId],
+                "/models/",
+                expandedResourceIdString
+            })
+        else
+            url,
+
+        effectiveParsedUrl = Parser(effectiveUrl),
+
+        metadataUrl = if parsedUrl[isProjectWideModelLoad] then url else effectiveUrl,
+
+        // single permission guard
+        permissionCheck = CheckPermissions(metadataUrl),
+        permissionGuard = if not Record.HasFields(permissionCheck, {"authorized", "code", "message"}) then
+            error "Invalid permission check result"
+        else if not permissionCheck[authorized] then
+            error Text.Format(
+                "Permission denied: #{0} (Error code: #{1})",
+                {permissionCheck[message], permissionCheck[code]}
+            )
+        else
+            null,
+
+        // user / workspace context + the single token exchange
+        userInfo = GetUser(metadataUrl),
+        powerfulToken = userInfo[Token],
+        userEmail = userInfo[UserEmail],
+        workspaceInfo = GetWorkspace(metadataUrl),
+
+        tokenExchangeResult = ExchangeToken(
+            powerfulToken,
+            {"profile:read", "streams:read", "users:read"},
+            effectiveParsedUrl[projectId],
+            effectiveParsedUrl[baseUrl],
+            effectiveParsedUrl[resourceIdString]
+        ),
+
+        // hard-fail if token exchange failed - do NOT use powerful token as fallback
+        weakToken = if tokenExchangeResult[Success] then
+            tokenExchangeResult[Token]
+        else
+            error [
+                Reason = "TokenExchangeFailed",
+                Message.Format = "Failed to exchange token for limited scope token: #{0}",
+                Message.Parameters = {tokenExchangeResult[ErrorMessage]},
+                Detail = [
+                    ErrorMessage = tokenExchangeResult[ErrorMessage],
+                    ProjectId = effectiveParsedUrl[projectId],
+                    ServerUrl = effectiveParsedUrl[baseUrl]
+                ]
+            ],
+
+        // representation guard: this path reads artifact bundles only — a version
+        // without one is never adapted from its JSON representation. The
+        // rootObjectId probe (version.referencedObject) only tells "JSON-only"
+        // apart from "no data at all" for the error message.
+        ArtifactUnavailableError = (modelInfo as record, projectId as text, baseUrl as text) as any =>
+            if modelInfo[rootObjectId] <> null then
+                error [
+                    Reason = "ArtifactBundleUnavailable",
+                    Message.Format = "Model '#{0}' (version #{1}) has no 4.0 artifact bundle: it was published with a pre-4.0 connector. Load it with Speckle.GetByUrl(url) and the legacy Speckle visual, or republish the model with a 4.0 connector to get star-schema tables.",
+                    Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
+                    Detail = [
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId],
+                        ProjectId = projectId,
+                        Server = baseUrl
+                    ]
+                ]
+            else
+                error [
+                    Reason = "DataUnavailable",
+                    Message.Format = "Model '#{0}' (version #{1}) has no loadable data: the server reports neither a 4.0 artifact bundle nor a JSON representation for this version.",
+                    Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
+                    Detail = [
+                        ModelId = modelInfo[modelId],
+                        VersionId = modelInfo[versionId],
+                        ProjectId = projectId,
+                        Server = baseUrl
+                    ]
+                ],
+
+        // loads one model and returns its star-schema shapes + per-model metadata
+        ProcessSingleModel = (baseUrl as text, projectId as text, modelId as text, versionId as nullable text, ordinal as number) as record =>
+            let
+                singleModelUrl = Text.Combine({
+                    baseUrl,
+                    "/projects/",
+                    projectId,
+                    "/models/",
+                    modelId,
+                    if versionId <> null then Text.Combine({"@", versionId}) else ""
+                }),
+
+                modelInfo = GetModel(singleModelUrl),
+                resolvedVersionId = if versionId <> null then versionId else modelInfo[versionId],
+
+                // null -> no artifact bundle for this version (JSON-only or empty)
+                files = FetchArtifacts(baseUrl, projectId, modelInfo[modelId], resolvedVersionId, weakToken),
+
+                model = if files <> null then
+                    GetEavModel(deps, files, ordinal * KeySpace)
+                else
+                    ArtifactUnavailableError(modelInfo, projectId, baseUrl),
+
+                // best-effort receipt tracking (forced via Observe below)
+                markReceivedResult = try MarkReceived(powerfulToken, resolvedVersionId, projectId, baseUrl) otherwise false,
+
+                userInfoData = [
+                    schemaVersion = 2,
+                    pipeline = "artifact",
+                    server = baseUrl,
+                    projectId = projectId,
+                    modelId = modelInfo[modelId],
+                    versionId = resolvedVersionId,
+                    token = weakToken,
+                    workspaceId = workspaceInfo[workspaceId],
+                    workspaceName = workspaceInfo[workspaceName],
+                    // workspaceLogo deliberately NOT in the blob: logos are base64
+                    // data-URIs (tens of KB) and the blob repeats on EVERY data row —
+                    // the visual fetches the logo itself via GraphQL using workspaceId
+                    canHideBranding = workspaceInfo[canHideBranding],
+                    sourceApplication = modelInfo[sourceApplication],
+                    version = ConnectorVersion,
+                    email = userEmail
+                ],
+
+                encodedUserInfo = Observe(markReceivedResult, EncodeUserInfo(userInfoData))
+            in
+                [
+                    Model = model,
+                    VersionId = resolvedVersionId,
+                    // pinned federated entries stay distinguishable per version
+                    SourceLabel = if versionId <> null then
+                        Text.Combine({modelInfo[modelName], "-", versionId})
+                    else
+                        modelInfo[modelName],
+                    EncodedUserInfo = encodedUserInfo
+                ],
+
+        // appends the shared per-load column (versionIds travel inside the blob)
+        WithModelInfo = (t as table, modelInfoBlob as text) as table =>
+            Table.AddColumn(t, "Model Info", each modelInfoBlob, type text),
+
+        // combines per-model tables and assembles the navigation table.
+        // Recommended PBI relationships: Objects 1-* Property Values *-1
+        // Property Paths on Object Key / path_key.
+        BuildResult = (modelsData as list, addSourceModel as logical) as table =>
+            let
+                // delimiter chosen to avoid conflicts with base64 characters
+                combinedBlobs = Text.Combine(List.Transform(modelsData, each [EncodedUserInfo]), "|||"),
+
+                CombinePart = (getPart as function, withSource as logical) as table =>
+                    Table.Combine(
+                        List.Transform(
+                            modelsData,
+                            (m) =>
+                                let
+                                    t = getPart(m[Model])
+                                in
+                                    if withSource and addSourceModel then
+                                        Table.AddColumn(t, "Source Model", (row) => m[SourceLabel], type text)
+                                    else
+                                        t
+                        )
+                    ),
+
+                objectsT = WithModelInfo(CombinePart((mm) => mm[Objects], true), combinedBlobs),
+                propertiesT = CombinePart((mm) => mm[Properties], false),
+                pathsT = CombinePart((mm) => mm[Paths], false),
+                objectTypesT = CombinePart((mm) => mm[ObjectTypes], false),
+                typePropertiesT = CombinePart((mm) => mm[TypeProperties], false),
+                relationsT = CombinePart((mm) => mm[Relations], false),
+                relationTypesT = CombinePart((mm) => mm[RelationTypes], false),
+                nodesT = CombinePart((mm) => mm[Nodes], true),
+                nodeKindsT = CombinePart((mm) => mm[NodeKinds], false)
+            in
+                // Simplified lists Objects plus the model-bound Properties and
+                // Relations functions. All tables unhides the property and
+                // graph helpers. Every row stays addressable by its key.
+                BuildNavigation(
+                    [
+                        NavigationTable = NavigationTable,
+                        AddProperties = AddProperties,
+                        AddRelations = AddRelations,
+                        RelationCatalog = RelationCatalog
+                    ],
+                    [
+                        Objects = objectsT,
+                        Properties = propertiesT,
+                        Paths = pathsT,
+                        ObjectTypes = objectTypesT,
+                        TypeProperties = typePropertiesT,
+                        Relations = relationsT,
+                        RelationTypes = relationTypesT,
+                        Nodes = nodesT,
+                        NodeKinds = nodeKindsT
+                    ],
+                    tableLayout
+                ),
+
+        results = Observe(
+            permissionGuard,
+            if effectiveParsedUrl[isFederated] = true then
+                let
+                    feds = effectiveParsedUrl[federatedModels],
+                    modelsData = List.Transform(
+                        List.Positions(feds),
+                        (i) => ProcessSingleModel(
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
+                            feds{i}[modelId],
+                            feds{i}[versionId],
+                            i
+                        )
+                    )
+                in
+                    BuildResult(modelsData, true)
+            else
+                BuildResult(
+                    {
+                        ProcessSingleModel(
+                            effectiveParsedUrl[baseUrl],
+                            effectiveParsedUrl[projectId],
+                            effectiveParsedUrl[modelId],
+                            effectiveParsedUrl[versionId],
+                            0
+                        )
+                    },
+                    false
+                )
+        )
+    in
+        results

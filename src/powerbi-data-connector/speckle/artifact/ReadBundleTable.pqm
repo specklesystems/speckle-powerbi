@@ -1,0 +1,55 @@
+// Downloads one parquet file from the artifact bundle (matched by filename suffix)
+// and parses it into a table.
+// required = true (default): raise an error when the suffix has no match.
+// required = false: return null when an optional EAV or envelope table is
+// absent from the bundle.
+(files as list, suffix as text, optional required as nullable logical) as nullable table =>
+    let
+        isRequired = if required = null then true else required,
+
+        matches = List.Select(files, each Text.EndsWith(Record.Field(_, "name"), suffix)),
+
+        Result = if List.IsEmpty(matches) then
+            if isRequired then
+                error [
+                    Reason = "MissingArtifact",
+                    Message.Format = "No artifact file ending with '#{0}' in the bundle",
+                    Message.Parameters = {suffix},
+                    Detail = [Suffix = suffix]
+                ]
+            else
+                null
+        else
+            let
+                url = Record.Field(matches{0}, "url"),
+
+                // presigned URL: the signature is in the query string. ManualCredentials
+                // stops the mashup engine from auto-attaching the OAuth Bearer header —
+                // S3 rejects requests carrying two auth mechanisms (400 InvalidArgument
+                // on ceph/DO Spaces; minio happens to tolerate it).
+                Response = Web.Contents(
+                    url,
+                    [
+                        ManualCredentials = true,
+                        ManualStatusHandling = {400, 401, 403, 404, 500, 502, 503, 504}
+                    ]
+                ),
+
+                StatusCode = Value.Metadata(Response)[Response.Status],
+
+                Parsed = if StatusCode >= 200 and StatusCode < 300 then
+                    Parquet.Document(Binary.Buffer(Response))
+                else
+                    let
+                        ResponseText = try Text.FromBinary(Response) otherwise null
+                    in
+                        error [
+                            Reason = "ArtifactDownloadFailed",
+                            Message.Format = "Failed to download artifact '#{0}' (Status: #{1}) — storage said: #{2}",
+                            Message.Parameters = {suffix, Text.From(StatusCode), ResponseText},
+                            Detail = [StatusCode = StatusCode, Suffix = suffix, Url = url, Response = ResponseText]
+                        ]
+            in
+                Parsed
+    in
+        Result

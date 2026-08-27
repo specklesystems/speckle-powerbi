@@ -1,0 +1,27 @@
+// Builds a Power BI navigation table from a list of entry records:
+//   { name, key, data, itemKind (for example "Table" or "Function"),
+//     isLeaf, optional hidden }
+// Standard Table.ToNavigationTable pattern from the Power Query SDK docs.
+// Entries with hidden = true keep their row in the returned table (so M code
+// can still address them by key) but the Navigator filters them out through
+// NavigationTable.HiddenColumn.
+(rows as list) as table =>
+    let
+        entries = #table(
+            {"Name", "Key", "Data", "ItemKind", "ItemName", "IsLeaf", "Hidden"},
+            List.Transform(
+                rows,
+                each {[name], [key], [data], [itemKind], [itemKind], [isLeaf], [hidden]? ?? false}
+            )
+        ),
+        tableType = Value.Type(entries),
+        newTableType = Type.AddTableKey(tableType, {"Key"}, true) meta [
+            NavigationTable.NameColumn = "Name",
+            NavigationTable.DataColumn = "Data",
+            NavigationTable.ItemKindColumn = "ItemKind",
+            Preview.DelayColumn = "ItemName",
+            NavigationTable.IsLeafColumn = "IsLeaf",
+            NavigationTable.HiddenColumn = "Hidden"
+        ]
+    in
+        Value.ReplaceType(entries, newTableType)

@@ -1,7 +1,7 @@
 <template>
-  <ViewerMenu v-model:open="open">
+  <ViewerMenu v-model:open="open" tooltip="Camera">
     <template #trigger-icon>
-      <VideoCameraIcon class="w-5 h-5" />
+      <IconVideo class="h-4 w-4" />
     </template>
     <template #title>Camera</template>
     <div class="flex flex-col p-1.5 min-w-[180px] space-y-0.5">
@@ -14,11 +14,6 @@
         label="Move camera on filter"
         :active="visualStore.isZoomOnFilterActive"
         @click="toggleZoomOnFilter"
-      />
-      <ViewerMenuItem
-        label="Ghost filtered objects"
-        :active="visualStore.isGhostActive"
-        @click="toggleGhostHidden"
       />
 
       <div class="w-full border-b border-outline-2 my-1"></div>
@@ -50,8 +45,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { VideoCameraIcon } from '@heroicons/vue/24/outline'
-import type { CanonicalView, SpeckleView } from '@speckle/viewer'
+import IconVideo from '../../global/icon/lucide/Video.vue'
+import type { CanonicalView, SpeckleView } from '@src/viewer3/compatTypes'
 import { useVisualStore } from '@src/store/visualStore'
 import ViewerMenu from '../menu/ViewerMenu.vue'
 import ViewerMenuItem from '../menu/ViewerMenuItem.vue'
@@ -84,12 +79,6 @@ const toggleProjection = () => {
   visualStore.viewerEmit('toggleProjection')
   visualStore.setIsOrthoProjection(!visualStore.isOrthoProjection)
   visualStore.writeIsOrthoToFile()
-}
-
-const toggleGhostHidden = () => {
-  visualStore.setIsGhost(!visualStore.isGhostActive)
-  visualStore.viewerEmit('toggleGhostHidden', visualStore.isGhostActive)
-  visualStore.writeIsGhostToFile()
 }
 
 const toggleZoomOnFilter = () => {

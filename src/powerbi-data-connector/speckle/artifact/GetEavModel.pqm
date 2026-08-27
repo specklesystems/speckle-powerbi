@@ -1,0 +1,353 @@
+// Builds the star-schema tables from a 4.0 artifact bundle's eav and envelope
+// parquet files.
+// The bundle IS a star schema (fact eav.eav, dims eav.objects/eav.paths); this
+// module preserves it so Power BI model relationships do the joins at query
+// time instead of M at refresh time.
+//
+// Returns a record of tables (record fields are lazy — flat shapes only
+// evaluate when their navigation entry is opened):
+//   Objects           Object Key | Application ID                (dimension; feeds the 3D visual)
+//   Properties        Object Key | path_key | Value Text | Value Number | Value Bool | Value
+//                     (INSTANCE property fact — type params deliberately NOT projected in)
+//   Paths             path_key | Property                        (dimension)
+//   ObjectTypes       Object Key | type_key                      (bridge; empty when bundle has no types)
+//   TypeProperties    type_key | path_key | Value Text | ...     (deduped type-param fact)
+//   Relations         Relation Type | rel | src | dst | ord       (outgoing graph edges)
+//   RelationTypes     bundle relation type catalog
+//   Nodes             Node Key | Kind | Name | Elevation | Subtype | Units
+//   NodeKinds         bundle node kind catalog (internal shaping input)
+//
+// Every table carries dense-int keys so model relationships join on ints
+// (fast in VertiPaq, and the name match helps Desktop's autodetect):
+//   Objects 1-* Properties *-1 Paths;  Objects 1-* ObjectTypes *-1 TypeProperties(type_key)
+//   with both-direction cross-filter for slicing.
+//
+// Type-level parameters are projected into the fact via object_type + type_eav
+// (instance values win on the same path) — type names arrive as ordinary rows.
+//
+// keyOffset namespaces the bundle's dense-int keys per federated model
+// (ordinal * 2^32) so object/path/node indices and relation endpoints never
+// collide across models.
+//
+// deps carries the shared module functions so this file doesn't re-load them:
+//   deps[ReadBundleTable](files, suffix, required)
+(deps as record, files as list, keyOffset as number) as record =>
+    let
+        ReadBundleTable = deps[ReadBundleTable],
+
+        // ---- mandatory tables ----------------------------------------------
+        objects = Table.Buffer(
+            Table.SelectColumns(
+                ReadBundleTable(files, ".eav.objects.parquet", true),
+                {"object_index", "application_id"}
+            )
+        ),
+
+        // property paths that would collide with fixed output column names get
+        // suffixed once here; every downstream shape shares the transform
+        reservedNames = {
+            "Application ID", "Property", "Value", "Model Info", "Source Model",
+            "Value Text", "Value Number", "Value Bool",
+            "object_index", "application_id", "Object Key", "object_key", "path_key", "value"
+        },
+        paths = Table.Buffer(
+            Table.TransformColumns(
+                ReadBundleTable(files, ".eav.paths.parquet", true),
+                {{"path", each if List.Contains(reservedNames, _) then _ & " (property)" else _, type text}}
+            )
+        ),
+        eav = ReadBundleTable(files, ".eav.eav.parquet", true),
+
+        // ---- optional type tables (graceful skip when absent) --------------
+        objectTypeRaw = ReadBundleTable(files, ".eav.object_type.parquet", false),
+        objectType = if objectTypeRaw = null then null else Table.Buffer(objectTypeRaw),
+        typeEavRaw = ReadBundleTable(files, ".eav.type_eav.parquet", false),
+        typeEav = if typeEavRaw = null then null else Table.Buffer(typeEavRaw),
+        hasTypes = objectType <> null and typeEav <> null,
+
+        // ---- optional envelope graph tables --------------------------------
+        // Older bundles have none of these files. Each file feature-detects
+        // independently and falls back to a typed empty table.
+        relationsRaw = ReadBundleTable(files, ".envelope.relations.parquet", false),
+        relationTypesRaw = ReadBundleTable(files, ".envelope.rel_types.parquet", false),
+        nodesRaw = ReadBundleTable(files, ".envelope.nodes.parquet", false),
+        nodeKindsRaw = ReadBundleTable(files, ".envelope.node_kinds.parquet", false),
+
+        relations = if relationsRaw = null then
+            #table(
+                type table [rel = Int64.Type, src = Int64.Type, dst = Int64.Type, ord = nullable number],
+                {}
+            )
+        else
+            Table.SelectColumns(relationsRaw, {"rel", "src", "dst", "ord"}),
+        relationTypes = if relationTypesRaw = null then
+            #table(
+                type table [
+                    rel = Int64.Type,
+                    name = nullable text,
+                    src_ns = nullable text,
+                    dst_ns = nullable text,
+                    status = nullable text,
+                    ord_semantics = nullable text,
+                    description = nullable text
+                ],
+                {}
+            )
+        else
+            relationTypesRaw,
+        nodes = if nodesRaw = null then
+            #table(
+                type table [
+                    id = Int64.Type,
+                    kind = Int64.Type,
+                    name = nullable text,
+                    elevation = nullable number,
+                    subtype = nullable text,
+                    units = nullable text
+                ],
+                {}
+            )
+        else
+            nodesRaw,
+        nodeKinds = if nodeKindsRaw = null then
+            #table(type table [kind = Int64.Type, name = nullable text], {})
+        else
+            nodeKindsRaw,
+
+        // ---- fact pipeline ---------------------------------------------------
+        // MEMORY + SCALE: never Table.Buffer the fact-sized tables (mashup
+        // containers have a hard ~430MB working-set cap, no spilling), and NEVER
+        // materialize the type-parameter projection per object — the bundle stores
+        // type params deduped (type_eav is thousands of rows) precisely because
+        // objects × type-params explodes (a whale model hit 274M rows). Properties
+        // now carries INSTANCE rows only; type params ship as their own star arm
+        // (Object Types bridge + Type Properties fact) and VertiPaq relationships
+        // resolve the projection at query time for free.
+        propCols = {"object_index", "path_index", "value_string", "value_double", "value_boolean"},
+        instanceProps = Table.SelectColumns(eav, propCols),
+        fact = instanceProps,
+
+        // ---- star tables -----------------------------------------------------
+        objectsTable = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.AddColumn(objects, "Object Key", each [object_index] + keyOffset, Int64.Type),
+                {{"application_id", "Application ID"}}
+            ),
+            {{"Application ID", type text}}
+        ),
+        ObjectsOut = Table.SelectColumns(objectsTable, {"Object Key", "Application ID"}),
+
+        PathsOut = Table.TransformColumnTypes(
+            Table.SelectColumns(
+                Table.RenameColumns(
+                    Table.AddColumn(paths, "path_key", each [path_index] + keyOffset, Int64.Type),
+                    {{"path", "Property"}}
+                ),
+                {"path_key", "Property"}
+            ),
+            {{"Property", type text}}
+        ),
+
+        // shared value shaping for the two property facts (instance + type grain)
+        ShapeValueFact = (t as table, keyName as text, indexName as text) as table =>
+            let
+                keyed = Table.AddColumn(
+                    Table.AddColumn(t, keyName, each Record.Field(_, indexName) + keyOffset, Int64.Type),
+                    "path_key", each [path_index] + keyOffset, Int64.Type
+                ),
+                withDisplay = Table.AddColumn(
+                    keyed,
+                    "Value",
+                    each
+                        if [value_string] <> null then [value_string]
+                        else if [value_double] <> null then [value_double]
+                        else [value_boolean]
+                ),
+                renamed = Table.RenameColumns(
+                    withDisplay,
+                    {
+                        {"value_string", "Value Text"},
+                        {"value_double", "Value Number"},
+                        {"value_boolean", "Value Bool"}
+                    }
+                )
+            in
+                Table.TransformColumnTypes(
+                    Table.SelectColumns(
+                        renamed,
+                        {keyName, "path_key", "Value Text", "Value Number", "Value Bool", "Value"}
+                    ),
+                    {
+                        {"Value Text", type nullable text},
+                        {"Value Number", type nullable number},
+                        {"Value Bool", type nullable logical}
+                    }
+                ),
+
+        PropertiesOut = ShapeValueFact(fact, "Object Key", "object_index"),
+
+        // ---- the type arm: deduped, tiny, resolved by relationships ----------
+        // Object Types bridge (one row per object with a type) + Type Properties
+        // fact (one row per type-param). Slice: Type Properties -> Object Types ->
+        // Objects with both-direction cross-filtering. NOTE: an instance override
+        // of a type param coexists with the type row (instance-wins is a query-
+        // time concern, not baked in).
+        ObjectTypesOut = if hasTypes then
+            Table.TransformColumnTypes(
+                Table.SelectColumns(
+                    Table.AddColumn(
+                        Table.AddColumn(
+                            objectType, "Object Key", each [object_index] + keyOffset, Int64.Type
+                        ),
+                        "type_key", each [type_index] + keyOffset, Int64.Type
+                    ),
+                    {"Object Key", "type_key"}
+                ),
+                {}
+            )
+        else
+            #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {}),
+
+        TypePropertiesOut = if hasTypes then
+            ShapeValueFact(
+                Table.SelectColumns(
+                    typeEav,
+                    {"type_index", "path_index", "value_string", "value_double", "value_boolean"}
+                ),
+                "type_key",
+                "type_index"
+            )
+        else
+            #table(
+                type table [
+                    type_key = Int64.Type,
+                    path_key = Int64.Type,
+                    #"Value Text" = nullable text,
+                    #"Value Number" = nullable number,
+                    #"Value Bool" = nullable logical,
+                    Value = any
+                ],
+                {}
+            ),
+
+        // ---- envelope graph -------------------------------------------------
+        // Keep graph facts unbuffered. Only the small catalogs participate in
+        // presentation joins. Relation endpoints and Node Key use the same
+        // per-model offset, while their namespaces remain distinct columns.
+        // Converter-produced catalogs currently use rel/kind as their key
+        // names. The executable SQL spec uses id. Accept both shapes so a
+        // model refresh is not coupled to the catalog generator version.
+        relationTypeKey = if Table.HasColumns(relationTypes, {"id"}) then
+            "id"
+        else if Table.HasColumns(relationTypes, {"rel"}) then
+            "rel"
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidRelationTypes",
+                "Relation Types must contain an id or rel key column.",
+                [Columns = Table.ColumnNames(relationTypes)]
+            ),
+        relationTypeNames = Table.Distinct(
+            Table.RenameColumns(
+                Table.SelectColumns(relationTypes, {relationTypeKey, "name"}),
+                {{relationTypeKey, "__rel"}}
+            )
+        ),
+        keyedRelations = Table.TransformColumnTypes(
+            Table.AddColumn(
+                Table.AddColumn(relations, "__src", each [src] + keyOffset, Int64.Type),
+                "__dst", each [dst] + keyOffset, Int64.Type
+            ),
+            {{"rel", Int64.Type}}
+        ),
+        namedRelations = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                keyedRelations,
+                {"rel"},
+                relationTypeNames,
+                {"__rel"},
+                "__relationType",
+                JoinKind.LeftOuter
+            ),
+            "__relationType",
+            {"name"},
+            {"Relation Type"}
+        ),
+        RelationsOut = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.SelectColumns(
+                    namedRelations,
+                    {"Relation Type", "rel", "__src", "__dst", "ord"}
+                ),
+                {{"__src", "src"}, {"__dst", "dst"}}
+            ),
+            {{"Relation Type", type nullable text}}
+        ),
+
+        RelationTypesOut = relationTypes,
+
+        nodeKindKey = if Table.HasColumns(nodeKinds, {"id"}) then
+            "id"
+        else if Table.HasColumns(nodeKinds, {"kind"}) then
+            "kind"
+        else
+            error Error.Record(
+                "Speckle.GetTables.InvalidNodeKinds",
+                "Node Kinds must contain an id or kind key column.",
+                [Columns = Table.ColumnNames(nodeKinds)]
+            ),
+        nodeKindNames = Table.Distinct(
+            Table.RenameColumns(
+                Table.SelectColumns(nodeKinds, {nodeKindKey, "name"}),
+                {{nodeKindKey, "__kind"}}
+            )
+        ),
+        keyedNodes = Table.AddColumn(nodes, "Node Key", each [id] + keyOffset, Int64.Type),
+        namedNodes = Table.ExpandTableColumn(
+            Table.NestedJoin(
+                keyedNodes,
+                {"kind"},
+                nodeKindNames,
+                {"__kind"},
+                "__nodeKind",
+                JoinKind.LeftOuter
+            ),
+            "__nodeKind",
+            {"name"},
+            {"Kind"}
+        ),
+        NodesOut = Table.TransformColumnTypes(
+            Table.RenameColumns(
+                Table.SelectColumns(
+                    namedNodes,
+                    {"Node Key", "Kind", "name", "elevation", "subtype", "units"}
+                ),
+                {
+                    {"name", "Name"},
+                    {"elevation", "Elevation"},
+                    {"subtype", "Subtype"},
+                    {"units", "Units"}
+                }
+            ),
+            {
+                {"Kind", type nullable text},
+                {"Name", type nullable text},
+                {"Elevation", type nullable number},
+                {"Subtype", type nullable text},
+                {"Units", type nullable text}
+            }
+        ),
+
+        NodeKindsOut = nodeKinds
+    in
+        [
+            Objects = ObjectsOut,
+            Properties = PropertiesOut,
+            Paths = PathsOut,
+            ObjectTypes = ObjectTypesOut,
+            TypeProperties = TypePropertiesOut,
+            Relations = RelationsOut,
+            RelationTypes = RelationTypesOut,
+            Nodes = NodesOut,
+            NodeKinds = NodeKindsOut
+        ]

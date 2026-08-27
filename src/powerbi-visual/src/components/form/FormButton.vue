@@ -21,10 +21,9 @@
   </Component>
 </template>
 <script setup lang="ts">
-import { isObjectLike } from 'lodash'
 import type { PropAnyComponent } from '../../helpers/common/components'
 import { computed, resolveDynamicComponent } from 'vue'
-import type { Nullable } from '@speckle/shared'
+type Nullable<T> = T | null
 import type { FormButtonStyle, FormButtonSize } from '../../helpers/form/button'
 
 const emit = defineEmits<{
@@ -109,8 +108,8 @@ const RouterLink = resolveDynamicComponent('RouterLink')
 const linkComponent = computed(() => {
   if (props.linkComponent) return props.linkComponent
   if (props.external) return 'a'
-  if (isObjectLike(NuxtLink)) return NuxtLink
-  if (isObjectLike(RouterLink)) return RouterLink
+  if (typeof NuxtLink === 'object' && NuxtLink !== null) return NuxtLink
+  if (typeof RouterLink === 'object' && RouterLink !== null) return RouterLink
   return 'a'
 })
 

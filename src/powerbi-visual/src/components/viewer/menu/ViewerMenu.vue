@@ -1,18 +1,12 @@
 <template>
   <div ref="menuWrapper" class="relative z-30">
-    <ViewerControlsButtonToggle
-      :v-tippy="tooltip"
-      flat
-      secondary
-      :active="open"
-      @click="toggleMenu"
-    >
+    <ViewerControlsButtonToggle :tooltip="tooltip" :active="open" @click="toggleMenu">
       <slot name="trigger-icon" />
     </ViewerControlsButtonToggle>
     <div
       v-if="open"
       ref="menuContent"
-      class="absolute left-10 sm:left-[46px] -top-0 bg-foundation rounded-md border border-outline-2 flex flex-col overflow-hidden shadow"
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-foundation rounded-lg border border-outline-2 flex flex-col overflow-hidden shadow-sm"
     >
       <div
         v-if="$slots.title"
@@ -24,7 +18,7 @@
           </span>
         </div>
       </div>
-      <div class="max-h-68 simple-scrollbar overflow-y-auto">
+      <div class="max-h-64 overflow-y-auto">
         <slot />
       </div>
     </div>

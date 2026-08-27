@@ -7,7 +7,7 @@
       >
         <div class="flex items-center transition-all justify-between w-full">
           <div
-            v-if="visualStore.receiveInfo.workspaceName"
+            v-if="visualStore.receiveInfo?.workspaceName"
             class="flex items-center gap-2 p-0.5 pr-1.5 hover:bg-highlight-2 rounded ml-2"
           >
             <WorkspaceAvatar
@@ -41,7 +41,7 @@
               Update
             </FormButton>
             <div class="font-thin text-xs text-gray-400">
-              v{{ visualStore.receiveInfo.version }}
+              v{{ visualStore.receiveInfo?.version }}
             </div>
             <button
               class="text-gray-400 hover:text-gray-700 transition"
@@ -55,13 +55,41 @@
       </nav>
     </transition>
 
+    <!-- same row as the Home view's field list, so the prompt reads as the one
+         still-missing item from that checklist rather than a separate warning -->
     <div
       v-if="!isInteractive"
-      class="absolute left-1/2 -translate-x-1/2 z-20 bg-white bg-opacity-70 text-black text-center text-xs px-4 py-1 rounded shadow font-medium cursor-default transition-all duration-300"
+      v-tippy="'Needed for interactivity with other visuals.'"
+      class="absolute left-1/2 -translate-x-1/2 z-20 flex w-[280px] max-w-[calc(100%-1rem)] items-center gap-2.5 rounded border border-zinc-200 bg-white px-3 py-[9px] shadow cursor-default font-inter transition-all duration-300"
       :class="visualStore.isNavbarHidden ? 'top-1' : 'top-11'"
     >
-      <strong>Object IDs</strong>
-      field is needed for interactivity with other visuals.
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="h-3.5 w-3.5 shrink-0 text-blue-600"
+      >
+        <path
+          d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+        />
+      </svg>
+      <!-- flex-1 pushes "Required" to the right edge, same as the Home row -->
+      <span class="flex-1 text-xs font-semibold leading-[1.2] text-zinc-900">Object Keys</span>
+      <span class="shrink-0 text-[11px] font-medium leading-[1.2] text-blue-600">Required</span>
+    </div>
+
+    <div
+      v-if="hasLegacyModels"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white bg-opacity-90 text-black text-center text-xs px-6 py-4 rounded shadow font-medium cursor-default max-w-md"
+    >
+      <p class="mb-1"><strong>This version predates Speckle 4.0.</strong></p>
+      <p>
+        Table data was loaded through the legacy pipeline, but the 3D view needs a 4.0 artifact
+        bundle. Publish a new version from a Speckle 4.0 connector to enable the 3D view.
+      </p>
     </div>
 
     <div v-if="visualStore.isNavbarHidden" class="fixed top-4 right-2 z-20">
@@ -74,31 +102,61 @@
       </button>
     </div>
 
-    <transition name="slide-left">
-      <ViewerControls
-        v-show="!visualStore.isNavbarHidden"
-        :section-box="sectionBoxEnabled"
-        :views="views"
-        class="fixed top-11 left-2 z-30"
-        @update:section-box="onSectionBoxToggle"
-        @view-clicked="(view) => viewerHandler.setView(view)"
-        @view-mode-clicked="(viewMode, options) => viewerHandler.setViewMode(viewMode, options)"
-      />
-    </transition>
+    <!-- centering lives on the wrapper so the transition's transform doesn't
+         fight the -translate-x-1/2 that holds the toolbar on the midline -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30">
+      <transition name="slide-up">
+        <ViewerControls
+          v-show="!visualStore.isNavbarHidden"
+          :views="views"
+          @view-clicked="(view) => viewerHandler.setView(view)"
+        />
+      </transition>
+    </div>
 
-    <div v-if="visualStore.isFilterActive" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50">
+    <!-- sits above the bottom-center toolbar rather than on top of it -->
+    <div v-if="visualStore.isFilterActive" class="absolute bottom-16 left-1/2 -translate-x-1/2 z-50">
       <FormButton size="sm" @click="visualStore.resetFilters(), selectionHandler.reset()">
         Reset filters
       </FormButton>
     </div>
 
-    <div v-if="sectionBoxVisible" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex gap-2">
-      <FormButton size="sm" color="outline" @click="onSectionBoxReset">Reset</FormButton>
-      <FormButton size="sm" @click="onSectionBoxDone">Done</FormButton>
+    <!-- the ONE loading-status home: blocking-phase text (index/preparing/streaming
+         pre-paint — the center shows only a spinner) hands over to the post-paint
+         out-of-core streaming ticker. Rate is instantaneous and legitimately 0
+         between response waves on slow links — cumulative MB always, rate only
+         when it means something. Diagnostics ACCESS is Dev-mode-gated: with it
+         off the pill only reports active progress (idle launcher hidden, click
+         does nothing); with it on, click toggles the diagnostics HUD (Desktop
+         has no reachable console) -->
+    <div
+      v-if="visualStore.isDevMode || loadingStatusText"
+      class="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-white bg-opacity-80 text-gray-700 text-xs px-2.5 py-1 rounded-full shadow select-none"
+      :class="visualStore.isDevMode ? 'cursor-pointer' : 'cursor-default'"
+      :title="visualStore.isDevMode ? 'Click for diagnostics' : undefined"
+      @click.stop="visualStore.isDevMode && visualStore.toggleDiag()"
+    >
+      <span
+        class="inline-block w-2 h-2 rounded-full"
+        :class="loadingStatusText ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'"
+      ></span>
+      <span>{{ loadingStatusText ?? 'Speckle diagnostics' }}</span>
+    </div>
+
+    <!-- diagnostics HUD: live renderer stats + last significant events -->
+    <div
+      v-if="visualStore.isDevMode && visualStore.diagVisible"
+      class="absolute bottom-9 left-2 z-30 w-[26rem] max-w-[85vw] max-h-56 overflow-y-auto bg-white bg-opacity-95 text-gray-800 rounded shadow-lg p-2 font-mono text-[10px] leading-snug cursor-default"
+    >
+      <div class="font-semibold border-b border-gray-200 pb-1 mb-1">
+        {{ visualStore.diagStats || 'no stream stats yet' }}
+      </div>
+      <div v-if="visualStore.diagEvents.length === 0" class="text-gray-400">no events yet</div>
+      <div v-for="(line, i) in visualStore.diagEvents" :key="i">{{ line }}</div>
     </div>
 
     <div
-      class="absolute z-10 flex items-center text-xs cursor-pointer"
+      class="absolute z-10 flex items-center text-xs cursor-pointer font-inter"
       :class="visualStore.isBrandingHidden ? 'bottom-0 right-0' : 'bottom-2 right-2'"
       @click.stop="goToSpeckleWebsite"
     >
@@ -106,11 +164,10 @@
       <transition name="fade-bottom">
         <div
           v-if="!visualStore.isBrandingHidden"
-          class="flex items-center justify-center font-thin"
+          class="flex items-center justify-center text-zinc-600"
         >
-          <div class="">Powered by</div>
-          <img class="w-4 h-auto mx-1" src="@assets/logo-big.png" />
-          <div class="font-medium">Speckle</div>
+          <div>Powered by</div>
+          <img class="h-5 w-auto ml-1.5" src="@assets/logo-full.svg" alt="Speckle" />
         </div>
       </transition>
       <button
@@ -138,7 +195,7 @@ import FormButton from '@src/components/form/FormButton.vue'
 import { computed, inject, onBeforeUnmount, onMounted, Ref, ref } from 'vue'
 import { currentOS, OS } from '../utils/detectOS'
 import ViewerControls from 'src/components/ViewerControls.vue'
-import { SpeckleView } from '@speckle/viewer'
+import { SpeckleView } from '@src/viewer3/compatTypes'
 import { useClickDragged } from 'src/composables/useClickDragged'
 import { useVisualStore } from '@src/store/visualStore'
 import { ViewerHandler } from '@src/plugins/viewer'
@@ -155,52 +212,24 @@ const tooltipHandler = inject(tooltipHandlerKey)
 let viewerHandler: ViewerHandler = null
 
 const container = ref<HTMLElement>()
-type SectionBoxState = 'inactive' | 'editing' | 'applied'
-const sectionBoxState = ref<SectionBoxState>('inactive')
-const sectionBoxEnabled = computed(() => sectionBoxState.value !== 'inactive')
-const sectionBoxVisible = computed(() => sectionBoxState.value === 'editing')
 const views: Ref<SpeckleView[]> = ref([])
 
 const isInteractive = computed(
-  () => visualStore.fieldInputState.rootObjectId && visualStore.fieldInputState.objectIds
+  () => visualStore.fieldInputState.modelInfo && visualStore.fieldInputState.applicationIds
 )
 
+// Bottom-left status pill: blocking-phase text wins; streaming ticker takes over post-paint
+const loadingStatusText = computed(() => {
+  if (visualStore.loadingProgress) return visualStore.loadingProgress.summary
+  const stats = visualStore.streamingStats
+  if (!stats) return null
+  const rate = stats.mbPerSec >= 0.05 ? ` · ${stats.mbPerSec.toFixed(1)} MB/s` : ''
+  return `Streaming — ${stats.totalMB.toFixed(0)} MB${rate}`
+})
+
+const hasLegacyModels = computed(() => visualStore.dataInput?.hasLegacyModels ?? false)
+
 const goToSpeckleWebsite = () => visualStore.host.launchUrl('https://speckle.systems')
-
-function disableSectionBox() {
-  sectionBoxState.value = 'inactive'
-  viewerHandler.toggleSectionBox(false)
-  visualStore.writeSectionBoxToFile(null)
-  visualStore.setSectionBoxData(null)
-}
-
-function onSectionBoxToggle() {
-  switch (sectionBoxState.value) {
-    case 'inactive':
-      sectionBoxState.value = 'editing'
-      viewerHandler.toggleSectionBox(true)
-      break
-    case 'editing':
-      onSectionBoxDone()
-      break
-    case 'applied':
-      sectionBoxState.value = 'editing'
-      viewerHandler.setSectionBoxVisible(true)
-      break
-  }
-}
-
-function onSectionBoxReset() {
-  disableSectionBox()
-}
-
-function onSectionBoxDone() {
-  sectionBoxState.value = 'applied'
-  viewerHandler.setSectionBoxVisible(false)
-  const boxData = viewerHandler.getSectionBoxData()
-  visualStore.setSectionBoxData(boxData)
-  visualStore.writeSectionBoxToFile(boxData)
-}
 
 onMounted(async () => {
   console.log('Viewer Wrapper mounted')
@@ -209,13 +238,6 @@ onMounted(async () => {
   
   // Set up event listener for object clicks from the FilteredSelectionExtension
   viewerHandler.emitter.on('objectClicked', handleObjectClicked)
-
-  // Sync section box UI state when restored from file
-  viewerHandler.emitter.on('objectsLoaded', () => {
-    if (visualStore.sectionBoxData) {
-      sectionBoxState.value = 'applied'
-    }
-  })
 
   visualStore.setViewerEmitter(viewerHandler.emit)
 })
@@ -296,14 +318,14 @@ async function onCanvasAuxClick(ev: MouseEvent) {
   transform: translateY(0);
 }
 
-.slide-left-enter-active,
-.slide-left-leave-active {
+.slide-up-enter-active,
+.slide-up-leave-active {
   transition: all 0.3s ease;
 }
-.slide-left-enter-from,
-.slide-left-leave-to {
+.slide-up-enter-from,
+.slide-up-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateY(20px);
 }
 
 .fade-bottom-enter-active,
