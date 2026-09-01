@@ -20,18 +20,25 @@
  */
 
 /**
- * The `.dat`-derived placement↔object maps of one loaded model (the shape of
- * `@speckle/viewer-webgpu`'s `getModelMaps` result): `placementObjectIdx` is
- * the global forward map (placement → dense object index), `objectCsr` the
- * per-model reverse CSR (object index → its global placement ids).
+ * The `.dat`-derived placement↔object maps of one loaded model: `objectCsr` is
+ * the reverse CSR (object index → its global placement ids),
+ * `objectOfPlacement` the forward read (global placement → dense object index).
+ *
+ * viewer-webgpu used to hand this whole shape out of `Renderer.getModelMaps`;
+ * since 2026.8.31 the host rebuilds it from the `viewer:loadArtifactComplete`
+ * realization semantics (see `viewer3/modelMaps.ts`). The forward direction is
+ * a call rather than the old `placementObjectIdx: Uint32Array` because the
+ * host no longer holds a global, all-models placement array to index into —
+ * only per-model lanes plus each model's live placement base.
  */
 export interface ViewerModelMaps {
-  placementObjectIdx: Uint32Array
   objectCsr: {
     offsets: Uint32Array
     placements: Uint32Array
     objectCount: number
   }
+  /** Undefined when the placement isn't this model's, or resolves to no object. */
+  objectOfPlacement(placementIndex: number): number | undefined
 }
 
 /**

@@ -593,7 +593,7 @@ export const createViewerInteractions = (
     // and reverted: re-slamming on geometry-stream ticks fought the streamer
     // and broke visibility state even on clean loads.
     renderer.on(
-      'viewer:placementsPicked',
+      'viewer:placementPicked',
       ({
         modelId,
         pickResult
@@ -610,7 +610,7 @@ export const createViewerInteractions = (
         }
         const maps = renderer.getModelMaps(modelId)
         if (!maps) return
-        const objectIndex = maps.placementObjectIdx[pickResult.placementIndex]
+        const objectIndex = maps.objectOfPlacement(pickResult.placementIndex)
         if (objectIndex === undefined) return
         const ref: ObjectRef = { modelId, objectIndex }
         if (modifierHeld) toggleIntoSelection([ref])

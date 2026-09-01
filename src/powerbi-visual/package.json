@@ -11,12 +11,12 @@
     "build": "webpack --config webpack.config.ts",
     "build:dev": "webpack --config webpack.config.dev.ts",
     "dev": "webpack-dev-server --config webpack.config.dev.ts",
-    "test": "ts-node --project test/tsconfig.json test/matrixSignature.test.ts && ts-node --project test/tsconfig.json test/colorOverrides.test.ts && ts-node --project test/tsconfig.json test/objectIdentity.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/viewerInitialization.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/idModeLifecycle.test.ts && ts-node --project test/tsconfig.viewer3.json test/modelReadyColorReplay.test.ts"
+    "test": "ts-node --project test/tsconfig.json test/matrixSignature.test.ts && ts-node --project test/tsconfig.json test/colorOverrides.test.ts && ts-node --project test/tsconfig.json test/objectIdentity.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/viewerInitialization.test.ts && ts-node --project test/tsconfig.json -r tsconfig-paths/register test/idModeLifecycle.test.ts && ts-node --project test/tsconfig.viewer3.json test/modelReadyColorReplay.test.ts && ts-node --project test/tsconfig.viewer3.json test/modelMaps.test.ts && ts-node --project test/tsconfig.viewer3.json test/pickSelection.test.ts && ts-node --project test/tsconfig.viewer3.json test/doubleClick.test.ts"
   },
   "dependencies": {
     "@heroicons/vue": "^2.0.12",
-    "@speckle/viewer-tools": "2026.8.21",
-    "@speckle/viewer-webgpu": "2026.8.21",
+    "@speckle/viewer-tools": "2026.9.0",
+    "@speckle/viewer-webgpu": "2026.9.0",
     "@vueuse/core": "^13.2.0",
     "hyparquet": "^1.16.0",
     "hyparquet-compressors": "^1.1.1",

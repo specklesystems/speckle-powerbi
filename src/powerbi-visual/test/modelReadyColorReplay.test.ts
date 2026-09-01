@@ -37,12 +37,12 @@ const main = async () => {
   assert.equal(paintedColors.length, 0, 'colors cannot paint before model maps exist')
 
   modelMaps = {
-    placementObjectIdx: new Uint32Array([0]),
     objectCsr: {
       offsets: new Uint32Array([0, 1]),
       placements: new Uint32Array([7]),
       objectCount: 1
-    }
+    },
+    objectOfPlacement: (placementIndex) => (placementIndex === 7 ? 0 : undefined)
   }
 
   for (const handler of eventHandlers.get('viewer:loadArtifactComplete') ?? []) {
