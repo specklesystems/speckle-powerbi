@@ -2,7 +2,7 @@ name: Build and deploy Connector and Visual
 on:
   push:
     branches: ["installer-test/**"]
-    tags: ["v202*.*.*"]
+    tags: ["202[0-9].*.*"] # unprefixed CalVer, v-prefix dropped at 2026.9 (ENG-9392)
 permissions: {}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,10 +35,10 @@ jobs:
         run: |
           TAG=${REF_NAME}
           if [[ "${REF}" != refs/tags/* ]]; then
-            TAG="v0.0.0"
+            TAG="0.0.0"
           fi
-          SEMVER="${TAG#v}"
-          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          SEMVER="$TAG"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
           FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
@@ -92,6 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # Tailscale OAuth federation: @speckle/* resolve from the tailnet npm registry
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -108,10 +109,10 @@ jobs:
         run: |
           TAG=${REF_NAME}
           if [[ "${REF}" != refs/tags/* ]]; then
-            TAG="v0.0.0"
+            TAG="0.0.0"
           fi
-          SEMVER="${TAG#v}"
-          FILE_VERSION=$(echo "$TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          SEMVER="$TAG"
+          FILE_VERSION=$(echo "$TAG" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
           FILE_VERSION="$FILE_VERSION.${RUN_NUMBER}"
 
           echo "semver=$SEMVER" >> "$GITHUB_OUTPUT"
@@ -123,6 +124,14 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           REF: ${{ github.ref }}
           RUN_NUMBER: ${{ github.run_number }}
+
+      - name: Connect to Tailscale (private npm registry)
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4.1.2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TAILSCALE_OAUTH_CLIENT_AUDIENCE }}
+          tags: tag:ci
+          ping: npmregistry.mermaid-emperor.ts.net
 
       - run: npm ci
         working-directory: src/powerbi-visual
