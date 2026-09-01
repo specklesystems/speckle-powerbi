@@ -53,7 +53,7 @@ jobs:
 
       - name: Set connector version
         run: |
-          python patch_version.py ${FILE_VERSION}
+          python patch_version.py $env:FILE_VERSION
         env:
           FILE_VERSION: ${{steps.set-version.outputs.file-version}}
 
