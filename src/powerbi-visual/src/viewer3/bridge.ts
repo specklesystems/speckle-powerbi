@@ -1,5 +1,6 @@
 // Vendored from @speckle/ts-sdk (packages/ts-sdk/src/viewer/bridge.ts, speckle-server-internal@speckle/next).
 // @speckle/ts-sdk is private/unpublished; keep this copy in sync until it ships.
+import { createModelMapsCache, type SemanticMaps } from './modelMaps.js'
 import type { ViewerHandle } from './objects/types.js'
 import type { Renderer } from '@speckle/viewer-webgpu'
 
@@ -48,6 +49,12 @@ export interface RendererBridge {
   handle: ViewerHandle
   bind: (renderer: Renderer) => void
   unbind: () => void
+  /**
+   * The maps the bridge maintains off the load/unload events — for the few
+   * call sites that hold the raw `Renderer` (camera framing, object counts)
+   * and used to call `Renderer.getModelMaps` themselves.
+   */
+  getModelMaps: ViewerHandle['getModelMaps']
 }
 
 /**
@@ -62,9 +69,28 @@ export interface RendererBridge {
 export const createRendererBridge = (): RendererBridge => {
   const emitter = new BridgeEmitter()
   let live: Renderer | null = null
+
+  // The maps arrive ONCE, in the load event (viewer-webgpu >= 2026.8.31 has no
+  // getModelMaps accessor), so the cache must be listening before the renderer
+  // exists — which is exactly what the bridge-owned bus is for. Subscribing
+  // here also puts the cache ahead of the interactions layer in listener
+  // order, so its `model-ready` repaint always finds the model paintable.
+  const modelMaps = createModelMapsCache()
+  emitter.on('viewer:loadArtifactComplete', (payload) => {
+    const { artifactId, semanticMaps } = payload as {
+      artifactId: string
+      semanticMaps: SemanticMaps
+    }
+    if (semanticMaps) modelMaps.register(artifactId, semanticMaps)
+  })
+  emitter.on('viewer:unloadArtifactComplete', (payload) => {
+    const { artifactId } = payload as { artifactId: string | null }
+    modelMaps.unregister(artifactId)
+  })
+
   const handle: ViewerHandle = {
     on: (event, handler) => emitter.on(event, handler),
-    getModelMaps: (modelId) => live?.getModelMaps(modelId) ?? null,
+    getModelMaps: (modelId) => modelMaps.get(modelId),
     setColor: (placements, rgba) => live?.setColor(placements, rgba),
     resetMaterials: (placements) => live?.resetMaterialBatched(placements),
     hideObjects: (indices) => live?.hideObjects(indices),
@@ -74,11 +100,14 @@ export const createRendererBridge = (): RendererBridge => {
   return {
     emitter,
     handle,
+    getModelMaps: (modelId) => modelMaps.get(modelId),
     bind: (renderer): void => {
       live = renderer
+      modelMaps.bind(renderer)
     },
     unbind: (): void => {
       live = null
+      modelMaps.clear()
     }
   }
 }

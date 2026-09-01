@@ -19,6 +19,10 @@
  */
 import type { Renderer } from '@speckle/viewer-webgpu'
 import { createRendererBridge, type RendererBridge } from '@src/viewer3/bridge'
+import {
+  resolveDoubleClickTarget,
+  type PlacementHit
+} from '@src/viewer3/doubleClick'
 import { createViewerInteractions } from '@src/viewer3/objects/index'
 import type { ObjectGroup, ObjectRef, ViewerInteractions } from '@src/viewer3/objects/types'
 import {
@@ -220,8 +224,17 @@ export class ViewerHandler {
       renderer.setProjection('orthographic')
     }
 
-    // Double-click on empty space = zoom extents (the renderer zooms to object on hits).
-    renderer.onDoubleClickMiss = () => this.zoomExtends()
+    // Double-click framing. Up to viewer-webgpu 2026.8.21 the renderer did the
+    // hit case itself (fitToSphere on the picked primitive); 2026.8.31 reduced
+    // it to emitting the hits, so the host owns the whole gesture now. Its
+    // `onDoubleClickMiss` hook is NOT the miss half — that property has never
+    // been invoked by any shipped renderer; the miss arrives here as an empty
+    // hit list.
+    this.unsubscribers.push(
+      this.bridge.emitter.on('viewer:doubleClickIntersectResult', (payload) =>
+        this.handleDoubleClick(payload as { hits: PlacementHit[] })
+      )
+    )
 
     // Streaming ticker (~1/s while frames render): pre-paint it enriches the blocking
     // overlay with MB/s; post-paint it drives the small pill (5s decay, like frontend-3).
@@ -262,7 +275,7 @@ export class ViewerHandler {
     // selection to this same pick event; we only translate it for the host.
     canvas.addEventListener('pointerup', this.capturePointerUp, { capture: true })
     this.unsubscribers.push(
-      this.bridge.emitter.on('viewer:placementsPicked', (payload) =>
+      this.bridge.emitter.on('viewer:placementPicked', (payload) =>
         this.handlePlacementsPicked(
           payload as {
             modelId: string
@@ -402,12 +415,12 @@ export class ViewerHandler {
 
   public zoomObjects = (objectIds: string[]) => {
     if (!this.renderer) return
-    zoomToObjects(this.renderer, this.toGroups(objectIds))
+    zoomToObjects(this.renderer, this.bridge.getModelMaps, this.toGroups(objectIds))
   }
 
   public zoomExtends = () => {
     if (!this.renderer) return
-    zoomToObjects(this.renderer)
+    zoomToObjects(this.renderer, this.bridge.getModelMaps)
   }
 
   /** The renderer re-measures only on window resize, which the PBI sandbox doesn't
@@ -712,7 +725,7 @@ export class ViewerHandler {
         continue
       }
       // The renderer registers the model under `bundle_${versionId}` (its internal
-      // artifact id — the id picks report and getModelMaps expects). Key EVERYTHING
+      // artifact id — the id picks report and the maps cache is keyed by). Key EVERYTHING
       // by that id or every paint/pick silently no-ops.
       const rendererModelId = `bundle_${model.versionId}`
       this.loadedModelIds.push(rendererModelId)
@@ -747,7 +760,7 @@ export class ViewerHandler {
     // no dictionary required); dictionary sizes are the fallback.
     let totalObjects = 0
     for (const rendererModelId of this.loadedModelIds) {
-      const maps = renderer.getModelMaps(rendererModelId)
+      const maps = this.bridge.getModelMaps(rendererModelId)
       if (maps) totalObjects += maps.objectCsr.objectCount
       else totalObjects += this.dictionaries.get(rendererModelId)?.toIndex.size ?? 0
     }
@@ -799,6 +812,29 @@ export class ViewerHandler {
     this.lastPointerUp = ev
   }
 
+  /**
+   * Double-click → frame what's under the cursor; empty space → zoom extents.
+   * Restores the behavior viewer-webgpu dropped in 2026.8.31; the resolution
+   * itself lives in {@link resolveDoubleClickTarget}.
+   */
+  private handleDoubleClick = (payload: { hits: PlacementHit[] }) => {
+    const renderer = this.renderer
+    if (!renderer) return
+    const target = resolveDoubleClickTarget({
+      hits: payload?.hits,
+      firstVisibleHit: (hits) =>
+        renderer.getFirstVisibleHit(
+          hits as Parameters<typeof renderer.getFirstVisibleHit>[0]
+        ),
+      modelAt: (placementIndex) => renderer.scene.modelAt(placementIndex),
+      getModelMaps: this.bridge.getModelMaps
+    })
+    if (target.kind === 'extents') this.zoomExtends()
+    else if (target.kind === 'object') {
+      zoomToObjects(renderer, this.bridge.getModelMaps, [target.group])
+    }
+  }
+
   /** The renderer's pick result → the host's Hit (guid = applicationId). */
   private handlePlacementsPicked = (payload: {
     modelId: string
@@ -813,8 +849,8 @@ export class ViewerHandler {
     let hit: Hit | null = null
     const pick = payload.pickResult
     if (pick && this.renderer) {
-      const maps = this.renderer.getModelMaps(payload.modelId)
-      const objectIndex = maps?.placementObjectIdx[pick.placementIndex]
+      const maps = this.bridge.getModelMaps(payload.modelId)
+      const objectIndex = maps?.objectOfPlacement(pick.placementIndex)
       const appId =
         objectIndex !== undefined
           ? this.boundIdOf({ modelId: payload.modelId, objectIndex })
