@@ -9,7 +9,7 @@ import { createRenderer } from '@speckle/viewer-webgpu'
 import { installCameraControls } from '@speckle/viewer-tools'
 import type { Emitter, Renderer } from '@speckle/viewer-webgpu'
 import type { BridgeEmitter } from './bridge.js'
-import type { ObjectGroup } from './objects/types.js'
+import type { ObjectGroup, ViewerModelMaps } from './objects/types.js'
 
 /** Vendored from @speckle/ts-sdk viewer-state/state.ts (the one type this module needs). */
 export interface ViewerCameraState {
@@ -154,12 +154,20 @@ export const setCanonicalView = (renderer: Renderer, view: CanonicalView): void 
 
 /**
  * Fly the camera to frame the given object groups (the whole scene when none
- * given). Objects expand to placements via the renderer's own CSR maps, then
- * their merged bounds feed `controls.fitToSphere` — the supported programmatic
- * camera drive. Groups whose model isn't loaded (or whose objects have no
- * geometry) contribute nothing; if nothing contributes, the camera stays put.
+ * given). Objects expand to placements via the CSR maps, then their merged
+ * bounds feed `controls.fitToSphere` — the supported programmatic camera
+ * drive. Groups whose model isn't loaded (or whose objects have no geometry)
+ * contribute nothing; if nothing contributes, the camera stays put.
+ *
+ * `getModelMaps` is passed in (the bridge's) rather than read off the
+ * renderer: viewer-webgpu dropped its own accessor in 2026.8.31 and the host
+ * now owns the maps.
  */
-export const zoomToObjects = (renderer: Renderer, groups?: ObjectGroup[]): void => {
+export const zoomToObjects = (
+  renderer: Renderer,
+  getModelMaps: (modelId: string) => ViewerModelMaps | null,
+  groups?: ObjectGroup[]
+): void => {
   const controls = renderer.getCameraRig()
   if (!groups || groups.length === 0) {
     controls.fitToSphere(renderer.scene.getBoundingSphere())
@@ -167,7 +175,7 @@ export const zoomToObjects = (renderer: Renderer, groups?: ObjectGroup[]): void 
   }
   let bounds: Box3Like | null = null
   for (const group of groups) {
-    const maps = renderer.getModelMaps(group.modelId)
+    const maps = getModelMaps(group.modelId)
     if (!maps) continue
     const { offsets, placements: csrPlacements } = maps.objectCsr
     const placements: number[] = []

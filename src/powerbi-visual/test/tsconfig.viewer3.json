@@ -3,5 +3,11 @@
   "ts-node": {
     "experimentalResolver": true
   },
-  "include": ["./modelReadyColorReplay.test.ts", "../src/viewer3/objects/**/*.ts"]
+  "include": [
+    "./modelReadyColorReplay.test.ts",
+    "./modelMaps.test.ts",
+    "./pickSelection.test.ts",
+    "./doubleClick.test.ts",
+    "../src/viewer3/**/*.ts"
+  ]
 }
