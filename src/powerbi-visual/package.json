@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@heroicons/vue": "^2.0.12",
-    "@speckle/viewer-tools": "2026.9.0",
-    "@speckle/viewer-webgpu": "2026.9.0",
+    "@speckle/viewer-tools": "2026.9.3",
+    "@speckle/viewer-webgpu": "2026.9.3",
     "@vueuse/core": "^13.2.0",
     "hyparquet": "^1.16.0",
     "hyparquet-compressors": "^1.1.1",
