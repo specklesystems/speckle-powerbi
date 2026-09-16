@@ -119,34 +119,22 @@
         Candidate = (parts as list, depth as number) as text =>
             Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
 
-        // Orphan bridge rows are ignored. More than one bridge row for an
-        // object that is present in Objects is invalid, even if the rows match.
-        bridgeRows = Table.RemoveColumns(
-            Table.NestedJoin(
-                Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
-                {"Object Key"},
-                Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
-                "__obj", JoinKind.Inner
-            ),
-            {"__obj"}
+        // The bundle spec puts no uniqueness constraint on object_type
+        // (speckle-bundle-spec spec/bundle-spec.sql), so an object may link to
+        // several types. Repeated links collapse rather than projecting twice.
+        // A path shared by two linked types is left to fail at record
+        // construction: the spec defines no winner, so none is picked here.
+        linkedObjectTypes = Table.Distinct(
+            Table.RemoveColumns(
+                Table.NestedJoin(
+                    Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
+                    {"Object Key"},
+                    Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
+                    "__obj", JoinKind.Inner
+                ),
+                {"__obj"}
+            )
         ),
-        duplicateObjectKeys = Table.Column(
-            Table.SelectRows(
-                Table.Group(bridgeRows, {"Object Key"}, {{"__count", Table.RowCount, Int64.Type}}),
-                each [__count] > 1
-            ),
-            "Object Key"
-        ),
-        validatedBridge = if List.IsEmpty(duplicateObjectKeys) then
-            bridgeRows
-        else
-            error Error.Record(
-                "Speckle.AddProperties.InvalidObjectTypes",
-                "Object Types must contain at most one row per object. Repeated Object Key values: "
-                    & Text.Combine(List.Transform(duplicateObjectKeys, each Text.From(_)), ", ")
-                    & ".",
-                [ObjectKeys = duplicateObjectKeys]
-            ),
 
         // Paths is the small dimension. Filter it before either fact join so
         // the large fact scans carry only requested keys and the raw Value.
@@ -188,7 +176,7 @@
         requestedTypeValues = SelectRequestedPropertyValues(validatedTypeProperties, "type_key"),
         projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
-                validatedBridge, {"type_key"},
+                linkedObjectTypes, {"type_key"},
                 requestedTypeValues, {"type_key"},
                 "__type", JoinKind.Inner
             ),

@@ -40,7 +40,7 @@ listing the failed facts.
   `useFullPaths` bool (`false` default shortest suffixes, `true` entire paths,
   numeric-suffix disambiguation for full-depth collisions, loud errors for
   non-logical values), raw values,
-  malformed facts, source-shape validation, Object Types invariants, and
+  malformed facts, source-shape validation, many-to-many Object Types links, and
   federated-key behavior.
 - `AddAllProperties.query.pq` — the convenience wrapper that appends every path
   in Source's Property Paths row through `Speckle.AddProperties`, with Objects
