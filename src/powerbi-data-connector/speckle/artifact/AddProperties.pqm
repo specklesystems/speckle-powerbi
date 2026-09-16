@@ -119,34 +119,22 @@
         Candidate = (parts as list, depth as number) as text =>
             Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
 
-        // Orphan bridge rows are ignored. More than one bridge row for an
-        // object that is present in Objects is invalid, even if the rows match.
-        bridgeRows = Table.RemoveColumns(
-            Table.NestedJoin(
-                Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
-                {"Object Key"},
-                Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
-                "__obj", JoinKind.Inner
-            ),
-            {"__obj"}
+        // Object Types is many-to-many: nwextract writes one row per type tab,
+        // so a Revit element in an NWD links to several types. Orphan rows are
+        // ignored and exact repeats collapse, so each linked type projects once;
+        // two linked types sharing a path still reach record construction and
+        // fail loudly like any other duplicate fact.
+        validatedBridge = Table.Distinct(
+            Table.RemoveColumns(
+                Table.NestedJoin(
+                    Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
+                    {"Object Key"},
+                    Table.SelectColumns(validatedObjects, {"Object Key"}), {"Object Key"},
+                    "__obj", JoinKind.Inner
+                ),
+                {"__obj"}
+            )
         ),
-        duplicateObjectKeys = Table.Column(
-            Table.SelectRows(
-                Table.Group(bridgeRows, {"Object Key"}, {{"__count", Table.RowCount, Int64.Type}}),
-                each [__count] > 1
-            ),
-            "Object Key"
-        ),
-        validatedBridge = if List.IsEmpty(duplicateObjectKeys) then
-            bridgeRows
-        else
-            error Error.Record(
-                "Speckle.AddProperties.InvalidObjectTypes",
-                "Object Types must contain at most one row per object. Repeated Object Key values: "
-                    & Text.Combine(List.Transform(duplicateObjectKeys, each Text.From(_)), ", ")
-                    & ".",
-                [ObjectKeys = duplicateObjectKeys]
-            ),
 
         // Paths is the small dimension. Filter it before either fact join so
         // the large fact scans carry only requested keys and the raw Value.

@@ -389,37 +389,38 @@ let
         {"properties.Dimensions.Area", "Type_properties.Dimensions.Area"}, true
     ),
 
-    DuplicateObjectTypes = #table(
+    // Navisworks bundles link one object to several types (one per type tab):
+    // object 2 links to both types, object 1 repeats its link, 99 is orphaned
+    MultiTypeObjectTypes = #table(
         type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
         {{1, 100}, {1, 100}, {2, 100}, {2, 101}, {3, 101}, {99, 100}, {99, 101}}
     ),
-    DuplicateObjectTypesResult = try Table.RowCount(
+    MultiTypeSource = MakeSource(
+        Objects, PropertyValues, Paths, MultiTypeObjectTypes, TypeProperties
+    ),
+    MultiTypeResult = Speckle.AddProperties(
+        MultiTypeSource,
+        {"properties.Dimensions.Area", "properties.Quantities.Area"}
+    ),
+    MultiTypeUnknownPathResult = Speckle.AddProperties(
+        MultiTypeSource,
+        {"properties.Unknown.Value"}
+    ),
+    SharedTypePathResult = try Text.FromBinary(Json.FromValue(Table.ToRows(
         Speckle.AddProperties(
             MakeSource(
-                Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties
+                #table(type table [#"Object Key" = Int64.Type], {{1}}),
+                #table(type table [#"Object Key" = Int64.Type, path_key = Int64.Type, Value = any], {}),
+                Paths,
+                #table(type table [#"Object Key" = Int64.Type, type_key = Int64.Type], {{1, 100}, {1, 101}}),
+                #table(
+                    type table [type_key = Int64.Type, path_key = Int64.Type, Value = any],
+                    {{100, 10, "first-type"}, {101, 10, "second-type"}}
+                )
             ),
             {"properties.Dimensions.Area"}
         )
-    ),
-    DuplicateObjectTypesError = if not DuplicateObjectTypesResult[HasError] then
-        [Reason = null, ObjectKeys = {}]
-    else
-        [
-            Reason = try DuplicateObjectTypesResult[Error][Reason] otherwise null,
-            ObjectKeys = try DuplicateObjectTypesResult[Error][Detail][ObjectKeys] otherwise {}
-        ],
-    DuplicateObjectTypesUnknownPathResult = try Text.FromBinary(Json.FromValue(Table.ToRows(
-        Speckle.AddProperties(
-            MakeSource(
-                Objects, PropertyValues, Paths, DuplicateObjectTypes, TypeProperties
-            ),
-            {"properties.Unknown.Value"}
-        )
     ))),
-    DuplicateObjectTypesUnknownPathReason = if not DuplicateObjectTypesUnknownPathResult[HasError] then
-        null
-    else
-        try DuplicateObjectTypesUnknownPathResult[Error][Reason] otherwise null,
 
     FederatedObjects = #table(
         type table [#"Object Key" = Int64.Type, #"Application ID" = text],
@@ -763,14 +764,33 @@ let
             ]
         ),
         Fact(
-            "duplicate Object Types rows for present objects report every offending key while orphan rows are ignored",
-            [Reason = "Speckle.AddProperties.InvalidObjectTypes", ObjectKeys = {1, 2}],
-            DuplicateObjectTypesError
+            "an object linked to several types gets each type's values, repeated links project once and orphan links are ignored",
+            [
+                Columns = {
+                    "Object Key", "Application ID",
+                    "Dimensions.Area", "Type_Dimensions.Area", "Type_Quantities.Area"
+                },
+                Rows = {
+                    {1, "one", "instance-area", "type-area", null},
+                    {2, "two", null, "type-area", "type-quantity"},
+                    {3, "three", null, null, "type-quantity"},
+                    {4, "four", null, null, null}
+                }
+            ],
+            [
+                Columns = Table.ColumnNames(MultiTypeResult),
+                Rows = Table.ToRows(MultiTypeResult)
+            ]
         ),
         Fact(
-            "Object Types uniqueness is validated for every nonempty request even when the path is unknown",
-            "Speckle.AddProperties.InvalidObjectTypes",
-            DuplicateObjectTypesUnknownPathReason
+            "a multi-type bridge does not fail a request whose path is unknown",
+            {{1, "one", null}, {2, "two", null}, {3, "three", null}, {4, "four", null}},
+            Table.ToRows(MultiTypeUnknownPathResult)
+        ),
+        Fact(
+            "two linked types carrying the same path fail instead of silently selecting a value",
+            true,
+            SharedTypePathResult[HasError]
         ),
         Fact(
             "federated duplicate Property text resolves through namespaced keys and the split surfaces the type value previously hidden behind model A's instance value",

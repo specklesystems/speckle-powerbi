@@ -187,7 +187,8 @@
         PropertiesOut = ShapeValueFact(fact, "Object Key", "object_index"),
 
         // ---- the type arm: deduped, tiny, resolved by relationships ----------
-        // Object Types bridge (one row per object with a type) + Type Properties
+        // Object Types bridge (one row per object-type link; an object may link
+        // to several types) + Type Properties
         // fact (one row per type-param). Slice: Type Properties -> Object Types ->
         // Objects with both-direction cross-filtering. NOTE: an instance override
         // of a type param coexists with the type row (instance-wins is a query-
