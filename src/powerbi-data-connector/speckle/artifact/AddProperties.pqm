@@ -119,12 +119,12 @@
         Candidate = (parts as list, depth as number) as text =>
             Text.Combine(List.LastN(parts, List.Min({depth, List.Count(parts)})), "."),
 
-        // Object Types is many-to-many: nwextract writes one row per type tab,
-        // so a Revit element in an NWD links to several types. Orphan rows are
-        // ignored and exact repeats collapse, so each linked type projects once;
-        // two linked types sharing a path still reach record construction and
-        // fail loudly like any other duplicate fact.
-        validatedBridge = Table.Distinct(
+        // The bundle spec puts no uniqueness constraint on object_type
+        // (speckle-bundle-spec spec/bundle-spec.sql), so an object may link to
+        // several types. Repeated links collapse rather than projecting twice.
+        // A path shared by two linked types is left to fail at record
+        // construction: the spec defines no winner, so none is picked here.
+        linkedObjectTypes = Table.Distinct(
             Table.RemoveColumns(
                 Table.NestedJoin(
                     Table.SelectColumns(validatedObjectTypes, {"Object Key", "type_key"}),
@@ -176,7 +176,7 @@
         requestedTypeValues = SelectRequestedPropertyValues(validatedTypeProperties, "type_key"),
         projectedTypeValues = Table.ExpandTableColumn(
             Table.NestedJoin(
-                validatedBridge, {"type_key"},
+                linkedObjectTypes, {"type_key"},
                 requestedTypeValues, {"type_key"},
                 "__type", JoinKind.Inner
             ),

@@ -389,7 +389,6 @@ let
         {"properties.Dimensions.Area", "Type_properties.Dimensions.Area"}, true
     ),
 
-    // Navisworks bundles link one object to several types (one per type tab):
     // object 2 links to both types, object 1 repeats its link, 99 is orphaned
     MultiTypeObjectTypes = #table(
         type table [#"Object Key" = Int64.Type, type_key = Int64.Type],
