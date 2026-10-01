@@ -309,7 +309,7 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
                     <div id="app"></div>
                     <script>
                       window.onload = function() {
-                        const visual = specklePowerBiVisual.default.create({
+                        const visual = window['${pbivizFile.visual.guid}_DEBUG'].default.create({
                           element: document.getElementById('app'),
                           host: {
                             // Mock the host object
