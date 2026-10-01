@@ -833,7 +833,7 @@ export class Visual implements IVisual {
  * on all of them.
  * ---------------------------------------------------------------------- */
 try {
-  const PLUGIN_NAMES = ['specklePowerBiVisual_DEBUG', 'specklePowerBiVisual']
+  const PLUGIN_NAMES = ['specklePowerBiVisualWebGpu_DEBUG', 'specklePowerBiVisualWebGpu']
   const plugin = {
     name: PLUGIN_NAMES[0],
     displayName: 'Speckle probe',
