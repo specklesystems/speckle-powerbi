@@ -96,6 +96,15 @@
         
         // parse the response
         JsonResponse = Json.Document(Source),
+
+        // bundle-only versions carry the server's bundle reference
+        // (`bundle.<projectId>.<modelId>.<versionId>`) in referencedObject. It
+        // names no object and 404s on /objects, so it means "no JSON representation".
+        JsonRootObjectId = (referencedObject as nullable text) as nullable text =>
+            if referencedObject <> null and Text.StartsWith(referencedObject, "bundle.") then
+                null
+            else
+                referencedObject,
         
         // extract needed information, now handling both version-specific and latest version cases
         result = if Record.HasFields(JsonResponse, {"errors"}) then
@@ -107,7 +116,7 @@
                 modelId = JsonResponse[data][project][model][id],
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][versions][items]{0}[id],
-                rootObjectId = JsonResponse[data][project][model][versions][items]{0}[referencedObject],
+                rootObjectId = JsonRootObjectId(JsonResponse[data][project][model][versions][items]{0}[referencedObject]),
                 sourceApplication = JsonResponse[data][project][model][versions][items]{0}[sourceApplication]
             ]
         else
@@ -115,7 +124,7 @@
                 modelId = JsonResponse[data][project][model][id],
                 modelName = JsonResponse[data][project][model][name],
                 versionId = JsonResponse[data][project][model][version][id],
-                rootObjectId = JsonResponse[data][project][model][version][referencedObject],
+                rootObjectId = JsonRootObjectId(JsonResponse[data][project][model][version][referencedObject]),
                 sourceApplication = JsonResponse[data][project][model][version][sourceApplication]
             ]
     in
