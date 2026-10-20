@@ -159,6 +159,7 @@ interface DecodedModelInfoLite {
   token?: string
   pipeline?: string
   schemaVersion?: number
+  userId?: string | null
 }
 
 export class Visual implements IVisual {
@@ -625,7 +626,7 @@ export class Visual implements IVisual {
       return (
         `pipeline=${info.pipeline} schema=${info.schemaVersion} server=${info.server} ` +
         `project=${info.projectId} model=${info.modelId} version=${info.versionId} ` +
-        `token=${info.token ? 'yes' : 'NO'}`
+        `token=${info.token ? 'yes' : 'NO'} userId=${info.userId ? 'yes' : 'NO'}`
       )
     })
     if (!info) return

@@ -121,6 +121,7 @@
         userInfo = GetUser(metadataUrl),
         powerfulToken = userInfo[Token],
         userEmail = userInfo[UserEmail],
+        userId = userInfo[UserId],
         workspaceInfo = GetWorkspace(metadataUrl),
 
         tokenExchangeResult = ExchangeToken(
@@ -218,7 +219,8 @@
                     canHideBranding = workspaceInfo[canHideBranding],
                     sourceApplication = modelInfo[sourceApplication],
                     version = ConnectorVersion,
-                    email = userEmail
+                    email = userEmail,
+                    userId = userId
                 ],
 
                 encodedUserInfo = Observe(markReceivedResult, EncodeUserInfo(userInfoData))

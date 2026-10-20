@@ -198,6 +198,7 @@ export function resetPalette() {
 
 export type ReceiveInfo = {
   userEmail: string
+  userId?: string
   serverUrl: string
   sourceApplication?: string
   workspaceId?: string
@@ -297,6 +298,7 @@ export async function processMatrixView(
     const primary = modelInfos[0]
     visualStore.setReceiveInfo({
       userEmail: primary.email,
+      userId: primary.userId || undefined,
       serverUrl: primary.server,
       sourceApplication: getSlugFromHostAppNameAndVersion(primary.sourceApplication || ''),
       workspaceId: primary.workspaceId || undefined,

@@ -248,7 +248,7 @@
     {
       "essential": true,
       "name": "WebAccess",
-      "parameters": ["https://analytics.speckle.systems", "*"]
+      "parameters": ["https://eu.i.posthog.com", "*"]
     },
     {
       "essential": false,
