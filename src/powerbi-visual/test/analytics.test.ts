@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { buildReceiveEvent, trackReceive } from '../src/utils/analytics'
+import { buildReceiveEvent, parseVersion, trackReceive } from '../src/utils/analytics'
 
 const deps = {
   visualVersion: '2026.10.1',
@@ -46,6 +46,9 @@ assert.deepEqual(buildReceiveEvent(appReceiveInfo, receiveProps, deps), {
     hostAppSlug: 'powerbi',
     hostEnv: 'Desktop',
     connectorVersion: '2026.10.1',
+    connectorVersionMajor: 2026,
+    connectorVersionMinor: 10,
+    connectorVersionPatch: 1,
     email: 'me@example.com',
     workspace_id: 'workspace-1',
     sourceHostApp: 'revit',
@@ -57,8 +60,20 @@ assert.deepEqual(buildReceiveEvent(appReceiveInfo, receiveProps, deps), {
 const sparse = buildReceiveEvent({ ...appReceiveInfo, version: undefined }, {}, deps)
 assert.equal(sparse?.properties.hostEnv, null)
 assert.equal(sparse?.properties.connectorVersion, null)
+assert.equal(sparse?.properties.connectorVersionMajor, null)
 assert.equal(sparse?.properties.workspace_id, null)
 assert.equal(sparse?.properties.sourceHostApp, null)
+
+// version parsing keeps the numeric core and ignores SemVer 2.0 pre-release and build metadata
+assert.deepEqual(parseVersion('2026.10.1'), [2026, 10, 1])
+assert.deepEqual(parseVersion('1.0.0-beta.123+ajksdfjkahlsdf'), [1, 0, 0])
+assert.deepEqual(parseVersion('2026.10.1-alpha.1234'), [2026, 10, 1])
+assert.deepEqual(parseVersion('4.0.9.1234'), [4, 0, 9])
+assert.deepEqual(parseVersion('2026.10'), [null, null, null])
+assert.deepEqual(parseVersion('v2026.10.1'), [null, null, null])
+assert.deepEqual(parseVersion('garbage'), [null, null, null])
+assert.deepEqual(parseVersion(''), [null, null, null])
+assert.deepEqual(parseVersion(undefined), [null, null, null])
 
 const run = async () => {
   // trackReceive posts the built event as JSON

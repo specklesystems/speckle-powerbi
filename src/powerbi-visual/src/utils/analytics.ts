@@ -46,6 +46,7 @@ export function buildReceiveEvent(
   if (server.origin !== TRACKED_ORIGIN) return null
   // Older data connectors emit no userId; skip rather than fall back to email (ENG-10892)
   if (!receiveInfo.userId) return null
+  const [major, minor, patch] = parseVersion(receiveInfo.version)
 
   return {
     api_key: POSTHOG_API_KEY,
@@ -61,6 +62,9 @@ export function buildReceiveEvent(
       hostEnv:
         props.hostEnv === undefined ? null : HOST_ENV_NAMES[props.hostEnv] ?? String(props.hostEnv),
       connectorVersion: receiveInfo.version ?? null,
+      connectorVersionMajor: major,
+      connectorVersionMinor: minor,
+      connectorVersionPatch: patch,
       email: receiveInfo.userEmail,
       workspace_id: props.workspace_id ?? null,
       sourceHostApp: props.sourceHostApp ?? null,
@@ -94,6 +98,15 @@ export async function trackReceive(
   } catch (error) {
     console.warn('Failed to track event in PostHog:', error)
   }
+}
+
+// Leading numeric core only; SemVer 2.0 pre-release/build metadata and a 4th file-version segment are ignored
+export function parseVersion(
+  version: string | undefined
+): [number | null, number | null, number | null] {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[.\-+]|$)/.exec(version ?? '')
+  if (!match) return [null, null, null]
+  return [Number(match[1]), Number(match[2]), Number(match[3])]
 }
 
 function detectOs(userAgent: string): string {
