@@ -30,7 +30,8 @@ in
             
             query = "query {
                     activeUser {
-                        email 
+                        id
+                        email
                         name
                     }
                     serverInfo {
@@ -57,6 +58,7 @@ in
                 error JsonResponse[errors]{0}[message]
             else
                 [
+                    UserId = try JsonResponse[data][activeUser][id] otherwise null,
                     UserEmail = try JsonResponse[data][activeUser][email] otherwise "",
                     UserName = try JsonResponse[data][activeUser][name] otherwise "",
                     ServerName = JsonResponse[data][serverInfo][name],

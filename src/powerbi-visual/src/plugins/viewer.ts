@@ -52,7 +52,7 @@ import {
 import type { LoadProgress } from '@src/viewer3/loadProgress'
 import { useVisualStore } from '@src/store/visualStore'
 import { DecodedModelInfo } from '@src/utils/decodeUserInfo'
-import { Tracker } from '@src/utils/mixpanel'
+import { trackReceive } from '@src/utils/analytics'
 import { createNanoEvents, Emitter } from 'nanoevents'
 
 /** How much of the geometry the renderer keeps resident (viewer-3 out-of-core budget). */
@@ -773,10 +773,10 @@ export class ViewerHandler {
     // scene views from the object graph don't exist on the artifact path
     store.setSpeckleViews([])
 
-    Tracker.dataLoaded({
-      sourceHostApp: store.receiveInfo.sourceApplication,
-      workspace_id: store.receiveInfo.workspaceId,
-      core_version: store.receiveInfo.version
+    void trackReceive(store.receiveInfo, {
+      sourceHostApp: store.receiveInfo?.sourceApplication,
+      workspace_id: store.receiveInfo?.workspaceId,
+      hostEnv: store.host?.['hostEnv'] as number | undefined
     })
 
     if (store.cameraPosition) {

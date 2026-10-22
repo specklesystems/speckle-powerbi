@@ -18,6 +18,7 @@ export interface DecodedModelInfo {
   versionId: string
   token: string // weak token with limited scopes
   email?: string
+  userId?: string | null
   workspaceId?: string | null
   workspaceName?: string | null
   workspaceLogo?: string | null
