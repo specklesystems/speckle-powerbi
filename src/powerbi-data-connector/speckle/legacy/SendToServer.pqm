@@ -41,14 +41,14 @@
                         Message = "No token supplied and no credential available for the object download."
                     ],
 
-        // versions without a JSON representation (4.0 artifact-only) have no
+        // versions without a JSON representation (artifact-only) have no
         // root object to download — fail clearly instead of building a bad URL
         rootObjectId = if modelInfo[rootObjectId] <> null then
             modelInfo[rootObjectId]
         else
             error [
                 Reason = "JsonRepresentationUnavailable",
-                Message.Format = "Model '#{0}' (version #{1}) has no JSON representation to download. Load it with Speckle.GetTables(url) and use the Speckle 4.0 visual instead.",
+                Message.Format = "Model '#{0}' (version #{1}) has no data available for JSON download. Use Speckle.GetTables(url) with the latest Speckle 3D visual instead.",
                 Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                 Detail = [
                     ModelId = modelInfo[modelId],

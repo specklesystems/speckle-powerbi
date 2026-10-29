@@ -127,7 +127,7 @@
                 if artifacts <> null then
                     error [
                         Reason = "JsonRepresentationUnavailable",
-                        Message.Format = "Model '#{0}' (version #{1}) has no JSON representation: it was published as a 4.0 artifact-only version. Load it with Speckle.GetTables(url) and use the Speckle 4.0 visual instead — Speckle.GetByUrl only reads versions that have a JSON representation.",
+                        Message.Format = "Model '#{0}' (version #{1}) uses a data format that Speckle.GetByUrl cannot load. Use Speckle.GetTables(url) with the latest Speckle 3D visual instead.",
                         Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                         Detail = [
                             ModelId = modelInfo[modelId],
@@ -139,7 +139,7 @@
                 else
                     error [
                         Reason = "DataUnavailable",
-                        Message.Format = "Model '#{0}' (version #{1}) has no loadable data: the server reports neither a JSON representation nor a 4.0 artifact bundle for this version.",
+                        Message.Format = "Model '#{0}' (version #{1}) has no data available to load. Publish a new version of the model and try again.",
                         Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                         Detail = [
                             ModelId = modelInfo[modelId],

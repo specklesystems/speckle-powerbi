@@ -1,4 +1,4 @@
-// ARTIFACT PATH — the 4.0 star-schema pipeline behind Speckle.GetTables
+// ARTIFACT PATH — the star-schema pipeline behind Speckle.GetTables
 // (ENG-9165). Reads artifact bundles only: versions without a bundle are NOT
 // adapted from their JSON representation; they error towards Speckle.GetByUrl.
 // Returns the star-schema navigation table.
@@ -155,7 +155,7 @@
             if modelInfo[rootObjectId] <> null then
                 error [
                     Reason = "ArtifactBundleUnavailable",
-                    Message.Format = "Model '#{0}' (version #{1}) has no 4.0 artifact bundle: it was published with a pre-4.0 connector. Load it with Speckle.GetByUrl(url) and the legacy Speckle visual, or republish the model with a 4.0 connector to get star-schema tables.",
+                    Message.Format = "Model '#{0}' (version #{1}) was published in an older data format that Speckle.GetTables cannot load. Use Speckle.GetByUrl(url) with the legacy Speckle visual, or republish the model using the latest Speckle connector to load it with Speckle.GetTables.",
                     Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                     Detail = [
                         ModelId = modelInfo[modelId],
@@ -167,7 +167,7 @@
             else
                 error [
                     Reason = "DataUnavailable",
-                    Message.Format = "Model '#{0}' (version #{1}) has no loadable data: the server reports neither a 4.0 artifact bundle nor a JSON representation for this version.",
+                    Message.Format = "Model '#{0}' (version #{1}) has no data available to load. Publish a new version of the model and try again.",
                     Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                     Detail = [
                         ModelId = modelInfo[modelId],
