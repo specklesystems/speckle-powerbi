@@ -155,7 +155,7 @@
             if modelInfo[rootObjectId] <> null then
                 error [
                     Reason = "ArtifactBundleUnavailable",
-                    Message.Format = "Model '#{0}' (version #{1}) was published in an older data format that Speckle.GetTables cannot load. Use Speckle.GetByUrl(url) with the legacy Speckle visual, or republish the model using the latest Speckle connector to load it with Speckle.GetTables.",
+                    Message.Format = "Model '#{0}' (version #{1}) has JSON data but no artifact bundle, so Speckle.GetTables cannot load it. Use Speckle.GetByUrl(url) with the 3D visual from Power BI release 2026.6.0. To use Speckle.GetTables (introduced in Power BI 2026.9.0), republish the model with a Speckle connector that supports artifact bundles.",
                     Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                     Detail = [
                         ModelId = modelInfo[modelId],

@@ -134,7 +134,7 @@ GetStructuredData.Impl = Speckle.LoadFunction("GetStructuredData.pqm");
 shared Speckle.GetStructuredData = Value.ReplaceType(
     (url as text) as table => GetStructuredData.Impl(url),
     type function (url as Uri.Type) as table meta [
-        Documentation.LongDescription = "3.x compatibility: returns the flat objects table built from the version's JSON representation. Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables instead."
+        Documentation.LongDescription = "3.x compatibility: returns the flat objects table built from the version's JSON representation. Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables and the 3D visual from Power BI release 2026.9.0 or later."
     ]
 );
 
@@ -146,7 +146,7 @@ SendToServer.Impl = Speckle.LoadFunction("SendToServer.pqm");
 shared Speckle.SendToServer = Value.ReplaceType(
     (url as text) => SendToServer.Impl(url),
     type function (url as Uri.Type) as table meta [
-        Documentation.LongDescription = "3.x compatibility: downloads the version's raw JSON object tree. Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables instead."
+        Documentation.LongDescription = "3.x compatibility: downloads the version's raw JSON object tree. Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables and the 3D visual from Power BI release 2026.9.0 or later."
     ]
 );
 
@@ -278,8 +278,8 @@ shared Speckle.GetByUrl = Value.ReplaceType(
         Documentation.Name = "Speckle - Get Data by URL",
         Documentation.DisplayName = "Speckle - Get Data by URL",
         Documentation.LongDescription = "Returns structured data from a Speckle model URL.#(lf)
-            Reads the version's JSON representation (the 3.x contract used by existing reports and the legacy 3D visual).#(lf)
-            Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables.#(lf)
+            Reads the version's JSON representation for use with the 3D visual from Power BI release 2026.6.0.#(lf)
+            Versions published only as artifact bundles have no JSON representation — load those with Speckle.GetTables and the 3D visual from Power BI release 2026.9.0 or later.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)
@@ -328,7 +328,7 @@ shared Speckle.GetTables = Value.ReplaceType(
         Documentation.Name = "Speckle - Get Tables",
         Documentation.DisplayName = "Speckle - Get Tables",
         Documentation.LongDescription = "Returns the model data from the version's artifact bundle. With the default Simplified table layout the Navigator lists three entries:#(lf)
-            - Objects (Object Key, Application ID, Model Info) — feeds the latest Speckle 3D visual#(lf)
+            - Objects (Object Key, Application ID, Model Info) — feeds the 3D visual from Power BI release 2026.9.0 or later#(lf)
             - Properties (function) — returns a lean table of Object Key plus the selected property columns, one row per Objects row#(lf)
             - Relations (function): returns a lean table of Object Key plus selected outgoing relation columns such as ON_LEVEL#(lf)
             Invoke Properties into its own query, load that result and relate it one-to-one to Objects on Object Key; keep Properties connection-only.#(lf)
@@ -337,7 +337,7 @@ shared Speckle.GetTables = Value.ReplaceType(
             Column names default to the shortest unique trailing part of each dotted path; the optional Use full paths setting (true/false) switches to entire paths.#(lf)
             Speckle.AddProperties(source, propertyPaths, objects, useFullPaths) and Speckle.AddAllProperties(source, objects, useFullPaths) remain available for M code. Pass the Speckle.GetTables result as source; an optional Objects override can be a filtered subset with extra columns.#(lf)
             The source also carries hidden supporting property and graph tables. The Table layout setting under Advanced options (Simplified / All tables; in M: Speckle.GetTables(url, [TableLayout = ""All tables""])) shows them in the Navigator for building your own relationships.#(lf)
-            Versions published only in the older JSON format have no artifact bundle — load those with Speckle.GetByUrl.#(lf)
+            Versions with JSON data but no artifact bundle must be loaded with Speckle.GetByUrl and the 3D visual from Power BI release 2026.6.0.#(lf)
             Supports the following URL formats:#(lf)
             - Model URL: Gets the latest version of the specified model#(lf)
               (e.g., 'https://app.speckle.systems/projects/PROJECT_ID/models/MODEL_ID')#(lf)

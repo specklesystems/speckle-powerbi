@@ -127,7 +127,7 @@
                 if artifacts <> null then
                     error [
                         Reason = "JsonRepresentationUnavailable",
-                        Message.Format = "Model '#{0}' (version #{1}) uses a data format that Speckle.GetByUrl cannot load. Use Speckle.GetTables(url) with the latest Speckle 3D visual instead.",
+                        Message.Format = "Model '#{0}' (version #{1}) has an artifact bundle but no JSON data, so Speckle.GetByUrl cannot load it. Use Speckle.GetTables(url) with the 3D visual from Power BI release 2026.9.0 or later.",
                         Message.Parameters = {modelInfo[modelName], modelInfo[versionId]},
                         Detail = [
                             ModelId = modelInfo[modelId],
