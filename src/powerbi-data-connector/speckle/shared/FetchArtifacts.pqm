@@ -1,6 +1,6 @@
-// Fetches the 4.0 artifact bundle file list for a version.
+// Fetches the artifact bundle file list for a version.
 // Returns the list of { name, url, expiresAt } records with presigned GET URLs,
-// or null when the version has no artifact bundle (pre-4.0 version -> caller
+// or null when the version has no artifact bundle (JSON-only version -> caller
 // falls back to the legacy JSON path).
 (baseUrl as text, projectId as text, modelId as text, versionId as text, token as text) as nullable list =>
     let

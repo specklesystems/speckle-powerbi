@@ -41,7 +41,7 @@ let
         Fact("GetByUrl required arity", 1, RequiredCount(Speckle.GetByUrl)),
         Fact("GetByUrl returns table", true, ReturnsTable(Speckle.GetByUrl)),
 
-        // the 4.0 star schema is a separate entry point
+        // the star schema is a separate entry point
         Fact("GetTables parameters", {"url", "options"}, ParamNames(Speckle.GetTables)),
         Fact("GetTables required arity", 1, RequiredCount(Speckle.GetTables)),
         Fact("GetTables returns table", true, ReturnsTable(Speckle.GetTables)),
