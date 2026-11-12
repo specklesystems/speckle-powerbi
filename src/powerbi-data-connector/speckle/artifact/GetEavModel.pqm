@@ -1,4 +1,4 @@
-// Builds the star-schema tables from a 4.0 artifact bundle's eav and envelope
+// Builds the star-schema tables from an artifact bundle's eav and envelope
 // parquet files.
 // The bundle IS a star schema (fact eav.eav, dims eav.objects/eav.paths); this
 // module preserves it so Power BI model relationships do the joins at query

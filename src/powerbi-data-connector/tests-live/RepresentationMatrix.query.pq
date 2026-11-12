@@ -8,8 +8,8 @@
 // | version representation | Speckle.GetByUrl        | Speckle.GetTables        |
 // | ----------------------- | ----------------------- | ------------------------ |
 // | JSON and artifact       | legacy flat table       | star-schema tables       |
-// | JSON only (pre-4.0)     | legacy flat table       | error ArtifactBundleUnavailable |
-// | artifact only (4.0)     | error JsonRepresentationUnavailable | star-schema tables |
+// | JSON only               | legacy flat table       | error ArtifactBundleUnavailable |
+// | artifact only           | error JsonRepresentationUnavailable | star-schema tables |
 // | neither                 | error DataUnavailable   | error DataUnavailable    |
 let
     // -- fill these in ------------------------------------------------------
