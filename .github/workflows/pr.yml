@@ -51,6 +51,8 @@ jobs:
 
       - run: npm ci
         working-directory: src/powerbi-visual
+      - run: npm test
+        working-directory: src/powerbi-visual
       - run: npm run build
         working-directory: src/powerbi-visual
 
