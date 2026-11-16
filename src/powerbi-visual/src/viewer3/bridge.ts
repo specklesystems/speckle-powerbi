@@ -91,7 +91,10 @@ export const createRendererBridge = (): RendererBridge => {
   const handle: ViewerHandle = {
     on: (event, handler) => emitter.on(event, handler),
     getModelMaps: (modelId) => modelMaps.get(modelId),
-    setColor: (placements, rgba) => live?.setColor(placements, rgba),
+    setColor: (placements, rgba) => {
+      // Packed 0xRRGGBBAA here; viewer-webgpu >= 2026.10.12 takes 0xRRGGBB and a 0–1 alpha.
+      live?.setColor(placements, (rgba >>> 8) & 0xffffff, (rgba & 0xff) / 255)
+    },
     resetMaterials: (placements) => live?.resetMaterialBatched(placements),
     hideObjects: (indices) => live?.hideObjects(indices),
     showObjects: (indices) => live?.showObjects(indices),

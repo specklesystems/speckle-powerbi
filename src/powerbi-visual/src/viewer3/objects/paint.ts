@@ -9,11 +9,10 @@
  * state into renderer calls. Two paint strategies:
  *
  *  - {@link paintEffectiveState} — the fused slam: hide everything, show the
- *    visible-but-untinted survivors, then one setColor per distinct tint.
- *    Exploits the renderer's single per-placement material slot: a tint
- *    carries its own visibility (alpha rides the slot), so tinted placements
- *    are never shown twice. Used for any composite flush and for every
- *    command whose effect isn't a cheap forward delta.
+ *    survivors, then one setColor per distinct tint. viewer-webgpu >= 2026.10.12
+ *    keeps visibility on a flag, so a tint does not show a placement. Used for
+ *    any composite flush and for every command whose effect isn't a cheap
+ *    forward delta.
  *  - forward deltas ({@link paintGroups}, {@link paintFilterDelta},
  *    {@link paintOverlaysDiff}) — when a flush contains exactly one small
  *    change (a hide/show of a few objects, a filter edit, a colour/selection
@@ -191,10 +190,9 @@ export const paintOverlaysDiff = (input: {
     const previousByObject = previous.get(modelId)
 
     // Reset pass: previously tinted objects with no tint anymore go back to
-    // the authored material. The renderer's show/hide writes ONLY the alpha
-    // channel of the shared material slot, so a stale tint RGB survives
-    // visibility flips — invisible leavers must ALSO heal, via restore (full
-    // authored RGBA, which would resurrect them) immediately re-hidden.
+    // the authored material. show/hide only flips the hidden flag, so a stale
+    // tint survives a visibility flip — and reset clears that flag, so
+    // invisible leavers are restored and immediately re-hidden.
     if (previousByObject) {
       const leavingVisible: number[] = []
       const leavingInvisible: number[] = []
@@ -250,9 +248,9 @@ export const paintOverlaysDiff = (input: {
  * command that isn't a cheap forward delta (isolate, showAll, undo/redo,
  * filter activation/clearing…).
  *
- * Per model, exploiting the single material slot (a tint IS a show):
+ * Per model. A tint does not show a placement (viewer-webgpu >= 2026.10.12):
  *
- *   allow-set active:  hide everything → show visible∖tinted → tint batches
+ *   allow-set active:  hide everything → show survivors → tint batches
  *   no allow-set:      show everything → hide hidden → tint batches
  *
  * Exactly one requestRender at the end. Returns the fresh painted-overlays
@@ -286,11 +284,8 @@ export const paintEffectiveState = (input: {
       selectionColor
     })
 
-    // Restore leaving tints FIRST: the renderer's show/hide writes only the
-    // alpha channel of the shared slot, so "show everything" does NOT clear a
-    // stale tint's RGB — it must be explicitly reset to the authored
-    // material. Running before the branch's hide/show slam means the slam's
-    // alpha writes land on healed RGB, whatever the final visibility.
+    // Restore leaving tints first. show/hide does not clear a stale tint, and
+    // reset clears the hidden flag, so this runs before the hide/show slam.
     const previousByObject = previous.get(modelId)
     if (previousByObject) {
       const leaving: number[] = []
@@ -315,7 +310,7 @@ export const paintEffectiveState = (input: {
     }
 
     if (filter || manual.isolatedTo) {
-      // Allow-listed: hide the whole model, then show/tint the surviving base.
+      // Allow-listed: hide the whole model, then show the surviving base.
       renderer.hideObjects(Array.from(maps.objectCsr.placements))
       const filterSet = filter?.get(modelId)
       const isolatedSet = manual.isolatedTo?.get(modelId)
@@ -339,17 +334,18 @@ export const paintEffectiveState = (input: {
         base = filterSet ?? isolatedSet ?? []
       }
 
-      const untinted: number[] = []
+      // setColor does not clear the hidden flag, so tinted survivors are shown too.
+      const survivors: number[] = []
       for (const objectIndex of base) {
         if (hidden?.has(objectIndex)) continue
-        if (!bucketTint(objectIndex)) untinted.push(objectIndex)
+        bucketTint(objectIndex)
+        survivors.push(objectIndex)
       }
-      const placements = expandToPlacements(maps, untinted)
+      const placements = expandToPlacements(maps, survivors)
       if (placements.length) renderer.showObjects(placements)
     } else {
       // No allow-set: show the whole model, re-hide the explicit hides, then
-      // tint. Tints apply only to visible objects, and tinting after the
-      // show/hide pair is what makes them stick (shared slot).
+      // tint. Tints apply only to visible objects.
       renderer.showObjects(Array.from(maps.objectCsr.placements))
       if (hidden?.size) {
         const placements = expandToPlacements(maps, hidden)
