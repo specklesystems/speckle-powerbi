@@ -187,18 +187,7 @@ export const buildConfig = (params: { mode: 'dev' | 'prod' }) => {
             compress: true,
             port: devServerPort, // dev server port
             hot: false,
-            ...(certInfo
-              ? {
-                  server: {
-                    type: 'https',
-                    options: {
-                      ...certInfo
-                    }
-                  }
-                }
-              : {
-                  https: {}
-                }),
+            server: certInfo ? { type: 'https', options: { ...certInfo } } : 'https',
             liveReload: false,
             webSocketServer: false,
             headers: {

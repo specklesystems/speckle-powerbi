@@ -41,7 +41,7 @@
     "extra-watch-webpack-plugin": "^1.0.3",
     "html-webpack-plugin": "^5.6.3",
     "mini-css-extract-plugin": "^2.7.5",
-    "postcss": "^8.4.23",
+    "postcss": "^8.5.33",
     "postcss-loader": "^7.3.0",
     "postcss-nesting": "^14.0.0",
     "powerbi-visuals-api": "^5.11.0",
@@ -54,11 +54,16 @@
     "tsconfig-paths-webpack-plugin": "^4.0.1",
     "typescript": "^5.0.4",
     "user-agent-data-types": "^0.3.1",
-    "vue": "^3.5.13",
+    "vue": "^3.5.45",
     "vue-loader": "^17.4.2",
     "webpack": "^5.97.1",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^5.2.7"
+  },
+  "overrides": {
+    "sockjs": {
+      "uuid": "^11.1.1"
+    }
   },
   "version": "1.0.0",
   "engines": {
