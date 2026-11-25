@@ -11,10 +11,9 @@ filter = '''
 let path = attributes["path"];
 let rule = finding["rule_id"];
 let secret = finding["secret"];
-let generic = rule in ["generic-api-key", "generic-credential-uri", "generic-password"];
 
-// PostHog project keys (`phc_`) are sent by every client and are public by design.
-(rule == "posthog-project-api-key")
+// The PostHog project key (`phc_`) of the visual and its test: sent by every client, public by design.
+(rule == "posthog-project-api-key" && matchesAny(path, [`(?:^|/)src/powerbi-visual/src/utils/analytics\.ts$`, `(?:^|/)src/powerbi-visual/test/analytics\.test\.ts$`]))
 
 // Inno Setup translation file: `WizardPassword=Password` is a label.
 || (rule == "generic-password" && secret == "Password" && matchesAny(path, [`\.isl$`]))
