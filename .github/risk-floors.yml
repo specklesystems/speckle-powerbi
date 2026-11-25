@@ -1,0 +1,34 @@
+# Minimum colors for the risk check (risk-check/ in specklesystems/.github). A
+# changed file that matches a path here gets at least that color, plus one
+# comment that someone answers like an approver finding. Paths match from the
+# repo root: "*" stays inside one directory, "**" spans any number of them.
+# Everything under .github/ is red whatever this file says. A pull request that
+# leaves this file unreadable fails the risk check.
+yellow:
+  # Agent configuration
+  - '**/AGENTS.md'
+  - '**/CLAUDE.md'
+  - agents/**
+  - '**/.agents/**'
+  - '**/.claude/**'
+  - '**/.codex/**'
+  - '**/.omp/**'
+  # Authentication and permission code: Speckle.pq holds the OAuth flow
+  - src/powerbi-data-connector/Speckle.pq
+  - src/powerbi-data-connector/speckle/shared/ExchangeToken.pqm
+  - src/powerbi-data-connector/speckle/shared/CheckPermissions.pqm
+  # Betterleaks exceptions
+  - '**/.betterleaks.toml'
+  - '**/.betterleaksignore'
+  - '**/.gitleaksignore'
+  # Release: signing tools, the .pqx packer, the installer scripts, the script
+  # that writes the version into Speckle.pq, and the npm registry and release-age
+  # settings of the visual's build
+  - tools/**
+  - patch_version.py
+  - src/powerbi-visual/.npmrc
+red:
+  - .github/**
+# Machine accounts with write access: their color reviews and approvals never count.
+bots:
+  - SpeckleDevBot
